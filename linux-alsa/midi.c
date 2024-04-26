@@ -3,14 +3,14 @@
 #include "midi.h"
 #include "chip.h"
 
-#define MIDI_IN_EP				3
-#define MIDI_N_URBS				1
+#define MIDI_IN_EP		3
+#define MIDI_N_URBS		1
 
-#define PCM_ISO_EP				2
-#define ISO_BYTES_PER_FRAME		4
+#define PCM_ISO_EP		2
+#define ISO_BYTES_PER_FRAME	4
 
-#define PCM_N_ISO_URBS			8
-#define PCM_N_ISO_URBS_PKTS		1
+#define PCM_N_ISO_URBS		8
+#define PCM_N_ISO_URBS_PKTS	1
 
 #define XDB4_MIDI_PACKET_SIZE	512
 
