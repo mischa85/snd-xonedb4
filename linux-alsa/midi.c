@@ -46,7 +46,7 @@ struct midi_runtime {
 	bool active;
 
 	// struct iso_urb iso_urbs[PCM_N_ISO_URBS];
-    struct midi_urb midi_in_urbs[MIDI_N_URBS];
+	struct midi_urb midi_in_urbs[MIDI_N_URBS];
 
 	spinlock_t in_lock;
 };
@@ -60,10 +60,7 @@ static void xonedb4_iso_urb_handler(struct urb *usb_urb)
 
 	struct iso_urb *iso_urb = usb_urb->context;
 	
-	if (unlikely(usb_urb->status == -ENOENT ||
-		     usb_urb->status == -ENODEV ||
-		     usb_urb->status == -ECONNRESET ||
-		     usb_urb->status == -ESHUTDOWN)) {
+	if (unlikely(usb_urb->status == -ENOENT || usb_urb->status == -ENODEV || usb_urb->status == -ECONNRESET || usb_urb->status == -ESHUTDOWN)) {
 		goto out_fail;
 	}
 
@@ -96,10 +93,7 @@ static void xonedb4_midi_in_urb_handler(struct urb *usb_urb)
 	unsigned long flags;
 	int ret;
 
-	if (unlikely(usb_urb->status == -ENOENT ||	/* unlinked */
-		     usb_urb->status == -ENODEV ||	/* device removed */
-		     usb_urb->status == -ECONNRESET ||	/* unlinked */
-		     usb_urb->status == -ESHUTDOWN)) {	/* device disabled */
+	if (unlikely(usb_urb->status == -ENOENT || usb_urb->status == -ENODEV || usb_urb->status == -ECONNRESET || usb_urb->status == -ESHUTDOWN)) {
 		goto in_fail;
 	}
 
@@ -179,12 +173,12 @@ static int xonedb4_pcm_init_iso_urb(struct iso_urb *urb, struct xonedb4_chip *ch
 	urb->chip = chip;
 	usb_init_urb(&urb->instance);
 
-    // Allocate memory for transfer buffer
-    urb->instance.transfer_buffer = kzalloc(1000, GFP_KERNEL);
-    if (!urb->instance.transfer_buffer) {
-        printk("Failed to allocate memory for transfer buffer\n");
-        return -ENOMEM;
-    }
+	// Allocate memory for transfer buffer
+	urb->instance.transfer_buffer = kzalloc(1000, GFP_KERNEL);
+	if (!urb->instance.transfer_buffer) {
+		printk("Failed to allocate memory for transfer buffer\n");
+		return -ENOMEM;
+	}
 
 	urb->instance.transfer_buffer_length = ISO_BYTES_PER_FRAME * PCM_N_ISO_URBS_PKTS;
 	urb->instance.dev = chip->dev;
@@ -196,7 +190,7 @@ static int xonedb4_pcm_init_iso_urb(struct iso_urb *urb, struct xonedb4_chip *ch
 	// urb->instance.transfer_flags = URB_ISO_ASAP;
 
 	struct usb_iso_packet_descriptor *packet;
-    
+
 	for (i = 0; i < PCM_N_ISO_URBS_PKTS; i++) {
 		packet = &urb->packets[i];
 		packet->offset = i * 4;
@@ -243,13 +237,13 @@ static const struct snd_rawmidi_ops in_ops = {
 int xonedb4_midi_init(struct xonedb4_chip *chip)
 {
 	int i;
-    int ret;
-    struct snd_rawmidi *midi;
+	int ret;
+	struct snd_rawmidi *midi;
 	struct midi_runtime *rt = kzalloc(sizeof(struct midi_runtime), GFP_KERNEL);
 	if (!rt)
 		return -ENOMEM;
 
-    dev_notice(&chip->dev->dev, "xonedb4_midi_init...\n");
+	dev_notice(&chip->dev->dev, "xonedb4_midi_init...\n");
 
 	rt->chip = chip;
 
@@ -273,7 +267,7 @@ int xonedb4_midi_init(struct xonedb4_chip *chip)
 	}
 	*/
 
-    for (i = 0; i < MIDI_N_URBS; i++) {
+	for (i = 0; i < MIDI_N_URBS; i++) {
 		ret = xonedb4_midi_init_bulk_in_urb(&rt->midi_in_urbs[i], chip, MIDI_IN_EP, xonedb4_midi_in_urb_handler);
 		if (ret < 0) {
 			goto error;
@@ -288,7 +282,7 @@ int xonedb4_midi_init(struct xonedb4_chip *chip)
 	}
 
 	midi->private_data = rt;
-    strscpy(midi->name, "Xone:DB4 MIDI", sizeof(midi->name));
+	strscpy(midi->name, "Xone:DB4 MIDI", sizeof(midi->name));
 	midi->info_flags = SNDRV_RAWMIDI_INFO_INPUT | SNDRV_RAWMIDI_INFO_DUPLEX;
 	snd_rawmidi_set_ops(midi, SNDRV_RAWMIDI_STREAM_INPUT, &in_ops);
 
@@ -300,12 +294,12 @@ int xonedb4_midi_init(struct xonedb4_chip *chip)
 		}
 	}
 
-    rt->instance = midi;
+	rt->instance = midi;
 	chip->midi = rt;
 	rt->active = true;
 	return 0;
 
-    error:
+	error:
 	for (i = 0; i < MIDI_N_URBS; i++)
 		kfree(rt->midi_in_urbs[i].buffer);
 	kfree(rt);

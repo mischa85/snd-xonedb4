@@ -422,8 +422,8 @@ MODULE_DEVICE_TABLE(usb, device_table);
 static struct usb_driver snd_xonedb4_driver = {
 	.name 		= "snd-usb-xonedb4",
 	.probe 		= xonedb4_probe,
-    .disconnect = xonedb4_disconnect,
-    .id_table   = device_table,
+	.disconnect = xonedb4_disconnect,
+	.id_table   = device_table,
 };
 
 module_usb_driver(snd_xonedb4_driver);

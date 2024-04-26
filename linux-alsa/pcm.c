@@ -374,10 +374,7 @@ static void xonedb4_pcm_out_urb_handler(struct urb *usb_urb)
 	if (rt->panic || rt->stream_state == STREAM_STOPPING)
 		return;
 
-	if (unlikely(usb_urb->status == -ENOENT ||	/* unlinked */
-		     usb_urb->status == -ENODEV ||	/* device removed */
-		     usb_urb->status == -ECONNRESET ||	/* unlinked */
-		     usb_urb->status == -ESHUTDOWN)) {	/* device disabled */
+	if (unlikely(usb_urb->status == -ENOENT || usb_urb->status == -ENODEV || usb_urb->status == -ECONNRESET || usb_urb->status == -ESHUTDOWN)) {
 		goto out_fail;
 	}
 
