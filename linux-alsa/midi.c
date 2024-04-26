@@ -3,16 +3,16 @@
 #include "midi.h"
 #include "chip.h"
 
-#define MIDI_IN_EP							3
-#define MIDI_N_URBS							1
+#define MIDI_IN_EP				3
+#define MIDI_N_URBS				1
 
-#define PCM_ISO_EP							2
-#define ISO_BYTES_PER_FRAME					4
+#define PCM_ISO_EP				2
+#define ISO_BYTES_PER_FRAME		4
 
-#define PCM_N_ISO_URBS						8
-#define PCM_N_ISO_URBS_PKTS					1
+#define PCM_N_ISO_URBS			8
+#define PCM_N_ISO_URBS_PKTS		1
 
-#define XDB4_MIDI_PACKET_SIZE				512
+#define XDB4_MIDI_PACKET_SIZE	512
 
 uint32_t clockcounter;
 
@@ -102,8 +102,6 @@ static void xonedb4_midi_in_urb_handler(struct urb *usb_urb)
 		snd_rawmidi_receive(rt->in, in_urb->buffer, in_urb->instance.actual_length);
     }
 	spin_unlock_irqrestore(&rt->in_lock, flags);
-
-	// wake_up(&rt->stream_wait_queue);
 
 	ret = usb_submit_urb(&in_urb->instance, GFP_ATOMIC);
 	
