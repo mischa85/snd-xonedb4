@@ -14,6 +14,7 @@ This is a driver for the Allen & Heath Xone:DB4 mixer.
 
 - [x] PCM out 8 channels
 - [x] PCM in 8 channels
+- [ ] Driver config in UI
 - [ ] Sample Rate Switching
 - [ ] MIDI out
 - [ ] MIDI in
@@ -35,11 +36,13 @@ csrutil disable
 sudo nvram boot-args="amfi_get_out_of_my_way=0x1"
 ```
 
+Reboot to MacOS.
+
 ```
 security find-identity
 ```
 
-Change in codesign.sh.
+Change CHANGEME in codesign.sh.
 
 ```
 cd mac-coreaudio
