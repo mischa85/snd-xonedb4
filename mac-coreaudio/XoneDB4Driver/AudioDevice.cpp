@@ -162,8 +162,6 @@ bool AudioDevice::init(IOUserAudioDriver* in_driver, bool in_supports_prewarming
 		ret = ivars->PCMoutPipe->AsyncIO(ivars->PCMoutDataEmpty, pcmsizeout, ivars->PCMoutCallback, 0);
 		FailIf(ret != kIOReturnSuccess, , Failure, "Failed to send PCMoutData urbs");
 	}
-	
-	os_log(OS_LOG_DEFAULT, "and here?");
 
 	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, buffer_size_bytes, 0, output_io_ring_buffer.attach());
 	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create output IOBufferMemoryDescriptor");

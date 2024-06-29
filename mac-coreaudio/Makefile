@@ -19,7 +19,7 @@ open:
 	open build/Release/XoneDB4App.app
 
 install:
-	rsync -a --delete build/Debug/XoneDB4App.app /Applications
+	rsync -a --delete build/Release/XoneDB4App.app /Applications
 
 run: install
 	open /Applications/XoneDB4App.app
