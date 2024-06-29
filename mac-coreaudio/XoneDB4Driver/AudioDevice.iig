@@ -1,0 +1,42 @@
+//
+//  AudioDevice.iig
+//  XoneDB4Driver
+//
+//  Created by Marcel Bierling on 20/05/2024.
+//  Copyright © 2024 Hackerman. All rights reserved.
+//
+
+#ifndef AudioDevice_h
+#define AudioDevice_h
+
+#include <DriverKit/DriverKit.iig>
+#include <AudioDriverKit/IOUserAudioDevice.iig>
+#include <USBDriverKit/IOUSBHostPipe.iig>
+#include <USBDriverKit/IOUSBHostInterface.iig>
+
+using namespace AudioDriverKit;
+
+class AudioDevice: public IOUserAudioDevice
+{
+public:
+    virtual bool init(IOUserAudioDriver* in_driver, bool in_supports_prewarming, OSString* in_device_uid, OSString* in_model_uid, OSString* in_manufacturer_uid, uint32_t in_zero_timestamp_period, IOUSBHostPipe* PCMinPipe, OSAction* PCMinCallback, IOUSBHostPipe* PCMoutPipe, OSAction* PCMoutCallback, uint16_t PCMPacketSize, IOUSBHostDevice* device) LOCALONLY;
+    
+    virtual kern_return_t        StartIO(IOUserAudioStartStopFlags in_flags) final LOCALONLY;
+    
+    virtual kern_return_t        StopIO(IOUserAudioStartStopFlags in_flags) final LOCALONLY;
+    
+    virtual void                 free() override LOCALONLY;
+    
+    virtual kern_return_t        SendPCMToDevice(uint64_t completionTimestamp) LOCALONLY;
+    
+    virtual kern_return_t        ReceivePCMfromDevice(uint64_t completionTimestamp) LOCALONLY;
+    
+private:
+    void                         ploytec_convert_from_s24_3le(uint8_t *dest, uint8_t *src) LOCALONLY;
+	
+	void                         ploytec_convert_to_s24_3le(uint8_t *dest, uint8_t *src) LOCALONLY;
+    
+    void                         ploytec_sync_bytes(uint8_t *dest) LOCALONLY;
+};
+
+#endif /* AudioDevice_h */

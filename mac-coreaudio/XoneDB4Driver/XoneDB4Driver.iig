@@ -1,0 +1,37 @@
+//
+//  XoneDB4Driver.iig
+//  XoneDB4Driver
+//
+//  Created by Marcel Bierling on 20/05/2024.
+//  Copyright © 2024 Hackerman. All rights reserved.
+//
+
+#ifndef XoneDB4Driver_h
+#define XoneDB4Driver_h
+
+#include <DriverKit/IOService.iig>
+#include <AudioDriverKit/IOUserAudioDriver.iig>
+
+class OSAction;
+
+class XoneDB4Driver: public IOUserAudioDriver
+{
+public:
+	virtual bool init() override;
+	virtual kern_return_t Start(IOService *provider) override;
+	virtual kern_return_t Stop(IOService *provider) override;
+	virtual void free() override;
+
+public:
+	virtual kern_return_t StartDevice(IOUserAudioObjectID in_object_id,
+									  IOUserAudioStartStopFlags in_flags) override;
+    
+    virtual kern_return_t StopDevice(IOUserAudioObjectID in_object_id,
+									 IOUserAudioStartStopFlags in_flags) override;
+
+protected:
+	virtual kern_return_t PCMinHandler(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);
+	virtual kern_return_t PCMoutHandler(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);
+};
+
+#endif /* XoneDB4Driver_h */
