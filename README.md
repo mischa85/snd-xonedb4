@@ -6,6 +6,7 @@ Linux:
 
 - [x] PCM out 8 channels
 - [x] PCM in 8 channels
+- [x] Sample Rate Switching
 - [ ] MIDI out
 - [x] MIDI in
 
@@ -13,6 +14,7 @@ Mac:
 
 - [x] PCM out 8 channels
 - [x] PCM in 8 channels
+- [ ] Sample Rate Switching
 - [ ] MIDI out
 - [ ] MIDI in
 
