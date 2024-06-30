@@ -39,6 +39,10 @@ sudo nvram boot-args="amfi_get_out_of_my_way=0x1"
 Reboot to MacOS.
 
 ```
+systemextensionsctl developer on
+```
+
+```
 security find-identity
 ```
 
