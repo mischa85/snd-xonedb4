@@ -6,12 +6,7 @@
 //  Copyright © 2024 Hackerman. All rights reserved.
 //
 
-#include <os/log.h>
-
-#include <string>
-
 #include <AudioDriverKit/AudioDriverKit.h>
-
 #include "XoneDB4Driver.h"
 #include "AudioDevice.h"
 
@@ -67,27 +62,6 @@ struct XoneDB4Driver_IVars
 	uint16_t						PCMPacketSize = 512;
 };
 
-std::string utf16_to_utf8(const std::u16string& utf16_str) {
-	std::string utf8_str;
-	
-	for (char16_t c : utf16_str) {
-		if (c <= 0x7F) {
-			utf8_str.push_back(static_cast<char>(c));
-		}
-		else if (c <= 0x7FF) {
-			utf8_str.push_back(static_cast<char>(0xC0 | (c >> 6)));
-			utf8_str.push_back(static_cast<char>(0x80 | (c & 0x3F)));
-		}
-		else {
-			utf8_str.push_back(static_cast<char>(0xE0 | (c >> 12)));
-			utf8_str.push_back(static_cast<char>(0x80 | ((c >> 6) & 0x3F)));
-			utf8_str.push_back(static_cast<char>(0x80 | (c & 0x3F)));
-		}
-	}
-
-	return utf8_str;
-}
-
 bool XoneDB4Driver::init()
 {
 	bool result = false;
@@ -108,6 +82,9 @@ kern_return_t IMPL(XoneDB4Driver, Start)
 	uintptr_t                           interfaceIterator;
 	IOAddressSegment                    range;
 
+	int i, j;
+	char* manufacturer_utf8;
+	char* device_name_utf8;
 	bool success = false;
 	auto device_uid = OSSharedPtr(OSString::withCString("xonedb4"), OSNoRetain);
 	auto model_uid = OSSharedPtr(OSString::withCString("Model UID"), OSNoRetain);
@@ -125,8 +102,22 @@ kern_return_t IMPL(XoneDB4Driver, Start)
 	ret = ivars->device->Open(this, 0, NULL);
 	__Require(kIOReturnSuccess == ret, Exit);
 
-	manufacturer_uid = OSSharedPtr(OSString::withCString(utf16_to_utf8(reinterpret_cast<const char16_t*>(ivars->device->CopyStringDescriptor(1)->bString)).c_str()), OSNoRetain);
-	device_name = OSSharedPtr(OSString::withCString(utf16_to_utf8(reinterpret_cast<const char16_t*>(ivars->device->CopyStringDescriptor(2)->bString)).c_str()), OSNoRetain);
+	manufacturer_utf8 = new char[(ivars->device->CopyStringDescriptor(1)->bLength / 2)];
+	j = 0;
+	for(i = 0; i < (ivars->device->CopyStringDescriptor(1)->bLength / 2); i++) {
+		manufacturer_utf8[i] = ivars->device->CopyStringDescriptor(1)->bString[j];
+		j+=2;
+	}
+
+	device_name_utf8 = new char[(ivars->device->CopyStringDescriptor(2)->bLength / 2)];
+	j = 0;
+	for(i = 0; i < (ivars->device->CopyStringDescriptor(2)->bLength / 2); i++) {
+		device_name_utf8[i] = ivars->device->CopyStringDescriptor(2)->bString[j];
+		j+=2;
+	}
+
+	manufacturer_uid = OSSharedPtr(OSString::withCString(manufacturer_utf8), OSNoRetain);
+	device_name = OSSharedPtr(OSString::withCString(device_name_utf8), OSNoRetain);
 
 	ret = ivars->firmwarever->Create(kIOMemoryDirectionInOut, 0x0f, 0, &ivars->firmwarever);
 	__Require(kIOReturnSuccess == ret, Exit);
