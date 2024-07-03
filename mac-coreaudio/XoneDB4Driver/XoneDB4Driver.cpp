@@ -37,7 +37,8 @@ static const uint8_t kMIDIinEndpointAddress = 0x83;
 static const uint8_t kPCMoutEndpointAddress = 0x05;
 static const uint8_t kPCMinEndpointAddress = 0x86;
 
-static const uint16_t kPCMPacketSize = 512;
+//static const uint16_t kPCMPacketSize = 512;
+static const uint16_t kPCMPacketSize = 482; // 480 PCM + 2 UART
 
 static const char8_t sampleratebytes48[3] = { 0x80, 0xBB, 0x00 };
 static const char8_t sampleratebytes96[3] = { 0x00, 0x77, 0x01 };
