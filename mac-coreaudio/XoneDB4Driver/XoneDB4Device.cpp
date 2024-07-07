@@ -1,14 +1,14 @@
 //
-//  AudioDevice.cpp
+//  XoneDB4Device.cpp
 //  XoneDB4Driver
 //
 //  Created by Marcel Bierling on 20/05/2024.
 //  Copyright © 2024 Hackerman. All rights reserved.
 //
 
-#include "AudioDevice.h"
-
 #include <AudioDriverKit/AudioDriverKit.h>
+#include "XoneDB4Device.h"
+#include "XoneDB4Driver.h"
 
 // Number of audio frames to buffer in the driver.
 // Also sets the clocking.
@@ -39,7 +39,7 @@ constexpr uint8_t pcminurbs = 1;
 constexpr uint16_t xonedb4framesizeout = 48;
 constexpr uint16_t xonedb4framesizein = 64;
 
-struct AudioDevice_IVars
+struct XoneDB4Device_IVars
 {
 	IOUSBHostDevice						*device;
 
@@ -80,13 +80,13 @@ struct AudioDevice_IVars
 	bool								startpcmout;
 };
 
-bool AudioDevice::init(IOUserAudioDriver* in_driver, bool in_supports_prewarming, OSString* in_device_uid, OSString* in_model_uid, OSString* in_manufacturer_uid, uint32_t in_zero_timestamp_period, IOUSBHostPipe* PCMinPipe, OSAction* PCMinCallback, IOUSBHostPipe* PCMoutPipe, OSAction* PCMoutCallback, uint16_t PCMPacketSize, IOUSBHostDevice* device)
+bool XoneDB4Device::init(IOUserAudioDriver* in_driver, bool in_supports_prewarming, OSString* in_device_uid, OSString* in_model_uid, OSString* in_manufacturer_uid, uint32_t in_zero_timestamp_period, IOUSBHostPipe* PCMinPipe, OSAction* PCMinCallback, IOUSBHostPipe* PCMoutPipe, OSAction* PCMoutCallback, uint16_t PCMPacketSize, IOUSBHostDevice* device)
 {
 	auto success = super::init(in_driver, in_supports_prewarming, in_device_uid, in_model_uid, in_manufacturer_uid, in_zero_timestamp_period);
 	if (!success) {
 		return false;
 	}
-	ivars = IONewZero(AudioDevice_IVars, 1);
+	ivars = IONewZero(XoneDB4Device_IVars, 1);
 	if (ivars == nullptr) {
 		return false;
 	}
@@ -205,18 +205,6 @@ bool AudioDevice::init(IOUserAudioDriver* in_driver, bool in_supports_prewarming
 	ivars->PCMoutDataAddr[1397] = 0xfd;
 	ivars->PCMoutDataAddr[1878] = 0xfd;
 	ivars->PCMoutDataAddr[1879] = 0xfd;
-
-	/*
-	for(i = 0; i < numpacketsout; i++) {
-		ivars->PCMoutDataAddr[480 + (i * 482)] = 0xfd;
-		ivars->PCMoutDataAddr[481 + (i * 482)] = 0xfd;
-		ivars->PCMoutDataEmptyAddr[480 + (i * 482)] = 0xfd;
-		ivars->PCMoutDataEmptyAddr[481 + (i * 482)] = 0xfd;
-
-		//ploytec_sync_bytes(ivars->PCMoutDataAddr + 480 + (i * PCMPacketSize));
-		//ploytec_sync_bytes(ivars->PCMoutDataEmptyAddr + 480 + (i * PCMPacketSize));
-	}
-	*/
 	
 	return true;
 
@@ -229,7 +217,7 @@ Failure:
 	return false;
 }
 
-kern_return_t AudioDevice::StartIO(IOUserAudioStartStopFlags in_flags)
+kern_return_t XoneDB4Device::StartIO(IOUserAudioStartStopFlags in_flags)
 {
 	os_log(OS_LOG_DEFAULT, "is startio being called???");
 	
@@ -274,7 +262,7 @@ kern_return_t AudioDevice::StartIO(IOUserAudioStartStopFlags in_flags)
 	return ret;
 }
 
-kern_return_t AudioDevice::StopIO(IOUserAudioStartStopFlags in_flags)
+kern_return_t XoneDB4Device::StopIO(IOUserAudioStartStopFlags in_flags)
 {
 	__block kern_return_t ret;
 
@@ -295,7 +283,7 @@ kern_return_t AudioDevice::StopIO(IOUserAudioStartStopFlags in_flags)
 	return ret;
 }
 
-void AudioDevice::free()
+void XoneDB4Device::free()
 {
 	if (ivars != nullptr) {
 		ivars->m_driver.reset();
@@ -305,11 +293,11 @@ void AudioDevice::free()
 		ivars->m_input_memory_map.reset();
 		ivars->m_work_queue.reset();
 	}
-	IOSafeDeleteNULL(ivars, AudioDevice_IVars, 1);
+	IOSafeDeleteNULL(ivars, XoneDB4Device_IVars, 1);
 	super::free();
 }
 
-kern_return_t AudioDevice::SendPCMToDevice(uint64_t completionTimestamp)
+kern_return_t XoneDB4Device::SendPCMToDevice(uint64_t completionTimestamp)
 {
 	__block kern_return_t ret;
 	__block int i = 0;
@@ -382,7 +370,7 @@ kern_return_t AudioDevice::SendPCMToDevice(uint64_t completionTimestamp)
 	return ret;
 }
 
-kern_return_t AudioDevice::ReceivePCMfromDevice(uint64_t completionTimestamp)
+kern_return_t XoneDB4Device::ReceivePCMfromDevice(uint64_t completionTimestamp)
 {
 	__block int i;
 	__block kern_return_t ret;
@@ -417,7 +405,7 @@ kern_return_t AudioDevice::ReceivePCMfromDevice(uint64_t completionTimestamp)
 }
 
 /* Takes 24 bytes, outputs 48 bytes */
-void AudioDevice::ploytec_convert_from_s24_3le(uint8_t *dest, uint8_t *src)
+void XoneDB4Device::ploytec_convert_from_s24_3le(uint8_t *dest, uint8_t *src)
 {
     //                        =============== channel 1 ===============   =============== channel 3 ===============   =============== channel 5 ===============   =============== channel 7 ===============
     ((uint8_t *)dest)[0x00] = ((((uint8_t *)src)[0x02] & 0x80) >> 0x07) | ((((uint8_t *)src)[0x08] & 0x80) >> 0x06) | ((((uint8_t *)src)[0x0E] & 0x80) >> 0x05) | ((((uint8_t *)src)[0x14] & 0x80) >> 0x04);
@@ -472,7 +460,7 @@ void AudioDevice::ploytec_convert_from_s24_3le(uint8_t *dest, uint8_t *src)
 }
 
 /* Takes 64 bytes, outputs 24 bytes */
-void AudioDevice::ploytec_convert_to_s24_3le(uint8_t *dest, uint8_t *src)
+void XoneDB4Device::ploytec_convert_to_s24_3le(uint8_t *dest, uint8_t *src)
 {
 	// channel 1
 	((uint8_t *)dest)[0x00] = ((((uint8_t *)src)[0x17] & 0x01) << 0x00) | ((((uint8_t *)src)[0x16] & 0x01) << 0x01) | ((((uint8_t *)src)[0x15] & 0x01) << 0x02) | ((((uint8_t *)src)[0x14] & 0x01) << 0x03) | ((((uint8_t *)src)[0x13] & 0x01) << 0x04) | ((((uint8_t *)src)[0x12] & 0x01) << 0x05) | ((((uint8_t *)src)[0x11] & 0x01) << 0x06) | ((((uint8_t *)src)[0x10] & 0x01) << 0x07);
@@ -506,41 +494,4 @@ void AudioDevice::ploytec_convert_to_s24_3le(uint8_t *dest, uint8_t *src)
 	((uint8_t *)dest)[0x15] = ((((uint8_t *)src)[0x37] & 0x08) >> 0x03) | ((((uint8_t *)src)[0x36] & 0x08) >> 0x02) | ((((uint8_t *)src)[0x35] & 0x08) >> 0x01) | ((((uint8_t *)src)[0x34] & 0x08) << 0x00) | ((((uint8_t *)src)[0x33] & 0x08) << 0x01) | ((((uint8_t *)src)[0x32] & 0x08) << 0x02) | ((((uint8_t *)src)[0x31] & 0x08) << 0x03) | ((((uint8_t *)src)[0x30] & 0x08) << 0x04);
 	((uint8_t *)dest)[0x16] = ((((uint8_t *)src)[0x2F] & 0x08) >> 0x03) | ((((uint8_t *)src)[0x2E] & 0x08) >> 0x02) | ((((uint8_t *)src)[0x2D] & 0x08) >> 0x01) | ((((uint8_t *)src)[0x2C] & 0x08) << 0x00) | ((((uint8_t *)src)[0x2B] & 0x08) << 0x01) | ((((uint8_t *)src)[0x2A] & 0x08) << 0x02) | ((((uint8_t *)src)[0x29] & 0x08) << 0x03) | ((((uint8_t *)src)[0x28] & 0x08) << 0x04);
 	((uint8_t *)dest)[0x17] = ((((uint8_t *)src)[0x27] & 0x08) >> 0x03) | ((((uint8_t *)src)[0x26] & 0x08) >> 0x02) | ((((uint8_t *)src)[0x25] & 0x08) >> 0x01) | ((((uint8_t *)src)[0x24] & 0x08) << 0x00) | ((((uint8_t *)src)[0x23] & 0x08) << 0x01) | ((((uint8_t *)src)[0x22] & 0x08) << 0x02) | ((((uint8_t *)src)[0x21] & 0x08) << 0x03) | ((((uint8_t *)src)[0x20] & 0x08) << 0x04);
-}
-
-/* outputs 0xFD 0xFF 000........ */
-void AudioDevice::ploytec_sync_bytes(uint8_t *dest)
-{
-    ((uint8_t *)dest)[0x00] = 0xFD;
-    ((uint8_t *)dest)[0x01] = 0xFF;
-    ((uint8_t *)dest)[0x02] = 0x00;
-    ((uint8_t *)dest)[0x03] = 0x00;
-    ((uint8_t *)dest)[0x04] = 0x00;
-    ((uint8_t *)dest)[0x05] = 0x00;
-    ((uint8_t *)dest)[0x06] = 0x00;
-    ((uint8_t *)dest)[0x07] = 0x00;
-    ((uint8_t *)dest)[0x08] = 0x00;
-    ((uint8_t *)dest)[0x09] = 0x00;
-    ((uint8_t *)dest)[0x0A] = 0x00;
-    ((uint8_t *)dest)[0x0B] = 0x00;
-    ((uint8_t *)dest)[0x0C] = 0x00;
-    ((uint8_t *)dest)[0x0D] = 0x00;
-    ((uint8_t *)dest)[0x0E] = 0x00;
-    ((uint8_t *)dest)[0x0F] = 0x00;
-    ((uint8_t *)dest)[0x10] = 0x00;
-    ((uint8_t *)dest)[0x11] = 0x00;
-    ((uint8_t *)dest)[0x12] = 0x00;
-    ((uint8_t *)dest)[0x13] = 0x00;
-    ((uint8_t *)dest)[0x14] = 0x00;
-    ((uint8_t *)dest)[0x15] = 0x00;
-    ((uint8_t *)dest)[0x16] = 0x00;
-    ((uint8_t *)dest)[0x17] = 0x00;
-    ((uint8_t *)dest)[0x18] = 0x00;
-    ((uint8_t *)dest)[0x19] = 0x00;
-    ((uint8_t *)dest)[0x1A] = 0x00;
-    ((uint8_t *)dest)[0x1B] = 0x00;
-    ((uint8_t *)dest)[0x1C] = 0x00;
-    ((uint8_t *)dest)[0x1D] = 0x00;
-    ((uint8_t *)dest)[0x1E] = 0x00;
-    ((uint8_t *)dest)[0x1F] = 0x00;
 }

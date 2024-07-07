@@ -8,7 +8,7 @@
 
 #include <AudioDriverKit/AudioDriverKit.h>
 #include "XoneDB4Driver.h"
-#include "AudioDevice.h"
+#include "XoneDB4Device.h"
 
 constexpr uint32_t k_zero_time_stamp_period = 640;
 
@@ -46,12 +46,13 @@ static const char8_t sampleratebytes96[3] = { 0x00, 0x77, 0x01 };
 struct XoneDB4Driver_IVars
 {
 	OSSharedPtr<IODispatchQueue>	m_work_queue;
-	OSSharedPtr<AudioDevice>		m_audio_device;
+	OSSharedPtr<XoneDB4Device>		m_audio_device;
 
 	IOUSBHostDevice					*device;
 	IOUSBHostInterface				*interface0;
 	IOUSBHostInterface				*interface1;
-	IOBufferMemoryDescriptor		*firmwarever;
+	IOBufferMemoryDescriptor		*receivebuffer;
+	char							*firmwarever;
 	IOBufferMemoryDescriptor		*sampleratebytes;
 	IOUSBHostPipe					*MIDIinPipe;
 	IOUSBHostPipe					*PCMoutPipe;
@@ -61,6 +62,8 @@ struct XoneDB4Driver_IVars
 	IOBufferMemoryDescriptor		*PCMoutData;
 	IOBufferMemoryDescriptor		*PCMinData;
 	uint16_t						PCMPacketSize = 512;
+	
+	OSSharedPtr<OSString>			FirmwareVersionBytes;
 };
 
 bool XoneDB4Driver::init()
@@ -91,6 +94,7 @@ kern_return_t IMPL(XoneDB4Driver, Start)
 	auto model_uid = OSSharedPtr(OSString::withCString("Model UID"), OSNoRetain);
 	OSSharedPtr<OSString> manufacturer_uid;
 	OSSharedPtr<OSString> device_name;
+	//char* tempstring;
 	
 	uint16_t bytesTransferred;
 	
@@ -120,19 +124,36 @@ kern_return_t IMPL(XoneDB4Driver, Start)
 	manufacturer_uid = OSSharedPtr(OSString::withCString(manufacturer_utf8), OSNoRetain);
 	device_name = OSSharedPtr(OSString::withCString(device_name_utf8), OSNoRetain);
 
-	ret = ivars->firmwarever->Create(kIOMemoryDirectionInOut, 0x0f, 0, &ivars->firmwarever);
+	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, 0x0f, 0, &ivars->receivebuffer);
 	__Require(kIOReturnSuccess == ret, Exit);
-
-	ret = ivars->device->DeviceRequest(this, 0xc0, 0x56, 0x00, 0x00, 0x0f, ivars->firmwarever, &bytesTransferred, 0);
+	
+	// get firmware version
+	// 0x31 0x01 0x27 = 1.3.9
+	// 0x31 0x01 0x32 = 1.5.0
+	ret = ivars->device->DeviceRequest(this, 0xc0, 0x56, 0x00, 0x00, 0x0f, ivars->receivebuffer, &bytesTransferred, 0);
 	__Require(kIOReturnSuccess == ret, Exit);
-
-	ret = ivars->firmwarever->GetAddressRange(&range);
+	
+	ret = ivars->receivebuffer->GetAddressRange(&range);
 	__Require(kIOReturnSuccess == ret, Exit);
-
+	
+	os_log(OS_LOG_DEFAULT, "GOT HERE 1");
+	ivars->firmwarever = new char[range.length];
+	os_log(OS_LOG_DEFAULT, "GOT HERE 2");
+	memcpy(ivars->firmwarever, reinterpret_cast<const uint8_t *>(range.address), range.length);
+	os_log(OS_LOG_DEFAULT, "GOT HERE 3");
+	//ivars->firmwarever[range.length] = 0x00;
+	os_log(OS_LOG_DEFAULT, "GOT HERE 4");
+	
+	os_log(OS_LOG_DEFAULT, "%s firmwarever: %02X %02X %02X", __FUNCTION__, ivars->firmwarever[0], ivars->firmwarever[1], ivars->firmwarever[2]);
+	
+	/*
+	ivars->FirmwareVersionBytes = OSSharedPtr(OSString::withCString(tempstring), OSNoRetain);
+	
 	os_log(OS_LOG_DEFAULT, "%s FIRMWARE:", __FUNCTION__);
 	for (uint16_t i = 0; i < bytesTransferred; i++) {
 		os_log(OS_LOG_DEFAULT, "%02x ", reinterpret_cast<const uint8_t *>(range.address)[i]);
 	}
+	*/
 
 	ret = ivars->sampleratebytes->Create(kIOMemoryDirectionInOut, 0x03, 0, &ivars->sampleratebytes);
 	__Require(kIOReturnSuccess == ret, Exit);
@@ -260,7 +281,7 @@ kern_return_t IMPL(XoneDB4Driver, Start)
 	ivars->m_work_queue = GetWorkQueue();
 	__Require_Action(NULL != ivars->m_work_queue.get(), Exit, ret = kIOReturnInvalid);
 
-	ivars->m_audio_device = OSSharedPtr(OSTypeAlloc(AudioDevice), OSNoRetain);
+	ivars->m_audio_device = OSSharedPtr(OSTypeAlloc(XoneDB4Device), OSNoRetain);
 	__Require_Action(NULL != ivars->m_audio_device.get(), Exit, ret = kIOReturnNoMemory);
 
     success = ivars->m_audio_device->init(this, false, device_uid.get(), model_uid.get(), manufacturer_uid.get(), k_zero_time_stamp_period, ivars->PCMinPipe, ivars->PCMinCallback, ivars->PCMoutPipe, ivars->PCMoutCallback, ivars->PCMPacketSize, ivars->device);
@@ -294,6 +315,30 @@ void XoneDB4Driver::free()
 	}
 	IOSafeDeleteNULL(ivars, XoneDB4Driver_IVars, 1);
 	super::free();
+}
+
+kern_return_t XoneDB4Driver::NewUserClient_Impl(uint32_t in_type, IOUserClient** out_user_client)
+{
+	kern_return_t error = kIOReturnSuccess;
+	
+	// Have the superclass create the IOUserAudioDriverUserClient object
+	// if the type is kIOUserAudioDriverUserClientType.
+	if (in_type == kIOUserAudioDriverUserClientType)
+	{
+		error = super::NewUserClient(in_type, out_user_client, SUPERDISPATCH);
+		FailIfError(error, , Failure, "Failed to create user client");
+		FailIfNULL(*out_user_client, error = kIOReturnNoMemory, Failure, "Failed to create user client");
+	}
+	else
+	{
+		IOService* user_client_service = nullptr;
+		error = Create(this, "XoneDB4DriverUserClientProperties", &user_client_service);
+		FailIfError(error, , Failure, "failed to create the XoneDB4Driver user client");
+		*out_user_client = OSDynamicCast(IOUserClient, user_client_service);
+	}
+	
+Failure:
+	return error;
 }
 
 kern_return_t XoneDB4Driver::StartDevice(IOUserAudioObjectID in_object_id, IOUserAudioStartStopFlags in_flags)
@@ -333,6 +378,11 @@ kern_return_t XoneDB4Driver::StopDevice(IOUserAudioObjectID in_object_id, IOUser
 		// Disable any custom driver-related things here.
 	}
 	return ret;
+}
+
+OSData* XoneDB4Driver::GetFirmwareVer()
+{
+	return OSData::withBytes(ivars->firmwarever, sizeof(ivars->firmwarever));
 }
 
 kern_return_t IMPL(XoneDB4Driver, PCMinHandler)

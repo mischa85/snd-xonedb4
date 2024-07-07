@@ -7,20 +7,24 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		1F9FA7792BFB8267000F6942 /* AudioDevice.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 1F9FA7782BFB8267000F6942 /* AudioDevice.cpp */; };
-		1F9FA77B2BFB829E000F6942 /* AudioDevice.iig in Sources */ = {isa = PBXBuildFile; fileRef = 1F9FA77A2BFB8284000F6942 /* AudioDevice.iig */; };
+		1F9FA7792BFB8267000F6942 /* XoneDB4Device.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 1F9FA7782BFB8267000F6942 /* XoneDB4Device.cpp */; };
+		1F9FA77B2BFB829E000F6942 /* XoneDB4Device.iig in Sources */ = {isa = PBXBuildFile; fileRef = 1F9FA77A2BFB8284000F6942 /* XoneDB4Device.iig */; };
 		1F9FA7812BFB9C8A000F6942 /* AudioDriverKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1F9FA77C2BFB9BD9000F6942 /* AudioDriverKit.framework */; };
 		1F9FA7822BFB9C9C000F6942 /* DriverKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 6F55576F22B2C52C00139F6B /* DriverKit.framework */; };
 		1F9FA7862BFB9D65000F6942 /* USBDriverKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1F9FA7852BFB9D62000F6942 /* USBDriverKit.framework */; };
-		6F55575622B2C4D900139F6B /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F55575522B2C4D900139F6B /* AppDelegate.swift */; };
-		6F55575822B2C4D900139F6B /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F55575722B2C4D900139F6B /* ContentView.swift */; };
+		1FCE8FD42C3735E200313EB4 /* XoneDB4AppUserClient.mm in Sources */ = {isa = PBXBuildFile; fileRef = 1FCE8FD32C3735E200313EB4 /* XoneDB4AppUserClient.mm */; };
+		1FCE8FD62C37368200313EB4 /* XoneDB4AppViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1FCE8FD52C37368200313EB4 /* XoneDB4AppViewModel.swift */; };
+		1FCE8FDA2C37434300313EB4 /* XoneDB4DriverUserClient.iig in Headers */ = {isa = PBXBuildFile; fileRef = 1FCE8FD92C37434300313EB4 /* XoneDB4DriverUserClient.iig */; };
+		1FCE8FDB2C37434300313EB4 /* XoneDB4DriverUserClient.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 1FCE8FD82C37434300313EB4 /* XoneDB4DriverUserClient.cpp */; };
+		1FCE8FDD2C37446400313EB4 /* XoneDB4DriverKeys.h in Headers */ = {isa = PBXBuildFile; fileRef = 1FCE8FDC2C37446400313EB4 /* XoneDB4DriverKeys.h */; };
+		1FCE8FDE2C37449F00313EB4 /* XoneDB4DriverUserClient.iig in Sources */ = {isa = PBXBuildFile; fileRef = 1FCE8FD92C37434300313EB4 /* XoneDB4DriverUserClient.iig */; };
+		6F55575622B2C4D900139F6B /* XoneDB4App.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F55575522B2C4D900139F6B /* XoneDB4App.swift */; };
+		6F55575822B2C4D900139F6B /* XoneDB4AppView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F55575722B2C4D900139F6B /* XoneDB4AppView.swift */; };
 		6F55575A22B2C4DB00139F6B /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6F55575922B2C4DB00139F6B /* Assets.xcassets */; };
 		6F55575D22B2C4DB00139F6B /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6F55575C22B2C4DB00139F6B /* Preview Assets.xcassets */; };
-		6F55576022B2C4DB00139F6B /* Main.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = 6F55575E22B2C4DB00139F6B /* Main.storyboard */; };
 		6F55577322B2C52C00139F6B /* XoneDB4Driver.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 6F55577222B2C52C00139F6B /* XoneDB4Driver.cpp */; };
 		6F55577522B2C52C00139F6B /* XoneDB4Driver.iig in Sources */ = {isa = PBXBuildFile; fileRef = 6F55577422B2C52C00139F6B /* XoneDB4Driver.iig */; };
 		6F55577A22B2C52C00139F6B /* sc.hackerman.xonedb4driver.dext in Embed System Extensions */ = {isa = PBXBuildFile; fileRef = 6F55576D22B2C52C00139F6B /* sc.hackerman.xonedb4driver.dext */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
-		6F55578522B2D42900139F6B /* ExtensionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F55578422B2D42900139F6B /* ExtensionManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -58,16 +62,22 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		1F9FA7782BFB8267000F6942 /* AudioDevice.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = AudioDevice.cpp; sourceTree = "<group>"; };
-		1F9FA77A2BFB8284000F6942 /* AudioDevice.iig */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.iig; path = AudioDevice.iig; sourceTree = "<group>"; };
+		1F9FA7782BFB8267000F6942 /* XoneDB4Device.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = XoneDB4Device.cpp; sourceTree = "<group>"; };
+		1F9FA77A2BFB8284000F6942 /* XoneDB4Device.iig */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.iig; path = XoneDB4Device.iig; sourceTree = "<group>"; };
 		1F9FA77C2BFB9BD9000F6942 /* AudioDriverKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioDriverKit.framework; path = Platforms/DriverKit.platform/Developer/SDKs/DriverKit23.4.sdk/System/DriverKit/System/Library/Frameworks/AudioDriverKit.framework; sourceTree = DEVELOPER_DIR; };
 		1F9FA7852BFB9D62000F6942 /* USBDriverKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = USBDriverKit.framework; path = Platforms/MacOSX.platform/Developer/SDKs/DriverKit19.0.sdk/System/DriverKit/System/Library/Frameworks/USBDriverKit.framework; sourceTree = DEVELOPER_DIR; };
+		1FCE8FD22C3735E200313EB4 /* XoneDB4AppUserClient.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = XoneDB4AppUserClient.h; sourceTree = "<group>"; };
+		1FCE8FD32C3735E200313EB4 /* XoneDB4AppUserClient.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = XoneDB4AppUserClient.mm; sourceTree = "<group>"; };
+		1FCE8FD52C37368200313EB4 /* XoneDB4AppViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XoneDB4AppViewModel.swift; sourceTree = "<group>"; };
+		1FCE8FD72C3738C400313EB4 /* XoneDB4DriverKeys.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = XoneDB4DriverKeys.h; sourceTree = "<group>"; };
+		1FCE8FD82C37434300313EB4 /* XoneDB4DriverUserClient.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = XoneDB4DriverUserClient.cpp; sourceTree = "<group>"; };
+		1FCE8FD92C37434300313EB4 /* XoneDB4DriverUserClient.iig */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.iig; path = XoneDB4DriverUserClient.iig; sourceTree = "<group>"; };
+		1FCE8FDC2C37446400313EB4 /* XoneDB4DriverKeys.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = XoneDB4DriverKeys.h; sourceTree = "<group>"; };
 		6F55575222B2C4D900139F6B /* XoneDB4App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = XoneDB4App.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		6F55575522B2C4D900139F6B /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
-		6F55575722B2C4D900139F6B /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		6F55575522B2C4D900139F6B /* XoneDB4App.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XoneDB4App.swift; sourceTree = "<group>"; };
+		6F55575722B2C4D900139F6B /* XoneDB4AppView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = XoneDB4AppView.swift; sourceTree = "<group>"; };
 		6F55575922B2C4DB00139F6B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		6F55575C22B2C4DB00139F6B /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
-		6F55575F22B2C4DB00139F6B /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		6F55576122B2C4DB00139F6B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		6F55576222B2C4DB00139F6B /* XoneDB4App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = XoneDB4App.entitlements; sourceTree = "<group>"; };
 		6F55576D22B2C52C00139F6B /* sc.hackerman.xonedb4driver.dext */ = {isa = PBXFileReference; explicitFileType = "wrapper.driver-extension"; includeInIndex = 0; path = sc.hackerman.xonedb4driver.dext; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -76,7 +86,6 @@
 		6F55577422B2C52C00139F6B /* XoneDB4Driver.iig */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.iig; path = XoneDB4Driver.iig; sourceTree = "<group>"; };
 		6F55577622B2C52C00139F6B /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		6F55577722B2C52C00139F6B /* XoneDB4Driver.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = XoneDB4Driver.entitlements; sourceTree = "<group>"; };
-		6F55578422B2D42900139F6B /* ExtensionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExtensionManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -121,13 +130,15 @@
 		6F55575422B2C4D900139F6B /* XoneDB4App */ = {
 			isa = PBXGroup;
 			children = (
-				6F55575522B2C4D900139F6B /* AppDelegate.swift */,
-				6F55575722B2C4D900139F6B /* ContentView.swift */,
-				6F55578422B2D42900139F6B /* ExtensionManager.swift */,
-				6F55575922B2C4DB00139F6B /* Assets.xcassets */,
-				6F55575E22B2C4DB00139F6B /* Main.storyboard */,
 				6F55576122B2C4DB00139F6B /* Info.plist */,
 				6F55576222B2C4DB00139F6B /* XoneDB4App.entitlements */,
+				6F55575522B2C4D900139F6B /* XoneDB4App.swift */,
+				6F55575722B2C4D900139F6B /* XoneDB4AppView.swift */,
+				1FCE8FD52C37368200313EB4 /* XoneDB4AppViewModel.swift */,
+				1FCE8FD32C3735E200313EB4 /* XoneDB4AppUserClient.mm */,
+				1FCE8FD22C3735E200313EB4 /* XoneDB4AppUserClient.h */,
+				1FCE8FD72C3738C400313EB4 /* XoneDB4DriverKeys.h */,
+				6F55575922B2C4DB00139F6B /* Assets.xcassets */,
 				6F55575B22B2C4DB00139F6B /* Preview Content */,
 			);
 			path = XoneDB4App;
@@ -155,12 +166,15 @@
 		6F55577122B2C52C00139F6B /* XoneDB4Driver */ = {
 			isa = PBXGroup;
 			children = (
-				6F55577222B2C52C00139F6B /* XoneDB4Driver.cpp */,
-				6F55577422B2C52C00139F6B /* XoneDB4Driver.iig */,
-				1F9FA7782BFB8267000F6942 /* AudioDevice.cpp */,
-				1F9FA77A2BFB8284000F6942 /* AudioDevice.iig */,
 				6F55577622B2C52C00139F6B /* Info.plist */,
 				6F55577722B2C52C00139F6B /* XoneDB4Driver.entitlements */,
+				1F9FA7782BFB8267000F6942 /* XoneDB4Device.cpp */,
+				1F9FA77A2BFB8284000F6942 /* XoneDB4Device.iig */,
+				6F55577222B2C52C00139F6B /* XoneDB4Driver.cpp */,
+				6F55577422B2C52C00139F6B /* XoneDB4Driver.iig */,
+				1FCE8FD82C37434300313EB4 /* XoneDB4DriverUserClient.cpp */,
+				1FCE8FD92C37434300313EB4 /* XoneDB4DriverUserClient.iig */,
+				1FCE8FDC2C37446400313EB4 /* XoneDB4DriverKeys.h */,
 				6F55576E22B2C52C00139F6B /* Frameworks */,
 			);
 			path = XoneDB4Driver;
@@ -173,6 +187,8 @@
 			isa = PBXHeadersBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1FCE8FDA2C37434300313EB4 /* XoneDB4DriverUserClient.iig in Headers */,
+				1FCE8FDD2C37446400313EB4 /* XoneDB4DriverKeys.h in Headers */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -226,10 +242,11 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastSwiftUpdateCheck = 1100;
 				LastUpgradeCheck = 1540;
-				ORGANIZATIONNAME = "Hackerman";
+				ORGANIZATIONNAME = Hackerman;
 				TargetAttributes = {
 					6F55575122B2C4D900139F6B = {
 						CreatedOnToolsVersion = 11.0;
+						LastSwiftMigration = 1540;
 					};
 					6F55576C22B2C52C00139F6B = {
 						CreatedOnToolsVersion = 11.0;
@@ -260,7 +277,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				6F55576022B2C4DB00139F6B /* Main.storyboard in Resources */,
 				6F55575D22B2C4DB00139F6B /* Preview Assets.xcassets in Resources */,
 				6F55575A22B2C4DB00139F6B /* Assets.xcassets in Resources */,
 			);
@@ -280,9 +296,10 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				6F55575822B2C4D900139F6B /* ContentView.swift in Sources */,
-				6F55575622B2C4D900139F6B /* AppDelegate.swift in Sources */,
-				6F55578522B2D42900139F6B /* ExtensionManager.swift in Sources */,
+				1FCE8FD42C3735E200313EB4 /* XoneDB4AppUserClient.mm in Sources */,
+				6F55575822B2C4D900139F6B /* XoneDB4AppView.swift in Sources */,
+				1FCE8FD62C37368200313EB4 /* XoneDB4AppViewModel.swift in Sources */,
+				6F55575622B2C4D900139F6B /* XoneDB4App.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -290,10 +307,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1FCE8FDE2C37449F00313EB4 /* XoneDB4DriverUserClient.iig in Sources */,
 				6F55577322B2C52C00139F6B /* XoneDB4Driver.cpp in Sources */,
 				6F55577522B2C52C00139F6B /* XoneDB4Driver.iig in Sources */,
-				1F9FA7792BFB8267000F6942 /* AudioDevice.cpp in Sources */,
-				1F9FA77B2BFB829E000F6942 /* AudioDevice.iig in Sources */,
+				1FCE8FDB2C37434300313EB4 /* XoneDB4DriverUserClient.cpp in Sources */,
+				1F9FA7792BFB8267000F6942 /* XoneDB4Device.cpp in Sources */,
+				1F9FA77B2BFB829E000F6942 /* XoneDB4Device.iig in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -306,17 +325,6 @@
 			targetProxy = 6F55577822B2C52C00139F6B /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
-
-/* Begin PBXVariantGroup section */
-		6F55575E22B2C4DB00139F6B /* Main.storyboard */ = {
-			isa = PBXVariantGroup;
-			children = (
-				6F55575F22B2C4DB00139F6B /* Base */,
-			);
-			name = Main.storyboard;
-			sourceTree = "<group>";
-		};
-/* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
 		6F55576322B2C4DB00139F6B /* Debug */ = {
@@ -350,20 +358,26 @@
 		6F55576622B2C4DB00139F6B /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
 				INFOPLIST_FILE = "$(SRCROOT)/XoneDB4App/Info.plist";
 				PRODUCT_BUNDLE_IDENTIFIER = sc.hackerman.xonedb4driver;
 				PRODUCT_NAME = XoneDB4App;
 				SDKROOT = macosx;
+				SWIFT_OBJC_BRIDGING_HEADER = XoneDB4App/XoneDB4AppUserClient.h;
+				SWIFT_VERSION = 5.0;
 			};
 			name = Debug;
 		};
 		6F55576722B2C4DB00139F6B /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				CLANG_ENABLE_MODULES = YES;
 				INFOPLIST_FILE = "$(SRCROOT)/XoneDB4App/Info.plist";
 				PRODUCT_BUNDLE_IDENTIFIER = sc.hackerman.xonedb4driver;
 				PRODUCT_NAME = XoneDB4App;
 				SDKROOT = macosx;
+				SWIFT_OBJC_BRIDGING_HEADER = XoneDB4App/XoneDB4AppUserClient.h;
+				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
 		};
