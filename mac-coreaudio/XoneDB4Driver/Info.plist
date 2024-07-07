@@ -20,12 +20,14 @@
 	<string>1</string>
 	<key>IOKitPersonalities</key>
 	<dict>
-		<key>MyUserUSBInterfaceDriver</key>
+		<key>XoneDB4Driver</key>
 		<dict>
 			<key>CFBundleIdentifier</key>
 			<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 			<key>IOClass</key>
 			<string>IOUserService</string>
+			<key>IOMatchCategory</key>
+			<string>XoneDB4Driver</string>
 			<key>IOProviderClass</key>
 			<string>IOUSBHostDevice</string>
 			<key>IOUserAudioDriverUserClientProperties</key>
@@ -47,12 +49,12 @@
 			<integer>2634</integer>
 			<key>idProduct</key>
 			<integer>65499</integer>
-			<key>SimpleAudioDriverUserClientProperties</key>
+			<key>XoneDB4DriverUserClientProperties</key>
 			<dict>
 				<key>IOClass</key>
 				<string>IOUserUserClient</string>
 				<key>IOUserClass</key>
-				<string>SimpleAudioDriverUserClient</string>
+				<string>XoneDB4DriverUserClient</string>
 			</dict>
 		</dict>
 	</dict>

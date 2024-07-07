@@ -15,5 +15,7 @@
 	</array>
 	<key>com.apple.developer.driverkit.family.audio</key>
 	<true/>
+	<key>com.apple.developer.driverkit.allow-any-userclient-access</key>
+	<true/>
 </dict>
 </plist>
