@@ -11,6 +11,7 @@
 
 #include <DriverKit/IOService.iig>
 #include <AudioDriverKit/IOUserAudioDriver.iig>
+#include "XoneDB4Device.iig"
 
 using namespace AudioDriverKit;
 
@@ -32,6 +33,10 @@ public:
 									 IOUserAudioStartStopFlags in_flags) override;
 	
 	virtual OSData* GetFirmwareVer() LOCALONLY;
+	
+	kern_return_t GetPlaybackStats(playbackstats *stats) LOCALONLY;
+	
+	kern_return_t ChangeBufferSize(OSNumber *buffersize) LOCALONLY;
 	
 protected:
 	virtual kern_return_t PCMinHandler(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);

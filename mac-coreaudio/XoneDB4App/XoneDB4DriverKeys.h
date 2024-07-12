@@ -14,6 +14,8 @@ enum XoneDB4DriverExternalMethod
 	XoneDB4DriverExternalMethod_Open,
 	XoneDB4DriverExternalMethod_Close,
 	XoneDB4DriverExternalMethod_GetFirmwareVer,
+	XoneDB4DriverExternalMethod_ChangeBufferSize,
+	XoneDB4DriverExternalMethod_GetPlaybackStats,
 };
 
 #endif /* XoneDB4DriverKeys_h */

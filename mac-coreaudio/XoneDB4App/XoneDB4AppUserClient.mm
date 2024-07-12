@@ -68,8 +68,48 @@
 	if (error != kIOReturnSuccess) {
 		return [NSString stringWithFormat:@"Failed to get firmware, error: %s.", mach_error_string(error)];
 	}
+	
+	return [NSString stringWithFormat:@"Firmware: 1.%d.%d", (firmwarever[2]/10), (firmwarever[2]%10)];
+}
 
-	return [NSString stringWithFormat:@"Successfully got firmware %02x %02x %02x", firmwarever[0], firmwarever[1], firmwarever[2]];
+- (NSString*)changeBufferSize:(uint32_t)buffersize
+{
+	if (_ioConnection == IO_OBJECT_NULL) {
+		return @"Can't toggle the data source because the user client isn't connected.";
+	}
+	
+	NSLog(@"Changing buffer size to: %u", buffersize);
+	NSLog(@"Buffer size parameter size: %zu", sizeof(buffersize));
+	
+	kern_return_t error =
+		IOConnectCallMethod(_ioConnection,
+							static_cast<uint64_t>(XoneDB4DriverExternalMethod_ChangeBufferSize),
+							reinterpret_cast<const uint64_t*>(&buffersize), sizeof(buffersize), nullptr, 0, nullptr, nullptr, nullptr, 0);
+
+	if (error != kIOReturnSuccess) {
+		return [NSString stringWithFormat:@"Failed to change buffersize, error: %s.", mach_error_string(error)];
+	}
+
+	return @"Successfully changed buffersize.";
+}
+
+- (playbackstats)getPlaybackStats
+{
+	if (_ioConnection == IO_OBJECT_NULL) {
+		return;
+	}
+	
+	playbackstats stats;
+	size_t playbackstatsSize = sizeof(stats);
+	
+	kern_return_t error =
+		IOConnectCallMethod(_ioConnection,
+							static_cast<uint64_t>(XoneDB4DriverExternalMethod_GetPlaybackStats),
+							nullptr, 0, nullptr, 0, nullptr, nullptr, &stats, &playbackstatsSize);
+	
+	//NSLog(@"PLAYBACKSTATS: %llu %llu %llu %llu", stats.out_sample_time, stats.out_sample_time_usb, stats.in_sample_time, stats.in_sample_time_usb);
+
+	return stats;
 }
 
 @end
