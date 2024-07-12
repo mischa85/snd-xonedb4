@@ -1,0 +1,27 @@
+//
+//  XoneDB4Stream.iig
+//  XoneDB4Driver
+//
+//  Created by Marcel Bierling on 12/07/2024.
+//  Copyright © 2024 Hackerman. All rights reserved.
+//
+
+#ifndef XoneDB4Stream_h
+#define XoneDB4Stream_h
+
+#include <DriverKit/DriverKit.iig>
+#include <AudioDriverKit/IOUserAudioStream.iig>
+
+using namespace AudioDriverKit;
+
+class IOUserAudioDriver;
+
+class XoneDB4Stream: public IOUserAudioStream
+{
+public:
+	virtual kern_return_t        StartIO(IOUserAudioStartStopFlags in_flags) override;
+	
+	virtual kern_return_t        StopIO(IOUserAudioStartStopFlags in_flags) override;
+};
+
+#endif /* XoneDB4Stream_h */

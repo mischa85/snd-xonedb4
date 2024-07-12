@@ -15,7 +15,10 @@
 // Should be divisible between both 10 and 8.
 // Could theoratically be set as low as 40, but I've seen CoreAudio crap itself at those values.
 // Beware.
-constexpr uint16_t bufferframes = 800;
+constexpr uint32_t buffersize = 800;
+
+// This is the size the buffer has at time of allocation, it can shrink according to settings
+constexpr uint32_t maxbuffersize = 800000;
 
 constexpr uint8_t bytesperframe = 3;
 constexpr uint8_t numchannels = 8;
@@ -66,6 +69,11 @@ struct XoneDB4Device_IVars
 	uint16_t							PCMPacketSize;
 	uint16_t							currentsampleoutusb;
 	
+	uint32_t							buffersize;
+	OSSharedPtr<IOBufferMemoryDescriptor> output_io_ring_buffer;
+	OSSharedPtr<IOBufferMemoryDescriptor> input_io_ring_buffer;
+	IOUserAudioDriver*					in_driver;
+	
 	uint8_t*							CoreAudioOutputBufferAddr;
 	uint8_t*							CoreAudioInputBufferAddr;
 	
@@ -82,6 +90,8 @@ struct XoneDB4Device_IVars
 
 bool XoneDB4Device::init(IOUserAudioDriver* in_driver, bool in_supports_prewarming, OSString* in_device_uid, OSString* in_model_uid, OSString* in_manufacturer_uid, uint32_t in_zero_timestamp_period, IOUSBHostPipe* PCMinPipe, OSAction* PCMinCallback, IOUSBHostPipe* PCMoutPipe, OSAction* PCMoutCallback, uint16_t PCMPacketSize, IOUSBHostDevice* device)
 {
+	os_log(OS_LOG_DEFAULT, "INIT CALLED");
+	
 	auto success = super::init(in_driver, in_supports_prewarming, in_device_uid, in_model_uid, in_manufacturer_uid, in_zero_timestamp_period);
 	if (!success) {
 		return false;
@@ -90,6 +100,14 @@ bool XoneDB4Device::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 	if (ivars == nullptr) {
 		return false;
 	}
+	
+	ivars->out_sample_time = 0;
+	ivars->out_sample_time_usb = 0;
+	ivars->in_sample_time = 0;
+	ivars->in_sample_time_usb = 0;
+	
+	ivars->in_driver = in_driver;
+	ivars->buffersize = buffersize;
 
 	auto device_uid = OSSharedPtr(OSString::withCString("xonedb4"), OSNoRetain);
 	auto model_uid = OSSharedPtr(OSString::withCString("Model UID"), OSNoRetain);
@@ -123,10 +141,7 @@ bool XoneDB4Device::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 	ivars->PCMoutDataAddr = reinterpret_cast<uint8_t*>(range.address);
 
 	double sample_rates[] = {96000};
-	const auto buffer_size_bytes = bufferframes * s24_3leframe;
-
-	OSSharedPtr<IOBufferMemoryDescriptor> output_io_ring_buffer;
-	OSSharedPtr<IOBufferMemoryDescriptor> input_io_ring_buffer;
+	//const auto buffer_size_bytes = ivars->buffersize * s24_3leframe;
 
 	OSSharedPtr<OSString> output_stream_name = OSSharedPtr(OSString::withCString("Xone:DB4 PCM OUT"), OSNoRetain);
 	OSSharedPtr<OSString> input_stream_name = OSSharedPtr(OSString::withCString("Xone:DB4 PCM IN"), OSNoRetain);
@@ -151,7 +166,7 @@ bool XoneDB4Device::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 	SetAvailableSampleRates(sample_rates, 1);
 	SetSampleRate(96000);
 	
-	SetZeroTimeStampPeriod(bufferframes);
+	SetZeroTimeStampPeriod(ivars->buffersize);
 	
 	for (i = 0; i < pcminurbs; i++)  {
 		ret = ivars->PCMinPipe->AsyncIO(ivars->PCMinDataEmpty, pcmsizein, ivars->PCMinCallback, 0);
@@ -163,16 +178,16 @@ bool XoneDB4Device::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 		FailIf(ret != kIOReturnSuccess, , Failure, "Failed to send PCMoutData urbs");
 	}
 
-	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, buffer_size_bytes, 0, output_io_ring_buffer.attach());
+	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, maxbuffersize * s24_3leframe, 0, ivars->output_io_ring_buffer.attach());
 	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create output IOBufferMemoryDescriptor");
 	
-	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, buffer_size_bytes, 0, input_io_ring_buffer.attach());
+	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, maxbuffersize * s24_3leframe, 0, ivars->input_io_ring_buffer.attach());
 	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create input IOBufferMemoryDescriptor");
 
-	ivars->m_output_stream = IOUserAudioStream::Create(in_driver, IOUserAudioStreamDirection::Output, output_io_ring_buffer.get());
+	ivars->m_output_stream = IOUserAudioStream::Create(in_driver, IOUserAudioStreamDirection::Output, ivars->output_io_ring_buffer.get());
 	FailIfNULL(ivars->m_output_stream.get(), ret = kIOReturnNoMemory, Failure, "failed to create output stream");
 	
-	ivars->m_input_stream = IOUserAudioStream::Create(in_driver, IOUserAudioStreamDirection::Input, input_io_ring_buffer.get());
+	ivars->m_input_stream = IOUserAudioStream::Create(in_driver, IOUserAudioStreamDirection::Input, ivars->input_io_ring_buffer.get());
 	FailIfNULL(ivars->m_input_stream.get(), ret = kIOReturnNoMemory, Failure, "failed to create input stream");
 
 	ivars->m_output_stream->SetName(output_stream_name.get());
@@ -219,7 +234,7 @@ Failure:
 
 kern_return_t XoneDB4Device::StartIO(IOUserAudioStartStopFlags in_flags)
 {
-	os_log(OS_LOG_DEFAULT, "is startio being called???");
+	os_log(OS_LOG_DEFAULT, "STARTIO CALLED");
 	
 	__block kern_return_t ret = kIOReturnSuccess;
 	__block OSSharedPtr<IOMemoryDescriptor> output_iomd;
@@ -242,10 +257,17 @@ kern_return_t XoneDB4Device::StartIO(IOUserAudioStartStopFlags in_flags)
 		ivars->CoreAudioOutputBufferAddr = reinterpret_cast<uint8_t*>(ivars->m_output_memory_map->GetAddress() + ivars->m_output_memory_map->GetOffset());
 		ivars->CoreAudioInputBufferAddr = reinterpret_cast<uint8_t*>(ivars->m_input_memory_map->GetAddress() + ivars->m_input_memory_map->GetOffset());
 		
-		UpdateCurrentZeroTimestamp(0, 0);
+		SetOutputSafetyOffset(totalframesout);
+		SetInputSafetyOffset(totalframesin);
+		GetCurrentClientIOTime(0, &ivars->out_sample_time, nullptr);
+		GetCurrentClientIOTime(1, &ivars->in_sample_time, nullptr);
+		ivars->out_sample_time_usb = ivars->out_sample_time;
+		ivars->in_sample_time_usb = ivars->out_sample_time;
+		
+		//UpdateCurrentZeroTimestamp(0, 0);
 
-		ivars->out_sample_time_usb = 0;
-		ivars->in_sample_time_usb = 0;
+		//ivars->out_sample_time_usb = 0;
+		//ivars->in_sample_time_usb = 0;
 		ivars->startclock = true;
 		ivars->startpcmout = true;
 		ivars->startpcmin = true;
@@ -264,6 +286,8 @@ kern_return_t XoneDB4Device::StartIO(IOUserAudioStartStopFlags in_flags)
 
 kern_return_t XoneDB4Device::StopIO(IOUserAudioStartStopFlags in_flags)
 {
+	os_log(OS_LOG_DEFAULT, "STOPIO CALLED");
+	
 	__block kern_return_t ret;
 
 	ivars->m_work_queue->DispatchSync(^(){
@@ -272,8 +296,8 @@ kern_return_t XoneDB4Device::StopIO(IOUserAudioStartStopFlags in_flags)
 		ivars->startclock = false;
 		ivars->startpcmout = false;
 		ivars->startpcmin = false;
-		ivars->out_sample_time_usb = 0;
-		ivars->in_sample_time_usb = 0;
+		//ivars->out_sample_time_usb = 0;
+		//ivars->in_sample_time_usb = 0;
 	});
 
 	if (ret != kIOReturnSuccess) {
@@ -283,8 +307,43 @@ kern_return_t XoneDB4Device::StopIO(IOUserAudioStartStopFlags in_flags)
 	return ret;
 }
 
+/// - Tag: PerformDeviceConfigurationChange
+kern_return_t XoneDB4Device::PerformDeviceConfigurationChange(uint64_t change_action, OSObject* in_change_info)
+{
+	os_log(OS_LOG_DEFAULT, "PERFORMDEVICECONFIGURATIONCHANGE CALLED");
+	
+	DebugMsg("change action %llu", change_action);
+	kern_return_t ret = kIOReturnSuccess;
+	switch (change_action) {
+		case k_change_buffer_size_action:
+		{
+			auto change_info_string = OSDynamicCast(OSNumber, in_change_info);
+			os_log(OS_LOG_DEFAULT, "change buffersize to: %d", change_info_string->unsigned32BitValue());
+			ivars->buffersize = change_info_string->unsigned32BitValue();
+			SetZeroTimeStampPeriod(change_info_string->unsigned32BitValue());
+		}
+			break;
+			
+		default:
+			ret = super::PerformDeviceConfigurationChange(change_action, in_change_info);
+			break;
+	}
+	
+	return ret;
+}
+
+kern_return_t XoneDB4Device::AbortDeviceConfigurationChange(uint64_t change_action, OSObject* in_change_info)
+{
+	os_log(OS_LOG_DEFAULT, "ABORTDEVICECONFIGURATIONCHANGE CALLED");
+	
+	// Handle aborted configuration changes as necessary.
+	return super::AbortDeviceConfigurationChange(change_action, in_change_info);
+}
+
 void XoneDB4Device::free()
 {
+	os_log(OS_LOG_DEFAULT, "FREE CALLED");
+	
 	if (ivars != nullptr) {
 		ivars->m_driver.reset();
 		ivars->m_output_stream.reset();
@@ -297,64 +356,68 @@ void XoneDB4Device::free()
 	super::free();
 }
 
+kern_return_t XoneDB4Device::GetPlaybackStats(playbackstats *stats)
+{
+	//os_log(OS_LOG_DEFAULT, "GETPLAYBACKSTATS DEVICE CALLED");
+	
+	GetCurrentClientIOTime(0, &ivars->out_sample_time, nullptr);
+	GetCurrentClientIOTime(1, &ivars->in_sample_time, nullptr);
+	stats->out_sample_time = ivars->out_sample_time;
+	stats->out_sample_time_usb = ivars->out_sample_time_usb;
+	stats->in_sample_time = ivars->in_sample_time;
+	stats->in_sample_time_usb = ivars->in_sample_time_usb;
+	
+	return kIOReturnSuccess;
+}
+
 kern_return_t XoneDB4Device::SendPCMToDevice(uint64_t completionTimestamp)
 {
 	__block kern_return_t ret;
 	__block int i = 0;
 	
 	if(ivars->startpcmout == true) {
-		if(ivars->currentsampleoutusb == bufferframes) {
+		if(ivars->currentsampleoutusb == ivars->buffersize) {
 			ivars->currentsampleoutusb = 0;
 			GetCurrentZeroTimestamp(&ivars->current_sample_time, nullptr);
-			ivars->current_sample_time += bufferframes;
+			ivars->current_sample_time += ivars->buffersize;
 			UpdateCurrentZeroTimestamp(ivars->current_sample_time, completionTimestamp);
-		}
-
-		GetCurrentClientIOTime(0, &ivars->out_sample_time, nullptr);
-		
-		if((ivars->out_sample_time > 0) && (ivars->out_sample_time - ivars->out_sample_time_usb) > bufferframes)
-		{
-			ivars->out_sample_time_usb = ivars->out_sample_time - (bufferframes/2);
-			os_log(OS_LOG_DEFAULT, "OUTSAMPLETIME: %llu | SAMPLEOUTUSB CORRECTED TO: %llu", ivars->out_sample_time, ivars->out_sample_time_usb);
+			GetCurrentClientIOTime(0, &ivars->out_sample_time, nullptr);
+			if((ivars->out_sample_time_usb < (ivars->out_sample_time - ivars->buffersize)) || (ivars->out_sample_time_usb > ivars->out_sample_time))
+			{
+				os_log(OS_LOG_DEFAULT, "RESYNCING");
+				ivars->out_sample_time_usb = ivars->out_sample_time - (ivars->buffersize/2);
+			}
 		}
 
 		// frames 0-8
 		for(i = 0; i < 9; i++) {
-			ploytec_convert_from_s24_3le(ivars->PCMoutDataAddr + (i * xonedb4framesizeout), ivars->CoreAudioOutputBufferAddr + ((ivars->out_sample_time_usb % bufferframes) * s24_3leframe));
+			ploytec_convert_from_s24_3le(ivars->PCMoutDataAddr + (i * xonedb4framesizeout), ivars->CoreAudioOutputBufferAddr + ((ivars->out_sample_time_usb % ivars->buffersize) * s24_3leframe));
 			ivars->out_sample_time_usb++;
 		}
 
 		// frames 9-18
 		for(i = 0; i < 10; i++) {
-			ploytec_convert_from_s24_3le(ivars->PCMoutDataAddr + 434 + (i * xonedb4framesizeout), ivars->CoreAudioOutputBufferAddr + ((ivars->out_sample_time_usb % bufferframes) * s24_3leframe));
+			ploytec_convert_from_s24_3le(ivars->PCMoutDataAddr + 434 + (i * xonedb4framesizeout), ivars->CoreAudioOutputBufferAddr + ((ivars->out_sample_time_usb % ivars->buffersize) * s24_3leframe));
 			ivars->out_sample_time_usb++;
 		}
 
 		// frames 19-28
 		for(i = 0; i < 10; i++) {
-			ploytec_convert_from_s24_3le(ivars->PCMoutDataAddr + 916 + (i * xonedb4framesizeout), ivars->CoreAudioOutputBufferAddr + ((ivars->out_sample_time_usb % bufferframes) * s24_3leframe));
+			ploytec_convert_from_s24_3le(ivars->PCMoutDataAddr + 916 + (i * xonedb4framesizeout), ivars->CoreAudioOutputBufferAddr + ((ivars->out_sample_time_usb % ivars->buffersize) * s24_3leframe));
 			ivars->out_sample_time_usb++;
 		}
 
 		// frames 29-38
 		for(i = 0; i < 10; i++) {
-			ploytec_convert_from_s24_3le(ivars->PCMoutDataAddr + 1398 + (i * xonedb4framesizeout), ivars->CoreAudioOutputBufferAddr + ((ivars->out_sample_time_usb % bufferframes) * s24_3leframe));
+			ploytec_convert_from_s24_3le(ivars->PCMoutDataAddr + 1398 + (i * xonedb4framesizeout), ivars->CoreAudioOutputBufferAddr + ((ivars->out_sample_time_usb % ivars->buffersize) * s24_3leframe));
 			ivars->out_sample_time_usb++;
 		}
 
 		// frame 39
-		ploytec_convert_from_s24_3le(ivars->PCMoutDataAddr + 1880, ivars->CoreAudioOutputBufferAddr + ((ivars->out_sample_time_usb % bufferframes) * s24_3leframe));
+		ploytec_convert_from_s24_3le(ivars->PCMoutDataAddr + 1880, ivars->CoreAudioOutputBufferAddr + ((ivars->out_sample_time_usb % ivars->buffersize) * s24_3leframe));
 		ivars->out_sample_time_usb++;
 		
 		ivars->currentsampleoutusb += totalframesout;
-
-		/*
-		for(i = 0; i < totalframesout; i++) {
-			ploytec_convert_from_s24_3le(ivars->PCMoutDataAddr + ((i / framesperpacketout) * 482) + ((i % framesperpacketout) * xonedb4framesizeout), ivars->CoreAudioOutputBufferAddr + ((ivars->out_sample_time_usb % bufferframes) * s24_3leframe));
-			ivars->out_sample_time_usb++;
-			ivars->currentsampleoutusb++;
-		}
-		*/
 		
 		ret = ivars->PCMoutPipe->AsyncIO(ivars->PCMoutData, pcmsizeout, ivars->PCMoutCallback, 0);
 		if (ret != kIOReturnSuccess)
@@ -376,21 +439,13 @@ kern_return_t XoneDB4Device::ReceivePCMfromDevice(uint64_t completionTimestamp)
 	__block kern_return_t ret;
 	
 	if(ivars->startpcmin == true) {
-		GetCurrentClientIOTime(1, &ivars->in_sample_time, nullptr);
-		
-		if((ivars->in_sample_time > 0) && (ivars->in_sample_time_usb - ivars->in_sample_time) > bufferframes)
-		{
-			ivars->in_sample_time_usb = ivars->in_sample_time + (bufferframes/2);
-			os_log(OS_LOG_DEFAULT, "INSAMPLETIME: %llu | SAMPLEINUSB CORRECTED TO: %llu", ivars->in_sample_time, ivars->in_sample_time_usb);
-		}
-			
 		ret = ivars->PCMinPipe->AsyncIO(ivars->PCMinData, pcmsizein, ivars->PCMinCallback, 0);
 		if (ret != kIOReturnSuccess)
 		{
 			os_log(OS_LOG_DEFAULT, "RECEIVE ERROR %d", ret);
 		}
 		for(i = 0; i < totalframesin; i++) {
-			ploytec_convert_to_s24_3le(ivars->CoreAudioInputBufferAddr + ((ivars->in_sample_time_usb % bufferframes) * s24_3leframe), ivars->PCMinDataAddr + (i * xonedb4framesizein));
+			ploytec_convert_to_s24_3le(ivars->CoreAudioInputBufferAddr + ((ivars->in_sample_time_usb % ivars->buffersize) * s24_3leframe), ivars->PCMinDataAddr + (i * xonedb4framesizein));
 			ivars->in_sample_time_usb++;
 		}
 	} else {

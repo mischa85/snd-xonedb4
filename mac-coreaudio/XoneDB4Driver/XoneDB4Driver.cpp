@@ -385,6 +385,20 @@ OSData* XoneDB4Driver::GetFirmwareVer()
 	return OSData::withBytes(ivars->firmwarever, sizeof(ivars->firmwarever));
 }
 
+kern_return_t XoneDB4Driver::GetPlaybackStats(playbackstats *stats)
+{
+	//os_log(OS_LOG_DEFAULT, "GETPLAYBACKSTATS DRIVER CALLED");
+	
+	return ivars->m_audio_device->GetPlaybackStats(stats);
+}
+
+/// - Tag: HandleTestConfigChange
+kern_return_t XoneDB4Driver::ChangeBufferSize(OSNumber *buffersize)
+{
+	//auto change_info = OSNumber::withNumber(buffersize, sizeof(buffersize));
+	return ivars->m_audio_device->RequestDeviceConfigurationChange(k_change_buffer_size_action, buffersize);
+}
+
 kern_return_t IMPL(XoneDB4Driver, PCMinHandler)
 {
 	kern_return_t ret;
