@@ -17,10 +17,15 @@
 using namespace AudioDriverKit;
 
 typedef struct {
+	bool playing;
+	bool recording;
 	uint64_t out_sample_time;
 	uint64_t out_sample_time_usb;
+	uint64_t out_sample_time_diff;
 	uint64_t in_sample_time;
 	uint64_t in_sample_time_usb;
+	uint64_t in_sample_time_diff;
+	uint64_t xruns;
 } playbackstats;
 
 constexpr uint64_t k_change_buffer_size_action = 1234;

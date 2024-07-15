@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 53;
+	objectVersion = 54;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -368,7 +368,7 @@
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
 				INFOPLIST_FILE = "$(SRCROOT)/XoneDB4App/Info.plist";
-				PRODUCT_BUNDLE_IDENTIFIER = sc.hackerman.xonedb4driver;
+				PRODUCT_BUNDLE_IDENTIFIER = sc.hackerman.xonedb4app;
 				PRODUCT_NAME = XoneDB4App;
 				SDKROOT = macosx;
 				SWIFT_OBJC_BRIDGING_HEADER = XoneDB4App/XoneDB4AppUserClient.h;
@@ -381,7 +381,7 @@
 			buildSettings = {
 				CLANG_ENABLE_MODULES = YES;
 				INFOPLIST_FILE = "$(SRCROOT)/XoneDB4App/Info.plist";
-				PRODUCT_BUNDLE_IDENTIFIER = sc.hackerman.xonedb4driver;
+				PRODUCT_BUNDLE_IDENTIFIER = sc.hackerman.xonedb4app;
 				PRODUCT_NAME = XoneDB4App;
 				SDKROOT = macosx;
 				SWIFT_OBJC_BRIDGING_HEADER = XoneDB4App/XoneDB4AppUserClient.h;

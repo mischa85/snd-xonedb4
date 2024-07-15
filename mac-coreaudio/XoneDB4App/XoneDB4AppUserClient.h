@@ -6,10 +6,15 @@
 #import <Foundation/Foundation.h>
 
 typedef struct {
+	bool playing;
+	bool recording;
 	uint64_t out_sample_time;
 	uint64_t out_sample_time_usb;
+	uint64_t out_sample_time_diff;
 	uint64_t in_sample_time;
 	uint64_t in_sample_time_usb;
+	uint64_t in_sample_time_diff;
+	uint64_t xruns;
 } playbackstats;
 
 @interface XoneDB4AppUserClient : NSObject

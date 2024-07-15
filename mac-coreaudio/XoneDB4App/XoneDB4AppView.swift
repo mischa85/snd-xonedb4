@@ -6,9 +6,9 @@ struct XoneDB4AppView: View {
 	@State private var userClientText = ""
 	@State private var firmwareVersionText = ""
 	@State private var playbackStatsText = ""
-	@State private var selectedBufferSize = 800
-	let bufferSize = [40, 80, 120, 160, 200, 240, 280, 320, 360, 400, 440, 480, 520, 560, 600, 640, 680, 720, 760, 800, 840, 880, 920, 960, 1000]
-	private let playbackStatsUpdateInterval = 0.1
+	@State private var selectedBufferSize = 1280
+	let bufferSize = [160, 320, 480, 640, 680, 960, 1000, 1120, 1280, 1440, 1600, 1760, 1920, 2080, 2240, 2400, 2560, 2720, 2880, 3040, 3200]
+	private let playbackStatsUpdateInterval = 0.01
 	@State private var timer: Timer?
 
 	var body: some View {
@@ -70,41 +70,57 @@ struct XoneDB4AppView: View {
 						}
 					}
 					.padding()
-					
+
 					Text(firmwareVersionText)
 						.padding()
 					
 					Text(playbackStatsText)
 						.font(.system(.body, design: .monospaced))
 						.multilineTextAlignment(.leading)
-						.frame(minWidth: 300, maxWidth: 300, minHeight: 100, idealHeight: 100, maxHeight: 200)
+						.frame(minWidth: 400, maxWidth: 400, minHeight: 200, idealHeight: 200, maxHeight: 200)
 						.border(Color.gray)
 						.padding()
 				}
 				.frame(width: 500, alignment: .center)
 			}
-		}
-		.onAppear {
-			// Start timer to update playback stats
-			self.timer = Timer.scheduledTimer(withTimeInterval: self.playbackStatsUpdateInterval, repeats: true) { _ in
-				self.updatePlaybackStats()
+			Text(viewModel.isConnected ? "Connected" : "Not Connected")
+				.font(.headline)
+				.padding()
+				.foregroundColor(viewModel.isConnected ? .green : .red)
+			.onReceive(viewModel.$isConnected) { isConnected in
+				if isConnected {
+					startTimer()
+				} else {
+					stopTimer()
+				}
 			}
 		}
-		.onDisappear {
-			// Stop timer when view disappears
-			self.timer?.invalidate()
-			self.timer = nil
+	}
+
+	private func startTimer() {
+		timer = Timer.scheduledTimer(withTimeInterval: self.playbackStatsUpdateInterval, repeats: true) { _ in
+			self.updatePlaybackStats()
 		}
 	}
-	
+
+	private func stopTimer() {
+		timer?.invalidate()
+		timer = nil
+	}
+
 	private func updatePlaybackStats() {
 		let stats = self.userClient.getPlaybackStats()
 		let outdiff = stats.out_sample_time_usb - stats.out_sample_time
 		let indiff = stats.in_sample_time_usb - stats.in_sample_time
-		self.playbackStatsText = "Out Sample Time     : \(stats.out_sample_time)\n" +
+		self.playbackStatsText = "Playing             : \(stats.playing)\n" +
+			"Recording           : \(stats.recording)\n" +
+			"Out Sample Time     : \(stats.out_sample_time)\n" +
 			"Out Sample Time USB : \(stats.out_sample_time_usb)\n" +
+			"Out Sample Time diff: \(stats.out_sample_time_diff)\n" +
 			"In Sample Time      : \(stats.in_sample_time)\n" +
-			"In Sample Time  USB : \(stats.in_sample_time_usb)"
+			"In Sample Time USB  : \(stats.in_sample_time_usb)\n" +
+			"In Sample Time diff : \(stats.out_sample_time_diff)\n" +
+			"XRUNS               : \(stats.xruns)"
 	}
 }
 
