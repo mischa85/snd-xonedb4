@@ -82,6 +82,8 @@ struct XoneDB4Device_IVars
 	uint64_t							in_sample_time;
 	uint64_t							in_sample_time_usb;
 	uint64_t							out_sample_time_usb;
+	
+	uint64_t							xruns;
 
 	bool								startclock;
 	bool								startpcmin;
@@ -359,13 +361,17 @@ void XoneDB4Device::free()
 kern_return_t XoneDB4Device::GetPlaybackStats(playbackstats *stats)
 {
 	//os_log(OS_LOG_DEFAULT, "GETPLAYBACKSTATS DEVICE CALLED");
-	
+	stats->playing = ivars->startpcmout;
+	stats->recording = ivars->startpcmin;
 	GetCurrentClientIOTime(0, &ivars->out_sample_time, nullptr);
 	GetCurrentClientIOTime(1, &ivars->in_sample_time, nullptr);
 	stats->out_sample_time = ivars->out_sample_time;
 	stats->out_sample_time_usb = ivars->out_sample_time_usb;
+	stats->out_sample_time_diff = ivars->out_sample_time - ivars->out_sample_time_usb;
 	stats->in_sample_time = ivars->in_sample_time;
 	stats->in_sample_time_usb = ivars->in_sample_time_usb;
+	stats->in_sample_time_diff = ivars->in_sample_time_usb - ivars->in_sample_time;
+	stats->xruns = ivars->xruns;
 	
 	return kIOReturnSuccess;
 }
@@ -385,6 +391,7 @@ kern_return_t XoneDB4Device::SendPCMToDevice(uint64_t completionTimestamp)
 			if((ivars->out_sample_time_usb < (ivars->out_sample_time - ivars->buffersize)) || (ivars->out_sample_time_usb > ivars->out_sample_time))
 			{
 				os_log(OS_LOG_DEFAULT, "RESYNCING");
+				ivars->xruns++;
 				ivars->out_sample_time_usb = ivars->out_sample_time - (ivars->buffersize/2);
 			}
 		}

@@ -38,6 +38,8 @@
 			_ioObject = matchedService;
 			theKernelError = IOServiceOpen(_ioObject, mach_task_self(), 0, &_ioConnection);
 			if (theKernelError == kIOReturnSuccess) {
+				// Post notification for successful connection
+				[[NSNotificationCenter defaultCenter] postNotificationName:@"UserClientConnectionOpened" object:nil];
 				return @"Connection to user client succeeded";
 			}
 			else {

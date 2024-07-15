@@ -7,6 +7,7 @@
 //
 
 import Foundation
+import Combine
 import os.log
 #if os(macOS)
 import SystemExtensions
@@ -188,18 +189,25 @@ class XoneDB4AppStateMachine {
 	}
 }
 
-class XoneDB4AppViewModel: NSObject, ObservableObject {
-
+class XoneDB4AppViewModel: NSObject {
+	
 	private let dextIdentifier: String = "sc.hackerman.xonedb4driver"
 	
 	// Check the initial state of the dext because it doesn't necessarily start in an unloaded state.
 	@Published private(set) var state: XoneDB4AppStateMachine.State = .deactivated
+	@Published var isConnected = false
+	
+	private var cancellables = Set<AnyCancellable>()
 	
 	override init() {
 		super.init()
-		checkactivatedstateMyDext()
+		NotificationCenter.default.publisher(for: NSNotification.Name("UserClientConnectionOpened"))
+			.sink { [weak self] _ in
+				self?.isConnected = true
+			}
+			.store(in: &cancellables)
 	}
-
+	
 	public var dextLoadingState: String {
 		switch state {
 		case .activating:
@@ -224,23 +232,20 @@ class XoneDB4AppViewModel: NSObject, ObservableObject {
 			return "Error: code signing.\nMake sure SIP is disabled (csrutil disable in recovery)\nand amfi_get_out_of_my_way=0x1 is added to the bootflags."
 		}
 	}
+}
 	
-	func checkactivatedstateMyDext() {
-		checkExtension(dextIdentifier)
-	}
+extension XoneDB4AppViewModel: ObservableObject {
+
+}
 	
+extension XoneDB4AppViewModel {
+#if os(macOS)
 	func activateMyDext() {
 		activateExtension(dextIdentifier)
 	}
 	
 	func deactivateMyDext() {
 		deactivateExtension(dextIdentifier)
-	}
-
-	func checkExtension(_ dextIdentifier: String) {
-		let request = OSSystemExtensionRequest.propertiesRequest(forExtensionWithIdentifier: dextIdentifier, queue: .main)
-		request.delegate = self
-		OSSystemExtensionManager.shared.submitRequest(request)
 	}
 	
 	func activateExtension(_ dextIdentifier: String) {
@@ -258,24 +263,33 @@ class XoneDB4AppViewModel: NSObject, ObservableObject {
 		
 		self.state = XoneDB4AppStateMachine.process(self.state, .deactivationStarted)
 	}
+#endif
 }
 
 #if os(macOS)
 extension XoneDB4AppViewModel: OSSystemExtensionRequestDelegate {
 	
-	func request(_ request: OSSystemExtensionRequest, foundProperties properties: OSSystemExtensionProperties) {
-		if properties.isEnabled {
-			NSLog("FOUND EXT ACTIVATED")
-			self.state = .activated
-		} else {
-			NSLog("FOUND EXT DEACTIVATED")
-			self.state = .deactivated
-		}
-	}
-	
-	func request(_ request: OSSystemExtensionRequest, actionForReplacingExtension existing: OSSystemExtensionProperties, withExtension ext: OSSystemExtensionProperties) -> OSSystemExtensionRequest.ReplacementAction {
+	func request(
+		_ request: OSSystemExtensionRequest,
+		actionForReplacingExtension existing: OSSystemExtensionProperties,
+		withExtension ext: OSSystemExtensionProperties) -> OSSystemExtensionRequest.ReplacementAction {
+
+		var replacementAction: OSSystemExtensionRequest.ReplacementAction
+
 		os_log("system extension actionForReplacingExtension: %@ %@", existing, ext)
-		return .replace
+
+		// Add appropriate logic here to determine whether to replace the extension
+		// with the new extension. Common things to check for include
+		// testing whether the new extension's version number is newer than
+		// the current version number and whether the bundleIdentifier is different.
+		// For simplicity, this sample always replaces the current extension
+		// with the new one.
+		replacementAction = .replace
+
+		// The upgrade case may require a separate set of states.
+		self.state = XoneDB4AppStateMachine.process(self.state, .activationStarted)
+
+		return replacementAction
 	}
 
 	func requestNeedsUserApproval(_ request: OSSystemExtensionRequest) {
