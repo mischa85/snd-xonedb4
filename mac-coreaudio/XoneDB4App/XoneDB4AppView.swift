@@ -8,7 +8,7 @@ struct XoneDB4AppView: View {
 	@State private var playbackStatsText = ""
 	@State private var selectedBufferSize = 1280
 	let bufferSize = [160, 320, 480, 640, 680, 960, 1000, 1120, 1280, 1440, 1600, 1760, 1920, 2080, 2240, 2400, 2560, 2720, 2880, 3040, 3200]
-	private let playbackStatsUpdateInterval = 0.01
+	private let playbackStatsUpdateInterval = 1.0
 	@State private var timer: Timer?
 
 	var body: some View {
@@ -119,7 +119,7 @@ struct XoneDB4AppView: View {
 			"Out Sample Time diff: \(stats.out_sample_time_diff)\n" +
 			"In Sample Time      : \(stats.in_sample_time)\n" +
 			"In Sample Time USB  : \(stats.in_sample_time_usb)\n" +
-			"In Sample Time diff : \(stats.out_sample_time_diff)\n" +
+			"In Sample Time diff : \(stats.in_sample_time_diff)\n" +
 			"XRUNS               : \(stats.xruns)"
 	}
 }

@@ -68,6 +68,7 @@ struct XoneDB4Device_IVars
 	OSAction*							PCMoutCallback;
 	uint16_t							PCMPacketSize;
 	uint16_t							currentsampleoutusb;
+	uint16_t							currentsampleinusb;
 	
 	uint32_t							buffersize;
 	OSSharedPtr<IOBufferMemoryDescriptor> output_io_ring_buffer;
@@ -170,14 +171,14 @@ bool XoneDB4Device::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 	
 	SetZeroTimeStampPeriod(ivars->buffersize);
 	
-	for (i = 0; i < pcminurbs; i++)  {
-		ret = ivars->PCMinPipe->AsyncIO(ivars->PCMinDataEmpty, pcmsizein, ivars->PCMinCallback, 0);
-		FailIf(ret != kIOReturnSuccess, , Failure, "Failed to send PCMinData urbs");
-	}
-
 	for (i = 0; i < pcmouturbs; i++)  {
 		ret = ivars->PCMoutPipe->AsyncIO(ivars->PCMoutDataEmpty, pcmsizeout, ivars->PCMoutCallback, 0);
 		FailIf(ret != kIOReturnSuccess, , Failure, "Failed to send PCMoutData urbs");
+	}
+	
+	for (i = 0; i < pcminurbs; i++)  {
+		ret = ivars->PCMinPipe->AsyncIO(ivars->PCMinDataEmpty, pcmsizein, ivars->PCMinCallback, 0);
+		FailIf(ret != kIOReturnSuccess, , Failure, "Failed to send PCMinData urbs");
 	}
 
 	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, maxbuffersize * s24_3leframe, 0, ivars->output_io_ring_buffer.attach());
@@ -259,8 +260,8 @@ kern_return_t XoneDB4Device::StartIO(IOUserAudioStartStopFlags in_flags)
 		ivars->CoreAudioOutputBufferAddr = reinterpret_cast<uint8_t*>(ivars->m_output_memory_map->GetAddress() + ivars->m_output_memory_map->GetOffset());
 		ivars->CoreAudioInputBufferAddr = reinterpret_cast<uint8_t*>(ivars->m_input_memory_map->GetAddress() + ivars->m_input_memory_map->GetOffset());
 		
-		SetOutputSafetyOffset(totalframesout);
-		SetInputSafetyOffset(totalframesin);
+		//SetOutputSafetyOffset(totalframesout);
+		//SetInputSafetyOffset(totalframesin);
 		GetCurrentClientIOTime(0, &ivars->out_sample_time, nullptr);
 		GetCurrentClientIOTime(1, &ivars->in_sample_time, nullptr);
 		ivars->out_sample_time_usb = ivars->out_sample_time;
@@ -367,7 +368,7 @@ kern_return_t XoneDB4Device::GetPlaybackStats(playbackstats *stats)
 	GetCurrentClientIOTime(1, &ivars->in_sample_time, nullptr);
 	stats->out_sample_time = ivars->out_sample_time;
 	stats->out_sample_time_usb = ivars->out_sample_time_usb;
-	stats->out_sample_time_diff = ivars->out_sample_time - ivars->out_sample_time_usb;
+	stats->out_sample_time_diff = ivars->out_sample_time_usb - ivars->out_sample_time;
 	stats->in_sample_time = ivars->in_sample_time;
 	stats->in_sample_time_usb = ivars->in_sample_time_usb;
 	stats->in_sample_time_diff = ivars->in_sample_time_usb - ivars->in_sample_time;
@@ -390,7 +391,7 @@ kern_return_t XoneDB4Device::SendPCMToDevice(uint64_t completionTimestamp)
 			GetCurrentClientIOTime(0, &ivars->out_sample_time, nullptr);
 			if((ivars->out_sample_time_usb < (ivars->out_sample_time - ivars->buffersize)) || (ivars->out_sample_time_usb > ivars->out_sample_time))
 			{
-				os_log(OS_LOG_DEFAULT, "RESYNCING");
+				os_log(OS_LOG_DEFAULT, "RESYNCING OUT");
 				ivars->xruns++;
 				ivars->out_sample_time_usb = ivars->out_sample_time - (ivars->buffersize/2);
 			}
@@ -446,6 +447,17 @@ kern_return_t XoneDB4Device::ReceivePCMfromDevice(uint64_t completionTimestamp)
 	__block kern_return_t ret;
 	
 	if(ivars->startpcmin == true) {
+		if(ivars->currentsampleinusb == ivars->buffersize) {
+			ivars->currentsampleinusb = 0;
+			GetCurrentClientIOTime(1, &ivars->in_sample_time, nullptr);
+			if((ivars->in_sample_time_usb > (ivars->in_sample_time + ivars->buffersize)) || (ivars->in_sample_time_usb < ivars->in_sample_time))
+			{
+				os_log(OS_LOG_DEFAULT, "RESYNCING IN");
+				//ivars->xruns++;
+				ivars->in_sample_time_usb = ivars->in_sample_time + (ivars->buffersize/2);
+			}
+		}
+		
 		ret = ivars->PCMinPipe->AsyncIO(ivars->PCMinData, pcmsizein, ivars->PCMinCallback, 0);
 		if (ret != kIOReturnSuccess)
 		{
@@ -455,6 +467,7 @@ kern_return_t XoneDB4Device::ReceivePCMfromDevice(uint64_t completionTimestamp)
 			ploytec_convert_to_s24_3le(ivars->CoreAudioInputBufferAddr + ((ivars->in_sample_time_usb % ivars->buffersize) * s24_3leframe), ivars->PCMinDataAddr + (i * xonedb4framesizein));
 			ivars->in_sample_time_usb++;
 		}
+		ivars->currentsampleinusb += totalframesin;
 	} else {
 		ret = ivars->PCMinPipe->AsyncIO(ivars->PCMinDataEmpty, pcmsizein, ivars->PCMinCallback, 0);
 		if (ret != kIOReturnSuccess)
