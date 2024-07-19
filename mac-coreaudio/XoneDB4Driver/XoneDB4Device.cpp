@@ -36,8 +36,8 @@ constexpr uint16_t totalframesin = numpacketsin * framesperpacketin;
 constexpr uint16_t pcmsizeout = numpacketsout * 482; // 40 frames
 constexpr uint16_t pcmsizein = numpacketsin * 512; // 32 frames
 
-constexpr uint8_t pcmouturbs = 1;
-constexpr uint8_t pcminurbs = 1;
+constexpr uint8_t pcmouturbs = 4;
+constexpr uint8_t pcminurbs = 4;
 
 constexpr uint16_t xonedb4framesizeout = 48;
 constexpr uint16_t xonedb4framesizein = 64;
@@ -72,11 +72,15 @@ struct XoneDB4Device_IVars
 	
 	uint32_t							buffersize;
 	OSSharedPtr<IOBufferMemoryDescriptor> output_io_ring_buffer;
+	OSSharedPtr<IOBufferMemoryDescriptor> output_ploytec_ring_buffer;
 	OSSharedPtr<IOBufferMemoryDescriptor> input_io_ring_buffer;
+	OSSharedPtr<IOBufferMemoryDescriptor> input_ploytec_ring_buffer;
 	IOUserAudioDriver*					in_driver;
 	
 	uint8_t*							CoreAudioOutputBufferAddr;
 	uint8_t*							CoreAudioInputBufferAddr;
+	uint8_t*							PloytecOutputBufferAddr;
+	uint8_t*							PloytecInputBufferAddr;
 	
 	uint64_t							current_sample_time;
 	uint64_t							out_sample_time;
@@ -86,7 +90,7 @@ struct XoneDB4Device_IVars
 	
 	uint64_t							xruns;
 
-	bool								startclock;
+	//bool								startclock;
 	bool								startpcmin;
 	bool								startpcmout;
 };
@@ -119,6 +123,7 @@ bool XoneDB4Device::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 
 	IOReturn ret = kIOReturnSuccess;
 	IOAddressSegment range;
+	IOOperationHandler io_operation = nullptr;
 
 	ivars->m_driver = OSSharedPtr(in_driver, OSRetain);
 	ivars->m_work_queue = GetWorkQueue();
@@ -142,6 +147,14 @@ bool XoneDB4Device::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 	ret = ivars->device->CreateIOBuffer(kIOMemoryDirectionInOut, pcmsizeout, &ivars->PCMoutData);
 	ivars->PCMoutData->GetAddressRange(&range);
 	ivars->PCMoutDataAddr = reinterpret_cast<uint8_t*>(range.address);
+	
+	ret = ivars->device->CreateIOBuffer(kIOMemoryDirectionInOut, maxbuffersize * xonedb4framesizeout, ivars->output_ploytec_ring_buffer.attach());
+	ivars->output_ploytec_ring_buffer->GetAddressRange(&range);
+	ivars->PloytecOutputBufferAddr = reinterpret_cast<uint8_t*>(range.address);
+	
+	ret = ivars->device->CreateIOBuffer(kIOMemoryDirectionInOut, maxbuffersize * xonedb4framesizein, ivars->input_ploytec_ring_buffer.attach());
+	ivars->input_ploytec_ring_buffer->GetAddressRange(&range);
+	ivars->PloytecInputBufferAddr = reinterpret_cast<uint8_t*>(range.address);
 
 	double sample_rates[] = {96000};
 	//const auto buffer_size_bytes = ivars->buffersize * s24_3leframe;
@@ -171,12 +184,12 @@ bool XoneDB4Device::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 	
 	SetZeroTimeStampPeriod(ivars->buffersize);
 	
-	for (i = 0; i < pcmouturbs; i++)  {
+	for (i = 0; i < pcmouturbs; i++) {
 		ret = ivars->PCMoutPipe->AsyncIO(ivars->PCMoutDataEmpty, pcmsizeout, ivars->PCMoutCallback, 0);
 		FailIf(ret != kIOReturnSuccess, , Failure, "Failed to send PCMoutData urbs");
 	}
 	
-	for (i = 0; i < pcminurbs; i++)  {
+	for (i = 0; i < pcminurbs; i++) {
 		ret = ivars->PCMinPipe->AsyncIO(ivars->PCMinDataEmpty, pcmsizein, ivars->PCMinCallback, 0);
 		FailIf(ret != kIOReturnSuccess, , Failure, "Failed to send PCMinData urbs");
 	}
@@ -224,6 +237,30 @@ bool XoneDB4Device::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 	ivars->PCMoutDataAddr[1878] = 0xfd;
 	ivars->PCMoutDataAddr[1879] = 0xfd;
 	
+	io_operation = ^kern_return_t(IOUserAudioObjectID in_device, IOUserAudioIOOperation in_io_operation, uint32_t in_io_buffer_frame_size, uint64_t in_sample_time, uint64_t in_host_time)
+	{
+		__block int i = 0;
+		
+		if (in_io_operation == IOUserAudioIOOperationWriteEnd)
+		{
+			for (i = 0; i < in_io_buffer_frame_size; i++)
+			{
+				ploytec_convert_from_s24_3le(ivars->PloytecOutputBufferAddr + (((in_sample_time + i) % ivars->buffersize) * xonedb4framesizeout), ivars->CoreAudioOutputBufferAddr + (((in_sample_time + i) % ivars->buffersize) * s24_3leframe));
+			}
+		}
+		else if (in_io_operation == IOUserAudioIOOperationBeginRead)
+		{
+			for (i = 0; i < in_io_buffer_frame_size; i++)
+			{
+				ploytec_convert_to_s24_3le(ivars->CoreAudioInputBufferAddr + (((in_sample_time + i) % ivars->buffersize) * s24_3leframe), ivars->PloytecInputBufferAddr + (((in_sample_time + i) % ivars->buffersize) * xonedb4framesizein));
+			}
+		}
+		
+		return kIOReturnSuccess;
+	};
+
+	this->SetIOOperationHandler(io_operation);
+	
 	return true;
 
 Failure:
@@ -267,11 +304,11 @@ kern_return_t XoneDB4Device::StartIO(IOUserAudioStartStopFlags in_flags)
 		ivars->out_sample_time_usb = ivars->out_sample_time;
 		ivars->in_sample_time_usb = ivars->out_sample_time;
 		
-		//UpdateCurrentZeroTimestamp(0, 0);
+		UpdateCurrentZeroTimestamp(0, 0);
 
 		//ivars->out_sample_time_usb = 0;
 		//ivars->in_sample_time_usb = 0;
-		ivars->startclock = true;
+		//ivars->startclock = true;
 		ivars->startpcmout = true;
 		ivars->startpcmin = true;
 		
@@ -296,7 +333,7 @@ kern_return_t XoneDB4Device::StopIO(IOUserAudioStartStopFlags in_flags)
 	ivars->m_work_queue->DispatchSync(^(){
 		ret = super::StopIO(in_flags);
 		
-		ivars->startclock = false;
+		//ivars->startclock = false;
 		ivars->startpcmout = false;
 		ivars->startpcmin = false;
 		//ivars->out_sample_time_usb = 0;
@@ -383,6 +420,12 @@ kern_return_t XoneDB4Device::SendPCMToDevice(uint64_t completionTimestamp)
 	__block int i = 0;
 	
 	if(ivars->startpcmout == true) {
+		ret = ivars->PCMoutPipe->AsyncIO(ivars->PCMoutData, pcmsizeout, ivars->PCMoutCallback, 0);
+		if (ret != kIOReturnSuccess)
+		{
+			os_log(OS_LOG_DEFAULT, "SEND ERROR %d", ret);
+		}
+		
 		if(ivars->currentsampleoutusb == ivars->buffersize) {
 			ivars->currentsampleoutusb = 0;
 			GetCurrentZeroTimestamp(&ivars->current_sample_time, nullptr);
@@ -399,39 +442,40 @@ kern_return_t XoneDB4Device::SendPCMToDevice(uint64_t completionTimestamp)
 
 		// frames 0-8
 		for(i = 0; i < 9; i++) {
-			ploytec_convert_from_s24_3le(ivars->PCMoutDataAddr + (i * xonedb4framesizeout), ivars->CoreAudioOutputBufferAddr + ((ivars->out_sample_time_usb % ivars->buffersize) * s24_3leframe));
+			memcpy(ivars->PCMoutDataAddr + 0 + (i * xonedb4framesizeout), ivars->PloytecOutputBufferAddr + ((ivars->out_sample_time_usb % ivars->buffersize) * xonedb4framesizeout), 9 * xonedb4framesizeout);
+			//ploytec_convert_from_s24_3le(ivars->PCMoutDataAddr + (i * xonedb4framesizeout), ivars->CoreAudioOutputBufferAddr + ((ivars->out_sample_time_usb % ivars->buffersize) * s24_3leframe));
 			ivars->out_sample_time_usb++;
 		}
 
 		// frames 9-18
 		for(i = 0; i < 10; i++) {
-			ploytec_convert_from_s24_3le(ivars->PCMoutDataAddr + 434 + (i * xonedb4framesizeout), ivars->CoreAudioOutputBufferAddr + ((ivars->out_sample_time_usb % ivars->buffersize) * s24_3leframe));
+			memcpy(ivars->PCMoutDataAddr + 434 + (i * xonedb4framesizeout), ivars->PloytecOutputBufferAddr + ((ivars->out_sample_time_usb % ivars->buffersize) * xonedb4framesizeout), 10 * xonedb4framesizeout);
+			//ploytec_convert_from_s24_3le(ivars->PCMoutDataAddr + 434 + (i * xonedb4framesizeout), ivars->CoreAudioOutputBufferAddr + ((ivars->out_sample_time_usb % ivars->buffersize) * s24_3leframe));
 			ivars->out_sample_time_usb++;
 		}
 
 		// frames 19-28
 		for(i = 0; i < 10; i++) {
-			ploytec_convert_from_s24_3le(ivars->PCMoutDataAddr + 916 + (i * xonedb4framesizeout), ivars->CoreAudioOutputBufferAddr + ((ivars->out_sample_time_usb % ivars->buffersize) * s24_3leframe));
+			memcpy(ivars->PCMoutDataAddr + 916 + (i * xonedb4framesizeout), ivars->PloytecOutputBufferAddr + ((ivars->out_sample_time_usb % ivars->buffersize) * xonedb4framesizeout), 10 * xonedb4framesizeout);
+			//ploytec_convert_from_s24_3le(ivars->PCMoutDataAddr + 916 + (i * xonedb4framesizeout), ivars->CoreAudioOutputBufferAddr + ((ivars->out_sample_time_usb % ivars->buffersize) * s24_3leframe));
 			ivars->out_sample_time_usb++;
 		}
 
 		// frames 29-38
 		for(i = 0; i < 10; i++) {
-			ploytec_convert_from_s24_3le(ivars->PCMoutDataAddr + 1398 + (i * xonedb4framesizeout), ivars->CoreAudioOutputBufferAddr + ((ivars->out_sample_time_usb % ivars->buffersize) * s24_3leframe));
+			memcpy(ivars->PCMoutDataAddr + 1398 + (i * xonedb4framesizeout), ivars->PloytecOutputBufferAddr + ((ivars->out_sample_time_usb % ivars->buffersize) * xonedb4framesizeout), 10 * xonedb4framesizeout);
+			//ploytec_convert_from_s24_3le(ivars->PCMoutDataAddr + 1398 + (i * xonedb4framesizeout), ivars->CoreAudioOutputBufferAddr + ((ivars->out_sample_time_usb % ivars->buffersize) * s24_3leframe));
 			ivars->out_sample_time_usb++;
 		}
 
 		// frame 39
-		ploytec_convert_from_s24_3le(ivars->PCMoutDataAddr + 1880, ivars->CoreAudioOutputBufferAddr + ((ivars->out_sample_time_usb % ivars->buffersize) * s24_3leframe));
-		ivars->out_sample_time_usb++;
+		for(i = 0; i < 1; i++) {
+			memcpy(ivars->PCMoutDataAddr + 1880 + (i * xonedb4framesizeout), ivars->PloytecOutputBufferAddr + ((ivars->out_sample_time_usb % ivars->buffersize) * xonedb4framesizeout), 1 * xonedb4framesizeout);
+			//ploytec_convert_from_s24_3le(ivars->PCMoutDataAddr + 1880, ivars->CoreAudioOutputBufferAddr + ((ivars->out_sample_time_usb % ivars->buffersize) * s24_3leframe));
+			ivars->out_sample_time_usb++;
+		}
 		
 		ivars->currentsampleoutusb += totalframesout;
-		
-		ret = ivars->PCMoutPipe->AsyncIO(ivars->PCMoutData, pcmsizeout, ivars->PCMoutCallback, 0);
-		if (ret != kIOReturnSuccess)
-		{
-			os_log(OS_LOG_DEFAULT, "SEND ERROR %d", ret);
-		}
 	} else {
 		ret = ivars->PCMoutPipe->AsyncIO(ivars->PCMoutDataEmpty, pcmsizeout, ivars->PCMoutCallback, 0);
 		if (ret != kIOReturnSuccess) {
@@ -447,6 +491,12 @@ kern_return_t XoneDB4Device::ReceivePCMfromDevice(uint64_t completionTimestamp)
 	__block kern_return_t ret;
 	
 	if(ivars->startpcmin == true) {
+		ret = ivars->PCMinPipe->AsyncIO(ivars->PCMinData, pcmsizein, ivars->PCMinCallback, 0);
+		if (ret != kIOReturnSuccess)
+		{
+			os_log(OS_LOG_DEFAULT, "RECEIVE ERROR %d", ret);
+		}
+
 		if(ivars->currentsampleinusb == ivars->buffersize) {
 			ivars->currentsampleinusb = 0;
 			GetCurrentClientIOTime(1, &ivars->in_sample_time, nullptr);
@@ -458,13 +508,9 @@ kern_return_t XoneDB4Device::ReceivePCMfromDevice(uint64_t completionTimestamp)
 			}
 		}
 		
-		ret = ivars->PCMinPipe->AsyncIO(ivars->PCMinData, pcmsizein, ivars->PCMinCallback, 0);
-		if (ret != kIOReturnSuccess)
-		{
-			os_log(OS_LOG_DEFAULT, "RECEIVE ERROR %d", ret);
-		}
 		for(i = 0; i < totalframesin; i++) {
-			ploytec_convert_to_s24_3le(ivars->CoreAudioInputBufferAddr + ((ivars->in_sample_time_usb % ivars->buffersize) * s24_3leframe), ivars->PCMinDataAddr + (i * xonedb4framesizein));
+			memcpy(ivars->PloytecInputBufferAddr + ((ivars->in_sample_time_usb % ivars->buffersize) * xonedb4framesizein), ivars->PCMinDataAddr + (i * xonedb4framesizein), totalframesin * xonedb4framesizein);
+			//ploytec_convert_to_s24_3le(ivars->CoreAudioInputBufferAddr + ((ivars->in_sample_time_usb % ivars->buffersize) * s24_3leframe), ivars->PCMinDataAddr + (i * xonedb4framesizein));
 			ivars->in_sample_time_usb++;
 		}
 		ivars->currentsampleinusb += totalframesin;
