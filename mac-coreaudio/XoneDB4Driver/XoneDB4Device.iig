@@ -35,7 +35,7 @@ class IOUserAudioDriver;
 class XoneDB4Device: public IOUserAudioDevice
 {
 public:
-    virtual bool init(IOUserAudioDriver* in_driver, bool in_supports_prewarming, OSString* in_device_uid, OSString* in_model_uid, OSString* in_manufacturer_uid, uint32_t in_zero_timestamp_period, IOUSBHostPipe* PCMinPipe, OSAction* PCMinCallback, IOUSBHostPipe* PCMoutPipe, OSAction* PCMoutCallback, uint16_t PCMPacketSize, IOUSBHostDevice* device) LOCALONLY;
+    virtual bool init(IOUserAudioDriver* in_driver, bool in_supports_prewarming, OSString* in_device_uid, OSString* in_model_uid, OSString* in_manufacturer_uid, uint32_t in_zero_timestamp_period, IOUSBHostPipe* PCMinPipe, OSAction* PCMinCallback, IOUSBHostPipe* PCMoutPipe, OSAction* PCMoutCallback, IOUSBHostDevice* device) LOCALONLY;
     
     virtual kern_return_t        StartIO(IOUserAudioStartStopFlags in_flags) final LOCALONLY;
     

@@ -6,8 +6,8 @@ struct XoneDB4AppView: View {
 	@State private var userClientText = ""
 	@State private var firmwareVersionText = ""
 	@State private var playbackStatsText = ""
-	@State private var selectedBufferSize = 1280
-	let bufferSize = [160, 320, 480, 640, 800, 960, 1120, 1280, 1440, 1600, 1760, 1920, 2080, 2240, 2400, 2560, 2720, 2880, 3040, 3200]
+	@State private var selectedBufferSize = 2560
+	let bufferSize = [160, 320, 480, 640, 800, 960, 1120, 1280, 1440, 1600, 1760, 1920, 2080, 2240, 2400, 2560, 2720, 2880, 3040, 3200, 3360, 3520, 3680, 3840, 4000]
 	private let playbackStatsUpdateInterval = 1.0
 	@State private var timer: Timer?
 
