@@ -7,8 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		1F78E6592C4178DC00868A7F /* XoneDB4Stream.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 1F78E6582C4178DC00868A7F /* XoneDB4Stream.cpp */; };
-		1F78E65B2C4178F100868A7F /* XoneDB4Stream.iig in Sources */ = {isa = PBXBuildFile; fileRef = 1F78E65A2C4178F100868A7F /* XoneDB4Stream.iig */; };
 		1F9FA7792BFB8267000F6942 /* XoneDB4Device.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 1F9FA7782BFB8267000F6942 /* XoneDB4Device.cpp */; };
 		1F9FA77B2BFB829E000F6942 /* XoneDB4Device.iig in Sources */ = {isa = PBXBuildFile; fileRef = 1F9FA77A2BFB8284000F6942 /* XoneDB4Device.iig */; };
 		1F9FA7812BFB9C8A000F6942 /* AudioDriverKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1F9FA77C2BFB9BD9000F6942 /* AudioDriverKit.framework */; };
@@ -64,8 +62,6 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		1F78E6582C4178DC00868A7F /* XoneDB4Stream.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = XoneDB4Stream.cpp; sourceTree = "<group>"; };
-		1F78E65A2C4178F100868A7F /* XoneDB4Stream.iig */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.iig; path = XoneDB4Stream.iig; sourceTree = "<group>"; };
 		1F9FA7782BFB8267000F6942 /* XoneDB4Device.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = XoneDB4Device.cpp; sourceTree = "<group>"; };
 		1F9FA77A2BFB8284000F6942 /* XoneDB4Device.iig */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.iig; path = XoneDB4Device.iig; sourceTree = "<group>"; };
 		1F9FA77C2BFB9BD9000F6942 /* AudioDriverKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioDriverKit.framework; path = Platforms/DriverKit.platform/Developer/SDKs/DriverKit23.4.sdk/System/DriverKit/System/Library/Frameworks/AudioDriverKit.framework; sourceTree = DEVELOPER_DIR; };
@@ -172,8 +168,6 @@
 			children = (
 				6F55577622B2C52C00139F6B /* Info.plist */,
 				6F55577722B2C52C00139F6B /* XoneDB4Driver.entitlements */,
-				1F78E6582C4178DC00868A7F /* XoneDB4Stream.cpp */,
-				1F78E65A2C4178F100868A7F /* XoneDB4Stream.iig */,
 				1F9FA7782BFB8267000F6942 /* XoneDB4Device.cpp */,
 				1F9FA77A2BFB8284000F6942 /* XoneDB4Device.iig */,
 				6F55577222B2C52C00139F6B /* XoneDB4Driver.cpp */,
@@ -313,14 +307,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1F78E65B2C4178F100868A7F /* XoneDB4Stream.iig in Sources */,
 				1FCE8FDE2C37449F00313EB4 /* XoneDB4DriverUserClient.iig in Sources */,
 				6F55577322B2C52C00139F6B /* XoneDB4Driver.cpp in Sources */,
 				6F55577522B2C52C00139F6B /* XoneDB4Driver.iig in Sources */,
 				1FCE8FDB2C37434300313EB4 /* XoneDB4DriverUserClient.cpp in Sources */,
 				1F9FA7792BFB8267000F6942 /* XoneDB4Device.cpp in Sources */,
 				1F9FA77B2BFB829E000F6942 /* XoneDB4Device.iig in Sources */,
-				1F78E6592C4178DC00868A7F /* XoneDB4Stream.cpp in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

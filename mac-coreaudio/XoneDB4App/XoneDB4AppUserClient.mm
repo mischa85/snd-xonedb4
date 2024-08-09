@@ -80,9 +80,6 @@
 		return @"Can't toggle the data source because the user client isn't connected.";
 	}
 	
-	NSLog(@"Changing buffer size to: %u", buffersize);
-	NSLog(@"Buffer size parameter size: %zu", sizeof(buffersize));
-	
 	kern_return_t error =
 		IOConnectCallMethod(_ioConnection,
 							static_cast<uint64_t>(XoneDB4DriverExternalMethod_ChangeBufferSize),
