@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: GPL-2.0-or-later
 /*
- * Linux driver for the Allen & Heath Xone:DB4
+ * Linux driver for the Allen & Heath Xone:DB4/DB2
  *
  * Copyright (C) 2024 Marcel Bierling <marcel@hackerman.art>
  *
@@ -17,20 +17,14 @@
 #include <sound/initval.h>
 #include <sound/core.h>
 #include <linux/usb.h>
-#include <linux/dev_printk.h>
 
 #include "chip.h"
 #include "pcm.h"
 #include "midi.h"
 
 MODULE_AUTHOR("Marcel Bierling <marcel@hackerman.art>");
-MODULE_DESCRIPTION("Allen&Heath Xone:DB4 driver");
+MODULE_DESCRIPTION("Allen&Heath Xone:DB4/DB2 driver");
 MODULE_LICENSE("GPL v2");
-
-// 0.2 = ??? ASYNC
-// 0.3 = MIDI IN BULK
-// 0.5 = PCM OUT BULK
-// 1.6 = PCM IN BULK
 
 static int index[SNDRV_CARDS] = SNDRV_DEFAULT_IDX;
 static char *id[SNDRV_CARDS] = SNDRV_DEFAULT_STR;
@@ -40,7 +34,6 @@ int cardindex;
 bool justresetting = false;
 
 #define DRIVER_NAME "snd-usb-xonedb4"
-#define CARD_NAME "xonedb4"
 
 static DEFINE_MUTEX(register_mutex);
 
@@ -49,8 +42,6 @@ int xonedb4_get_firmware_ver(struct xonedb4_chip *chip)
 	int ret;
 
 	ret = usb_control_msg(chip->dev, usb_rcvctrlpipe(chip->dev, 0), 0x56, 0xC0, 0x0000, 0, chip->firmwarever, 15, 2000);
-
-	dev_notice(&chip->dev->dev, "firmware: %02X%02X%02X\n", chip->firmwarever[0], chip->firmwarever[1], chip->firmwarever[2]);
 
 	return ret;
 }
@@ -66,8 +57,6 @@ int xonedb4_send_allgood(struct xonedb4_chip *chip)
 
 int xonedb4_send_resets(struct xonedb4_chip *chip)
 {
-	printk("sending resets...\n");
-	
 	int ret;
 
 	ret = usb_control_msg(chip->dev, usb_rcvctrlpipe(chip->dev, 0), 0x1, 0x02, 0x0000, 0x06, NULL, 0, 2000);
@@ -78,7 +67,7 @@ int xonedb4_send_resets(struct xonedb4_chip *chip)
 
 int xonedb4_reset(struct xonedb4_chip *chip)
 {
-	printk("xonedb4_reset...\n");
+	dev_notice(&chip->dev->dev, "%s: Resetting device", __func__);
 
 	int ret;
 
@@ -86,7 +75,7 @@ int xonedb4_reset(struct xonedb4_chip *chip)
 
 	ret = usb_reset_device(chip->dev);
 	if (ret < 0) {
-		dev_err(&chip->dev->dev, "can't reset.\n");
+		dev_err(&chip->dev->dev, "%s: Reset failed!\n", __func__);
 		return ret;
 	}
 
@@ -95,8 +84,6 @@ int xonedb4_reset(struct xonedb4_chip *chip)
 
 int xonedb4_set_samplerate(struct xonedb4_chip *chip)
 {
-	printk("xonedb4_set_samplerate...\n");
-
 	int ret;
 
 	switch (chip->alsarate)
@@ -150,7 +137,7 @@ int xonedb4_set_samplerate(struct xonedb4_chip *chip)
 
 	chip->devicerate = chip->alsarate;
 
-	dev_notice(&chip->dev->dev, "set samplerate: %02X%02X%02X\n", chip->sampleratebytes[0], chip->sampleratebytes[1], chip->sampleratebytes[2]);
+	dev_dbg(&chip->dev->dev, "%s: Set hardware samplerate: %02X%02X%02X\n", __func__, chip->sampleratebytes[0], chip->sampleratebytes[1], chip->sampleratebytes[2]);
 
 	return ret;
 }
@@ -162,15 +149,11 @@ int xonedb4_get_status(struct xonedb4_chip *chip)
 	// status
 	ret = usb_control_msg(chip->dev, usb_rcvctrlpipe(chip->dev, 0), 0x49, 0xC0, 0x0000, 0, chip->status, 1, 2000);
 
-	dev_notice(&chip->dev->dev, "status: %02X\n", chip->status[0]);
-
 	return ret;
 }
 
 int xonedb4_get_samplerate(struct xonedb4_chip *chip)
 {
-	printk("xonedb4_get_samplerate...\n");
-
 	int ret;
 
 	// current samplerate
@@ -178,7 +161,7 @@ int xonedb4_get_samplerate(struct xonedb4_chip *chip)
 	if (ret < 0) {
 		return ret;
 	}
-	dev_notice(&chip->dev->dev, "current samplerate: %02X%02X%02X\n", chip->sampleratebytes[0], chip->sampleratebytes[1], chip->sampleratebytes[2]);
+	dev_dbg(&chip->dev->dev, "%s: Got hardware samplerate: %02X%02X%02X\n", __func__, chip->sampleratebytes[0], chip->sampleratebytes[1], chip->sampleratebytes[2]);
 
 	if ((chip->sampleratebytes[0] == 0x44) && (chip->sampleratebytes[1] == 0xAC) && (chip->sampleratebytes[2] == 0x00)) {
 		chip->devicerate = 0;
@@ -203,35 +186,23 @@ static int xonedb4_probe(struct usb_interface *intf, const struct usb_device_id 
 
 	if (intf->cur_altsetting->desc.bInterfaceNumber == 1)
 	{
-		// int ret;
-		
-		printk(KERN_ALERT "nope\n");
-		/*
-		dev_err(&intf->dev, "blah blah blah %d\n", cardindex);
-
-		card = snd_card_ref(cardindex);
-		chip = card->private_data;
-
-		usb_set_intfdata(intf, chip);
-		*/
+		// skip init for second interface
 		return 0;
 	}
 	
-	printk(KERN_ALERT "XONEDB4 CONNECT\n");
-
 	int i;
     int ret;
 	struct usb_device *device = interface_to_usbdev(intf);
-    	
+
 	ret = usb_set_interface(device, 0, 1);
 	if (ret != 0) {
-		dev_err(&device->dev, "can't set interface 0 for " CARD_NAME " device.\n");
+		dev_err(&device->dev, "%s: Can't set interface 0!\n", __func__);
 		return -EIO;
 	}
 
 	ret = usb_set_interface(device, 1, 1);
 	if (ret != 0) {
-		dev_err(&device->dev, "can't set interface 1 for " CARD_NAME " device.\n");
+		dev_err(&device->dev, "%s: Can't set interface 1!\n", __func__);
 		return -EIO;
 	}
 
@@ -273,9 +244,14 @@ static int xonedb4_probe(struct usb_interface *intf, const struct usb_device_id 
 			goto err_chip_destroy;
 		}
 
-		ret = xonedb4_pcm_init_bulk_urbs(chip);
+		ret = xonedb4_midi_init_bulk_urbs(chip);
 		if (ret < 0) {
-			dev_err(&device->dev, "pcm out fail " CARD_NAME " card\n");
+			dev_err(&device->dev, "%s: MIDI fail!\n", __func__);
+			goto err_chip_destroy;
+		}
+		ret = xonedb4_pcm_init_int_urbs(chip);
+		if (ret < 0) {
+			dev_err(&device->dev, "%s: PCM fail!\n", __func__);
 			goto err_chip_destroy;
 		}
 
@@ -284,6 +260,8 @@ static int xonedb4_probe(struct usb_interface *intf, const struct usb_device_id 
 		return 0;
 	}
 	
+	dev_info(&device->dev, "%s: Found device: %s\n", __func__, device->product);
+
 	mutex_lock(&register_mutex);
 
 	/* see if the soundcard is already created */
@@ -293,7 +271,7 @@ static int xonedb4_probe(struct usb_interface *intf, const struct usb_device_id 
 		}
 	}
 	if (i >= SNDRV_CARDS) {
-		dev_err(&device->dev, "no available " CARD_NAME " audio device\n");
+		dev_err(&device->dev, "%s: No available audio device!\n", __func__);
 		ret = -ENODEV;
 		goto err;
 	}
@@ -302,14 +280,14 @@ static int xonedb4_probe(struct usb_interface *intf, const struct usb_device_id 
 				
 	ret = snd_card_new(&intf->dev, index[i], id[i], THIS_MODULE, sizeof(struct xonedb4_chip), &card);
 	if (ret < 0) {
-		dev_err(&device->dev, "cannot create alsa card.\n");
+		dev_err(&device->dev, "%s: Cannot create ALSA card!\n", __func__);
 		return ret;
 	}
 
 	cardindex = card->number;
 
 	strscpy(card->driver, DRIVER_NAME, sizeof(card->driver));
-	strscpy(card->shortname, "Allen&Heath Xone:DB4", sizeof(card->shortname));
+	strscpy(card->shortname, device->product, sizeof(card->shortname));
 	sprintf(card->longname, "%s at %d:%d", card->shortname, device->bus->busnum, device->devnum);
 
 	chip = card->private_data;
@@ -323,6 +301,9 @@ static int xonedb4_probe(struct usb_interface *intf, const struct usb_device_id 
 	if (ret < 0) {
 		goto err;
 	}
+
+	dev_info(&device->dev, "%s: Ploytec firmware version: 1.%d.%d\n", __func__, chip->firmwarever[2]/10, chip->firmwarever[2]%10);
+
 	// get status
 	ret = xonedb4_get_status(chip);
 	if (ret < 0) {
@@ -356,18 +337,16 @@ static int xonedb4_probe(struct usb_interface *intf, const struct usb_device_id 
 
 	ret = xonedb4_pcm_init(chip);
 	if (ret < 0) {
-		dev_err(&device->dev, "pcm out fail " CARD_NAME " card\n");
+		dev_err(&device->dev, "%s: PCM fail!\n", __func__);
 		goto err_chip_destroy;
 	}
-	/*
 	ret = xonedb4_midi_init(chip);
 	if (ret < 0) {
 		goto err_chip_destroy;
 	}
-	*/
 	ret = snd_card_register(chip->card);
 	if (ret < 0) {
-		dev_err(&device->dev, "cannot register " CARD_NAME " card\n");
+		dev_err(&device->dev, "%s: Cannot register card!\n", __func__);
 		goto err_chip_destroy;
 	}
 
@@ -383,10 +362,8 @@ err:
 
 static void xonedb4_disconnect(struct usb_interface *intf)
 {
-    printk(KERN_ALERT "XONEDB4 DISCONNECT\n");
-
 	if (intf->cur_altsetting->desc.bInterfaceNumber == 1) {
-		printk(KERN_ALERT "NOTHING TO BREAK DOWN ON INTERFACE 1\n");
+		// nothing created, nothing to break down
 		return;
 	}
 
@@ -401,7 +378,7 @@ static void xonedb4_disconnect(struct usb_interface *intf)
 
 	/* Make sure that the userspace cannot create new request */
 	xonedb4_pcm_abort(chip);
-	// xonedb4_midi_abort(chip);
+	xonedb4_midi_abort(chip);
 	if (justresetting == false) {
 		snd_card_disconnect(chip->card);
 		snd_card_free_when_closed(chip->card);
@@ -409,10 +386,17 @@ static void xonedb4_disconnect(struct usb_interface *intf)
 }
 
 static const struct usb_device_id device_table[] = {
+	// Allen&Heath Xone:DB4
 	{
 		.match_flags = USB_DEVICE_ID_MATCH_DEVICE,
 		.idVendor = 0x0a4a,
-		.idProduct = 0x0ffdb
+		.idProduct = 0xffdb
+	},
+	// Allen&Heath Xone:DB2
+	{
+		.match_flags = USB_DEVICE_ID_MATCH_DEVICE,
+		.idVendor = 0x0a4a,
+		.idProduct = 0xffd2
 	},
 	{}
 };
