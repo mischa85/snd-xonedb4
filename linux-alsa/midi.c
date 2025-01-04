@@ -4,7 +4,7 @@
 #include "chip.h"
 
 #define MIDI_IN_EP		3
-#define MIDI_N_URBS		1
+#define MIDI_N_URBS		4
 
 #define XDB4_MIDI_PACKET_SIZE		512
 #define XDB4_MIDI_SEND_BUFFER_SIZE	512

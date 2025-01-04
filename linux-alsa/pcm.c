@@ -10,7 +10,7 @@
 #define PCM_IN_EP						6
 #define XDB4_INT_LATENCY				1
 
-#define PCM_N_URBS						1
+#define PCM_N_URBS						4
 #define PCM_N_PLAYBACK_CHANNELS			8
 #define PCM_N_CAPTURE_CHANNELS			8
 
