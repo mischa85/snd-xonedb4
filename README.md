@@ -1,6 +1,6 @@
 # snd-xonedb4
 
-This is a driver for the Allen & Heath Xone:DB4 mixer.
+This is a driver for the Allen & Heath Xone:DB4 mixer. The driver requires the latest Ploytec (audio) firmware to be flashed to the mixer. These are part of the "device software" section of the Allen&Heath website.
 
 **Linux**:
 
