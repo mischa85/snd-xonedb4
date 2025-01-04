@@ -9,8 +9,8 @@
 #define XDB4_MIDI_PACKET_SIZE		512
 #define XDB4_MIDI_SEND_BUFFER_SIZE	512
 
-uint8_t uart_send_count;
-uint8_t uart_to_sent;
+uint8_t uart_send_count = 0;
+uint8_t uart_to_sent = 0;
 u8 *uart_send_buffer;
 
 struct midi_urb {

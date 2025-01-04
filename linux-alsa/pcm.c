@@ -256,19 +256,15 @@ static bool xonedb4_pcm_playback(struct pcm_substream *sub, struct pcm_urb *urb)
 		for (curframe = 0; curframe < 9; curframe++) {
 			ploytec_convert_from_s24_3le(src + (curframe * XDB4_PCM_OUT_FRAME_SIZE) + 0, dest + (curframe * ALSA_BYTES_PER_FRAME));
 		}
-		xonedb4_get_midi_output(urb->buffer + 432, 2);
 		for (curframe = 9; curframe < 19; curframe++) {
 			ploytec_convert_from_s24_3le(src + (curframe * XDB4_PCM_OUT_FRAME_SIZE) + 2, dest + (curframe * ALSA_BYTES_PER_FRAME));
 		}
-		xonedb4_get_midi_output(urb->buffer + 914, 2);
 		for (curframe = 19; curframe < 29; curframe++) {
 			ploytec_convert_from_s24_3le(src + (curframe * XDB4_PCM_OUT_FRAME_SIZE) + 4, dest + (curframe * ALSA_BYTES_PER_FRAME));
 		}
-		xonedb4_get_midi_output(urb->buffer + 1396, 2);
 		for (curframe = 29; curframe < 39; curframe++) {
 			ploytec_convert_from_s24_3le(src + (curframe * XDB4_PCM_OUT_FRAME_SIZE) + 6, dest + (curframe * ALSA_BYTES_PER_FRAME));
 		}
-		xonedb4_get_midi_output(urb->buffer + 1878, 2);
 		for (curframe = 39; curframe < 40; curframe++) {
 			ploytec_convert_from_s24_3le(src + (curframe * XDB4_PCM_OUT_FRAME_SIZE) + 8, dest + (curframe * ALSA_BYTES_PER_FRAME));
 		}
@@ -422,6 +418,11 @@ static void xonedb4_pcm_out_urb_handler(struct urb *usb_urb)
 	if (do_period_elapsed) {
 		snd_pcm_period_elapsed(sub->instance);
 	}
+
+	xonedb4_get_midi_output(out_urb->buffer + 432, 2);
+	xonedb4_get_midi_output(out_urb->buffer + 914, 2);
+	xonedb4_get_midi_output(out_urb->buffer + 1396, 2);
+	xonedb4_get_midi_output(out_urb->buffer + 1878, 2);
 
 	ret = usb_submit_urb(&out_urb->instance, GFP_ATOMIC);
 	
@@ -625,13 +626,13 @@ static int xonedb4_pcm_init_int_out_urb(struct pcm_urb *urb, struct xonedb4_chip
 	}
 
 	memset(urb->buffer + 0, 0, 432);
-	memset(urb->buffer + 432, 0xFD, 2);
+	xonedb4_get_midi_output(urb->buffer + 432, 2);
 	memset(urb->buffer + 434, 0, 480);
-	memset(urb->buffer + 914, 0xFD, 2);
+	xonedb4_get_midi_output(urb->buffer + 914, 2);
 	memset(urb->buffer + 916, 0, 480);
-	memset(urb->buffer + 1396, 0xFD, 2);
+	xonedb4_get_midi_output(urb->buffer + 1396, 2);
 	memset(urb->buffer + 1398, 0, 480);
-	memset(urb->buffer + 1878, 0xFD, 2);
+	xonedb4_get_midi_output(urb->buffer + 1878, 2);
 	memset(urb->buffer + 1880, 0, 48);
 
 	usb_fill_int_urb(&urb->instance, chip->dev, usb_sndintpipe(chip->dev, ep), (void *)urb->buffer, XDB4_PCM_OUT_PACKET_SIZE, handler, urb, XDB4_INT_LATENCY);
