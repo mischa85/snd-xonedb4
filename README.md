@@ -7,7 +7,7 @@ This is a driver for the Allen & Heath Xone:DB4 mixer.
 - [x] PCM out 8 channels
 - [x] PCM in 8 channels
 - [x] Sample Rate Switching
-- [ ] MIDI out
+- [x] MIDI out
 - [x] MIDI in
 
 **Mac**:
