@@ -3,26 +3,31 @@
 
 #include "pcm.h"
 #include "chip.h"
+#include "midi.h"
 #include "../common/ploytec.h"
 
-#define PCM_OUT_EP				5
-#define PCM_IN_EP				6
+#define PCM_OUT_EP						5
+#define PCM_IN_EP						6
+#define XDB4_INT_LATENCY				1
 
-#define PCM_N_URBS				8
-
+#define PCM_N_URBS						1
 #define PCM_N_PLAYBACK_CHANNELS			8
 #define PCM_N_CAPTURE_CHANNELS			8
 
-#define XDB4_PCM_PACKET_SIZE			512
-#define XDB4_PLAYBACK_SAMPLES_PER_PACKET	20
-#define XDB4_CAPTURE_SAMPLES_PER_PACKET		16
+#define XDB4_PCM_OUT_FRAME_SIZE			48
+#define XDB4_PCM_IN_FRAME_SIZE			64
+#define XDB4_PCM_OUT_FRAMES_PER_PACKET	40
+#define XDB4_PCM_IN_FRAMES_PER_PACKET	32
+#define XDB4_UART_OUT_BYTES_PER_PACKET	8
+#define XDB4_PCM_OUT_PACKET_SIZE		(XDB4_PCM_OUT_FRAMES_PER_PACKET * XDB4_PCM_OUT_FRAME_SIZE) + XDB4_UART_OUT_BYTES_PER_PACKET // 40 frames
+#define XDB4_PCM_IN_PACKET_SIZE			XDB4_PCM_IN_FRAMES_PER_PACKET * XDB4_PCM_IN_FRAME_SIZE // 32 frames
 
 #define ALSA_BYTES_PER_SAMPLE			3 // S24_3LE
-
-#define ALSA_PCM_PLAYBACK_PACKET_SIZE		PCM_N_PLAYBACK_CHANNELS * ALSA_BYTES_PER_SAMPLE * (XDB4_PLAYBACK_SAMPLES_PER_PACKET / 2)
-#define ALSA_PCM_CAPTURE_PACKET_SIZE		PCM_N_CAPTURE_CHANNELS * ALSA_BYTES_PER_SAMPLE * (XDB4_CAPTURE_SAMPLES_PER_PACKET / 2)
-#define ALSA_MIN_BUFSIZE			20 * ALSA_PCM_PLAYBACK_PACKET_SIZE
-#define ALSA_MAX_BUFSIZE			2000 * ALSA_PCM_PLAYBACK_PACKET_SIZE
+#define ALSA_BYTES_PER_FRAME			PCM_N_PLAYBACK_CHANNELS * ALSA_BYTES_PER_SAMPLE
+#define ALSA_PCM_OUT_PACKET_SIZE		PCM_N_PLAYBACK_CHANNELS * ALSA_BYTES_PER_SAMPLE * XDB4_PCM_OUT_FRAMES_PER_PACKET
+#define ALSA_PCM_IN_PACKET_SIZE			PCM_N_CAPTURE_CHANNELS * ALSA_BYTES_PER_SAMPLE * XDB4_PCM_IN_FRAMES_PER_PACKET
+#define ALSA_MIN_BUFSIZE				2 * ALSA_PCM_OUT_PACKET_SIZE
+#define ALSA_MAX_BUFSIZE				2000 * ALSA_PCM_OUT_PACKET_SIZE
 
 struct pcm_urb {
 	struct xonedb4_chip *chip;
@@ -102,14 +107,12 @@ static struct pcm_substream *xonedb4_pcm_get_substream(struct snd_pcm_substream 
 		return &rt->capture;
 	}
 
-	dev_err(&rt->chip->dev->dev, "Error getting pcm substream slot.\n");
+	dev_err(&rt->chip->dev->dev, "%s: Error getting pcm substream slot.\n", __func__);
 	return NULL;
 }
 
 static void xonedb4_pcm_stream_stop(struct pcm_runtime *rt)
 {
-	printk("xonedb4_pcm_stream_stop...\n");
-
 	if (rt->stream_state != STREAM_DISABLED) {
 		rt->stream_state = STREAM_STOPPING;
 		rt->stream_state = STREAM_DISABLED;
@@ -118,7 +121,6 @@ static void xonedb4_pcm_stream_stop(struct pcm_runtime *rt)
 
 static void xonedb4_pcm_kill_urbs(struct pcm_runtime *rt)
 {
-	printk("xonedb4_pcm_kill_urbs...\n");
 	int i, time;
 
 	for (i = 0; i < PCM_N_URBS; i++) {
@@ -137,8 +139,6 @@ static void xonedb4_pcm_kill_urbs(struct pcm_runtime *rt)
 
 static void xonedb4_pcm_poison_urbs(struct pcm_runtime *rt)
 {
-	printk("xonedb4_pcm_poison_urbs...\n");
-	
 	int i, time;
 
 	for (i = 0; i < PCM_N_URBS; i++) {
@@ -158,8 +158,6 @@ static void xonedb4_pcm_poison_urbs(struct pcm_runtime *rt)
 /* call with stream_mutex locked */
 static int xonedb4_pcm_stream_start(struct pcm_runtime *rt)
 {
-	printk("xonedb4_pcm_stream_start...\n");
-
 	int ret = 0;
 	
 	if (rt->stream_state == STREAM_DISABLED) {
@@ -173,14 +171,10 @@ static int xonedb4_pcm_stream_start(struct pcm_runtime *rt)
 
 static int xonedb4_pcm_set_rate(struct pcm_runtime *rt)
 {
-	printk("xonedb4_pcm_set_rate...\n");
-
 	rt->chip->alsarate = rt->rate;
 
-	dev_notice(&rt->chip->dev->dev, "ALSARATE: %d\n", rt->chip->alsarate);
-	dev_notice(&rt->chip->dev->dev, "DEVICERATE: %d\n", rt->chip->devicerate);
-
 	if (rt->chip->alsarate != rt->chip->devicerate) {
+		dev_notice(&rt->chip->dev->dev, "%s: Resetting device for samplerate change %d -> %d\n", __func__, rates[rt->chip->devicerate], rates[rt->chip->alsarate]);
 		mutex_unlock(&rt->stream_mutex);
 		xonedb4_reset(rt->chip);
 		mutex_lock(&rt->stream_mutex);
@@ -189,85 +183,54 @@ static int xonedb4_pcm_set_rate(struct pcm_runtime *rt)
 	return 0;
 }
 
-static void convert_capture(uint8_t *dest, uint8_t *src1, unsigned int n, uint8_t *src2, unsigned int len)
-{
-	unsigned int i;
-	
-	if (src2 == NULL) {
-		for (i = 0; i < (XDB4_CAPTURE_SAMPLES_PER_PACKET / 2); i++) {
-			ploytec_convert_to_s24_3le(dest + (i * (ALSA_BYTES_PER_SAMPLE * PCM_N_PLAYBACK_CHANNELS)), src1 + (i * 64));
-		}
-	} else {
-		/* The ALSA buffer always seems to align with the samples, but I want to keep this here just in case */
-		/*
-		if ((len % (ALSA_BYTES_PER_SAMPLE * PCM_N_CAPTURE_CHANNELS)) != 0) {
-			printk("helpppp\n");
-		}
-		*/
-		for (i = 0; i < (len / (ALSA_BYTES_PER_SAMPLE * PCM_N_CAPTURE_CHANNELS)); i++) {
-			ploytec_convert_to_s24_3le(dest + (i * (ALSA_BYTES_PER_SAMPLE * PCM_N_CAPTURE_CHANNELS)), src1 + (i * 64));
-		}
-		for (i = i; i < ((n - len) / (ALSA_BYTES_PER_SAMPLE * PCM_N_CAPTURE_CHANNELS)); i++) {
-			ploytec_convert_to_s24_3le(dest + (i * (ALSA_BYTES_PER_SAMPLE * PCM_N_CAPTURE_CHANNELS)), src2 + (i * 64));
-		}
-	}
-}
-
-static void convert_playback(uint8_t *dest, uint8_t *src1, unsigned int n, uint8_t *src2, unsigned int len)
-{
-	unsigned int i;
-
-	if (src2 == NULL) {
-		for (i = 0; i < (XDB4_PLAYBACK_SAMPLES_PER_PACKET / 2); i++) {
-			ploytec_convert_from_s24_3le(dest + (i * 48), src1 + (i * (ALSA_BYTES_PER_SAMPLE * PCM_N_PLAYBACK_CHANNELS)));
-		}
-	} else {
-		/* The ALSA buffer always seems to align with the samples, but I want to keep this here just in case */
-		/*
-		if ((len % (ALSA_BYTES_PER_SAMPLE * PCM_N_PLAYBACK_CHANNELS)) != 0) {
-			printk("helpppp\n");
-		}
-		*/
-		for (i = 0; i < (len / (ALSA_BYTES_PER_SAMPLE * PCM_N_PLAYBACK_CHANNELS)); i++) {
-			ploytec_convert_from_s24_3le(dest + (i * 48), src1 + (i * (ALSA_BYTES_PER_SAMPLE * PCM_N_PLAYBACK_CHANNELS)));
-		}
-		for (i = i; i < ((n - len) / (ALSA_BYTES_PER_SAMPLE * PCM_N_PLAYBACK_CHANNELS)); i++) {
-			ploytec_convert_from_s24_3le(dest + (i * 48), src2 + (i * (ALSA_BYTES_PER_SAMPLE * PCM_N_PLAYBACK_CHANNELS)));
-		}
-	}
-	ploytec_sync_bytes(dest + 480);
-}
-
 /* call with substream locked */
 /* returns true if a period elapsed */
 static bool xonedb4_pcm_capture(struct pcm_substream *sub, struct pcm_urb *urb)
 {
 	struct snd_pcm_runtime *alsa_rt = sub->instance->runtime;
-	uint8_t *dest;
-	uint8_t *dest2;
 	unsigned int pcm_buffer_size;
 
 	pcm_buffer_size = snd_pcm_lib_buffer_bytes(sub->instance);
 
-	if (sub->dma_off + ALSA_PCM_CAPTURE_PACKET_SIZE <= pcm_buffer_size) {
+	if (sub->dma_off + ALSA_PCM_IN_PACKET_SIZE <= pcm_buffer_size) {
 		dev_dbg(&urb->chip->dev->dev, "%s: (1) buffer_size %#x dma_offset %#x\n", __func__, (unsigned int) pcm_buffer_size, (unsigned int) sub->dma_off);
-		dest = alsa_rt->dma_area + sub->dma_off;
-		convert_capture(dest, urb->buffer, ALSA_PCM_CAPTURE_PACKET_SIZE, NULL, 0);
+
+		uint8_t curframe = 0;
+		uint8_t *src = urb->buffer;
+		uint8_t *dest = alsa_rt->dma_area + sub->dma_off;
+
+		for (curframe = 0; curframe < XDB4_PCM_IN_FRAMES_PER_PACKET; curframe++) {
+			ploytec_convert_to_s24_3le(dest + (curframe * ALSA_BYTES_PER_FRAME), src + (curframe * XDB4_PCM_IN_FRAME_SIZE));
+		}
 	} else {
 		/* wrap around at end of ring buffer */
-		unsigned int len;
-		len = pcm_buffer_size - sub->dma_off;
 		dev_dbg(&urb->chip->dev->dev, "%s: (2) buffer_size %#x dma_offset %#x\n", __func__, (unsigned int) pcm_buffer_size, (unsigned int) sub->dma_off);
-		dest = alsa_rt->dma_area + sub->dma_off;
-		dest2 = alsa_rt->dma_area;
-		convert_capture(dest, urb->buffer, ALSA_PCM_CAPTURE_PACKET_SIZE, dest2, len);
+
+		uint8_t curframexone = 0;
+		uint8_t curframealsa1 = 0;
+		uint8_t curframealsa2 = 0;
+		uint8_t numframesalsa1 = (pcm_buffer_size - sub->dma_off) / ((uint32_t) ALSA_BYTES_PER_FRAME);
+		uint8_t numframesalsa2 = XDB4_PCM_OUT_FRAMES_PER_PACKET - numframesalsa1;
+		uint8_t *src = urb->buffer;
+		uint8_t *dest1 = alsa_rt->dma_area + sub->dma_off;
+		uint8_t *dest2 = alsa_rt->dma_area;
+
+		for (curframexone = 0; curframexone < XDB4_PCM_IN_FRAMES_PER_PACKET; curframexone++) {
+			if (curframealsa1 < numframesalsa1) {
+				ploytec_convert_to_s24_3le(dest1 + (curframealsa1 * ALSA_BYTES_PER_FRAME), src + (curframexone * XDB4_PCM_IN_FRAME_SIZE));
+				curframealsa1++;
+			} else if (curframealsa2 < numframesalsa2) {
+				ploytec_convert_to_s24_3le(dest2 + (curframealsa2 * ALSA_BYTES_PER_FRAME), src + (curframexone * XDB4_PCM_IN_FRAME_SIZE));
+				curframealsa2++;
+			}
+		}
 	}
-	sub->dma_off += ALSA_PCM_CAPTURE_PACKET_SIZE;
+	sub->dma_off += ALSA_PCM_IN_PACKET_SIZE;
 	if (sub->dma_off >= pcm_buffer_size) {
 		sub->dma_off -= pcm_buffer_size;
 	}
 
-	sub->period_off += ALSA_PCM_CAPTURE_PACKET_SIZE;
+	sub->period_off += ALSA_PCM_IN_PACKET_SIZE;
 	if (sub->period_off >= alsa_rt->period_size) {
 		sub->period_off %= alsa_rt->period_size;
 		return true;
@@ -280,34 +243,100 @@ static bool xonedb4_pcm_capture(struct pcm_substream *sub, struct pcm_urb *urb)
 /* returns true if a period elapsed */
 static bool xonedb4_pcm_playback(struct pcm_substream *sub, struct pcm_urb *urb)
 {
-	// printk("xonedb4_pcm_playback...\n");
-
 	struct snd_pcm_runtime *alsa_rt = sub->instance->runtime;
-	uint8_t *source;
-	uint8_t *source2;
-	unsigned int pcm_buffer_size;
+	uint32_t pcm_buffer_size = snd_pcm_lib_buffer_bytes(sub->instance);
 
-	pcm_buffer_size = snd_pcm_lib_buffer_bytes(sub->instance);
-
-	if (sub->dma_off + ALSA_PCM_PLAYBACK_PACKET_SIZE <= pcm_buffer_size) {
+	if (sub->dma_off + ALSA_PCM_OUT_PACKET_SIZE <= pcm_buffer_size) {
 		dev_dbg(&urb->chip->dev->dev, "%s: (1) buffer_size %#x dma_offset %#x\n", __func__, (unsigned int) pcm_buffer_size, (unsigned int) sub->dma_off);
-		source = alsa_rt->dma_area + sub->dma_off;
-		convert_playback(urb->buffer, source, ALSA_PCM_PLAYBACK_PACKET_SIZE, NULL, 0);
+
+		uint8_t curframe = 0;
+		uint8_t *src = urb->buffer;
+		uint8_t *dest = alsa_rt->dma_area + sub->dma_off;
+
+		for (curframe = 0; curframe < 9; curframe++) {
+			ploytec_convert_from_s24_3le(src + (curframe * XDB4_PCM_OUT_FRAME_SIZE) + 0, dest + (curframe * ALSA_BYTES_PER_FRAME));
+		}
+		xonedb4_get_midi_output(urb->buffer + 432, 2);
+		for (curframe = 9; curframe < 19; curframe++) {
+			ploytec_convert_from_s24_3le(src + (curframe * XDB4_PCM_OUT_FRAME_SIZE) + 2, dest + (curframe * ALSA_BYTES_PER_FRAME));
+		}
+		xonedb4_get_midi_output(urb->buffer + 914, 2);
+		for (curframe = 19; curframe < 29; curframe++) {
+			ploytec_convert_from_s24_3le(src + (curframe * XDB4_PCM_OUT_FRAME_SIZE) + 4, dest + (curframe * ALSA_BYTES_PER_FRAME));
+		}
+		xonedb4_get_midi_output(urb->buffer + 1396, 2);
+		for (curframe = 29; curframe < 39; curframe++) {
+			ploytec_convert_from_s24_3le(src + (curframe * XDB4_PCM_OUT_FRAME_SIZE) + 6, dest + (curframe * ALSA_BYTES_PER_FRAME));
+		}
+		xonedb4_get_midi_output(urb->buffer + 1878, 2);
+		for (curframe = 39; curframe < 40; curframe++) {
+			ploytec_convert_from_s24_3le(src + (curframe * XDB4_PCM_OUT_FRAME_SIZE) + 8, dest + (curframe * ALSA_BYTES_PER_FRAME));
+		}
 	} else {
 		/* wrap around at end of ring buffer */
-		unsigned int len;
-		len = pcm_buffer_size - sub->dma_off;
 		dev_dbg(&urb->chip->dev->dev, "%s: (2) buffer_size %#x dma_offset %#x\n", __func__, (unsigned int) pcm_buffer_size, (unsigned int) sub->dma_off);
-		source = alsa_rt->dma_area + sub->dma_off;
-		source2 = alsa_rt->dma_area;
-		convert_playback(urb->buffer, source, ALSA_PCM_PLAYBACK_PACKET_SIZE, source2, len);
+
+		uint8_t curframexone = 0;
+		uint8_t curframealsa1 = 0;
+		uint8_t curframealsa2 = 0;
+		uint8_t numframesalsa1 = (pcm_buffer_size - sub->dma_off) / ((uint32_t) ALSA_BYTES_PER_FRAME);
+		uint8_t numframesalsa2 = XDB4_PCM_OUT_FRAMES_PER_PACKET - numframesalsa1;
+		uint8_t *src = urb->buffer;
+		uint8_t *dest1 = alsa_rt->dma_area + sub->dma_off;
+		uint8_t *dest2 = alsa_rt->dma_area;
+
+		for (curframexone = 0; curframexone < 9; curframexone++) {
+			if (curframealsa1 < numframesalsa1) {
+				ploytec_convert_from_s24_3le(src + (curframexone * XDB4_PCM_OUT_FRAME_SIZE) + 0, dest1 + (curframealsa1 * ALSA_BYTES_PER_FRAME));
+				curframealsa1++;
+			} else if (curframealsa2 < numframesalsa2) {
+				ploytec_convert_from_s24_3le(src + (curframexone * XDB4_PCM_OUT_FRAME_SIZE) + 0, dest2 + (curframealsa2 * ALSA_BYTES_PER_FRAME));
+				curframealsa2++;
+			}
+		}
+		for (curframexone = 9; curframexone < 19; curframexone++) {
+			if (curframealsa1 < numframesalsa1) {
+				ploytec_convert_from_s24_3le(src + (curframexone * XDB4_PCM_OUT_FRAME_SIZE) + 2, dest1 + (curframealsa1 * ALSA_BYTES_PER_FRAME));
+				curframealsa1++;
+			} else if (curframealsa2 < numframesalsa2) {
+				ploytec_convert_from_s24_3le(src + (curframexone * XDB4_PCM_OUT_FRAME_SIZE) + 2, dest2 + (curframealsa2 * ALSA_BYTES_PER_FRAME));
+				curframealsa2++;
+			}
+		}
+		for (curframexone = 19; curframexone < 29; curframexone++) {
+			if (curframealsa1 < numframesalsa1) {
+				ploytec_convert_from_s24_3le(src + (curframexone * XDB4_PCM_OUT_FRAME_SIZE) + 4, dest1 + (curframealsa1 * ALSA_BYTES_PER_FRAME));
+				curframealsa1++;
+			} else if (curframealsa2 < numframesalsa2) {
+				ploytec_convert_from_s24_3le(src + (curframexone * XDB4_PCM_OUT_FRAME_SIZE) + 4, dest2 + (curframealsa2 * ALSA_BYTES_PER_FRAME));
+				curframealsa2++;
+			}
+		}
+		for (curframexone = 29; curframexone < 39; curframexone++) {
+			if (curframealsa1 < numframesalsa1) {
+				ploytec_convert_from_s24_3le(src + (curframexone * XDB4_PCM_OUT_FRAME_SIZE) + 6, dest1 + (curframealsa1 * ALSA_BYTES_PER_FRAME));
+				curframealsa1++;
+			} else if (curframealsa2 < numframesalsa2) {
+				ploytec_convert_from_s24_3le(src + (curframexone * XDB4_PCM_OUT_FRAME_SIZE) + 6, dest2 + (curframealsa2 * ALSA_BYTES_PER_FRAME));
+				curframealsa2++;
+			}
+		}
+		for (curframexone = 39; curframexone < 40; curframexone++) {
+			if (curframealsa1 < numframesalsa1) {
+				ploytec_convert_from_s24_3le(src + (curframexone * XDB4_PCM_OUT_FRAME_SIZE) + 8, dest1 + (curframealsa1 * ALSA_BYTES_PER_FRAME));
+				curframealsa1++;
+			} else if (curframealsa2 < numframesalsa2) {
+				ploytec_convert_from_s24_3le(src + (curframexone * XDB4_PCM_OUT_FRAME_SIZE) + 8, dest2 + (curframealsa2 * ALSA_BYTES_PER_FRAME));
+				curframealsa2++;
+			}
+		}
 	}
-	sub->dma_off += ALSA_PCM_PLAYBACK_PACKET_SIZE;
+	sub->dma_off += ALSA_PCM_OUT_PACKET_SIZE;
 	if (sub->dma_off >= pcm_buffer_size) {
 		sub->dma_off -= pcm_buffer_size;
 	}
 
-	sub->period_off += ALSA_PCM_PLAYBACK_PACKET_SIZE;
+	sub->period_off += ALSA_PCM_OUT_PACKET_SIZE;
 	if (sub->period_off >= alsa_rt->period_size) {
 		sub->period_off %= alsa_rt->period_size;
 		return true;
@@ -324,7 +353,6 @@ static void xonedb4_pcm_in_urb_handler(struct urb *usb_urb)
 	bool do_period_elapsed = false;
 	unsigned long flags;
 	int ret;
-	uint16_t i;
 
 	if (rt->panic || rt->stream_state == STREAM_STOPPING)
 		return;
@@ -341,7 +369,7 @@ static void xonedb4_pcm_in_urb_handler(struct urb *usb_urb)
 	if (sub->active) {
 		do_period_elapsed = xonedb4_pcm_capture(sub, in_urb);
 	} else {
-		memset(in_urb->buffer + i, 0, XDB4_PCM_PACKET_SIZE);
+		memset(in_urb->buffer, 0, XDB4_PCM_IN_PACKET_SIZE);
 	}
 	spin_unlock_irqrestore(&sub->lock, flags);
 
@@ -357,7 +385,7 @@ static void xonedb4_pcm_in_urb_handler(struct urb *usb_urb)
 	return;
 
 in_fail:
-	dev_err(&in_urb->chip->dev->dev, "%s: in_fail...\n", __func__);
+	dev_err(&in_urb->chip->dev->dev, "%s: IN FAIL\n", __func__);
 	rt->panic = true;
 }
 
@@ -369,7 +397,6 @@ static void xonedb4_pcm_out_urb_handler(struct urb *usb_urb)
 	bool do_period_elapsed = false;
 	unsigned long flags;
 	int ret;
-	int i;
 
 	if (rt->panic || rt->stream_state == STREAM_STOPPING)
 		return;
@@ -379,16 +406,17 @@ static void xonedb4_pcm_out_urb_handler(struct urb *usb_urb)
 	}
 
 	sub = &rt->playback;
+
 	spin_lock_irqsave(&sub->lock, flags);
 	if (sub->active) {
 		do_period_elapsed = xonedb4_pcm_playback(sub, out_urb);
 	} else {
-		memset(out_urb->buffer + i, 0, 480);
-		out_urb->buffer[i + 480] = 0xFD;
-		out_urb->buffer[i + 481] = 0xFF;
-		memset(out_urb->buffer + i + 482, 0, 30);
+		memset(out_urb->buffer + 0, 0, 432);
+		memset(out_urb->buffer + 434, 0, 480);
+		memset(out_urb->buffer + 916, 0, 480);
+		memset(out_urb->buffer + 1398, 0, 480);
+		memset(out_urb->buffer + 1880, 0, 48);
 	}
-
 	spin_unlock_irqrestore(&sub->lock, flags);
 
 	if (do_period_elapsed) {
@@ -403,14 +431,12 @@ static void xonedb4_pcm_out_urb_handler(struct urb *usb_urb)
 	return;
 
 out_fail:
-	dev_err(&out_urb->chip->dev->dev, "%s: out_fail...\n", __func__);
+	dev_err(&out_urb->chip->dev->dev, "%s: OUT FAIL\n", __func__);
 	rt->panic = true;
 }
 
 static int xonedb4_pcm_open(struct snd_pcm_substream *alsa_sub)
 {
-	printk("xonedb4_pcm_open...\n");
-
 	struct pcm_runtime *rt = snd_pcm_substream_chip(alsa_sub);
 	struct pcm_substream *sub = NULL;
 	struct snd_pcm_runtime *alsa_rt = alsa_sub->runtime;
@@ -444,8 +470,6 @@ static int xonedb4_pcm_open(struct snd_pcm_substream *alsa_sub)
 
 static int xonedb4_pcm_close(struct snd_pcm_substream *alsa_sub)
 {
-	printk("xonedb4_pcm_close...\n");
-
 	struct pcm_runtime *rt = snd_pcm_substream_chip(alsa_sub);
 	struct pcm_substream *sub = xonedb4_pcm_get_substream(alsa_sub);
 	unsigned long flags;
@@ -473,8 +497,6 @@ static int xonedb4_pcm_close(struct snd_pcm_substream *alsa_sub)
 
 static int xonedb4_pcm_prepare(struct snd_pcm_substream *alsa_sub)
 {
-	printk("xonedb4_pcm_prepare...\n");
-
 	struct pcm_runtime *rt = snd_pcm_substream_chip(alsa_sub);
 	struct pcm_substream *sub = xonedb4_pcm_get_substream(alsa_sub);
 	struct snd_pcm_runtime *alsa_rt = alsa_sub->runtime;
@@ -500,11 +522,11 @@ static int xonedb4_pcm_prepare(struct snd_pcm_substream *alsa_sub)
 				break;
 		if (rt->rate == ARRAY_SIZE(rates)) {
 			mutex_unlock(&rt->stream_mutex);
-			dev_err(&rt->chip->dev->dev, "invalid rate %d in prepare.\n", alsa_rt->rate);
+			dev_err(&rt->chip->dev->dev, "%s: Invalid samplerate %d\n", __func__, alsa_rt->rate);
 			return -EINVAL;
 		}
 
-		dev_notice(&rt->chip->dev->dev, "rate in pcm_prepare: %d\n", alsa_rt->rate);
+		dev_dbg(&rt->chip->dev->dev, "%s: Samplerate set to %d\n", __func__, alsa_rt->rate);
 
 		ret = xonedb4_pcm_set_rate(rt);
 		if (ret) {
@@ -515,7 +537,7 @@ static int xonedb4_pcm_prepare(struct snd_pcm_substream *alsa_sub)
 		ret = xonedb4_pcm_stream_start(rt);
 		if (ret) {
 			mutex_unlock(&rt->stream_mutex);
-			dev_err(&rt->chip->dev->dev, "could not start pcm stream.\n");
+			dev_err(&rt->chip->dev->dev, "Could not start pcm stream!\n");
 			return ret;
 		}
 	}
@@ -525,8 +547,6 @@ static int xonedb4_pcm_prepare(struct snd_pcm_substream *alsa_sub)
 
 static int xonedb4_pcm_trigger(struct snd_pcm_substream *alsa_sub, int cmd)
 {
-	printk("xonedb4_pcm_trigger...\n");
-	
 	struct pcm_substream *sub = xonedb4_pcm_get_substream(alsa_sub);
 	struct pcm_runtime *rt = snd_pcm_substream_chip(alsa_sub);
 
@@ -557,27 +577,25 @@ static int xonedb4_pcm_trigger(struct snd_pcm_substream *alsa_sub, int cmd)
 
 static snd_pcm_uframes_t xonedb4_pcm_pointer(struct snd_pcm_substream *alsa_sub)
 {
-	// printk("xonedb4_pcm_pointer...\n");
-
 	struct pcm_substream *sub = xonedb4_pcm_get_substream(alsa_sub);
 	struct pcm_runtime *rt = snd_pcm_substream_chip(alsa_sub);
 	unsigned long flags;
 	snd_pcm_uframes_t dma_offset;
 
 	if (rt->panic || !sub) {
-		dev_err(&rt->chip->dev->dev, "%s: XRUN.......\n", __func__);
+		dev_err(&rt->chip->dev->dev, "%s: Xone XRUN!\n", __func__);
 		return SNDRV_PCM_POS_XRUN;
 	}
 
 	spin_lock_irqsave(&sub->lock, flags);
 	dma_offset = sub->dma_off;
 	spin_unlock_irqrestore(&sub->lock, flags);
+
 	return bytes_to_frames(alsa_sub->runtime, dma_offset);
 }
 
 void xonedb4_pcm_abort(struct xonedb4_chip *chip)
 {
-	printk("xonedb4_pcm_abort...\n");
 	struct pcm_runtime *rt = chip->pcm;
 
 	if (rt) {
@@ -596,68 +614,75 @@ static const struct snd_pcm_ops pcm_ops = {
 	.pointer = xonedb4_pcm_pointer,
 };
 
-static int xonedb4_pcm_init_bulk_out_urb(struct pcm_urb *urb, struct xonedb4_chip *chip, unsigned int ep, void (*handler)(struct urb *))
+static int xonedb4_pcm_init_int_out_urb(struct pcm_urb *urb, struct xonedb4_chip *chip, unsigned int ep, void (*handler)(struct urb *))
 {
-	printk("xonedb4_pcm_init_bulk_out_urb");
-
 	urb->chip = chip;
 	usb_init_urb(&urb->instance);
 
-	urb->buffer = kzalloc(XDB4_PCM_PACKET_SIZE, GFP_KERNEL);
+	urb->buffer = kzalloc(XDB4_PCM_OUT_PACKET_SIZE, GFP_KERNEL);
 	if (!urb->buffer) {
 		return -ENOMEM;
 	}
 
-	usb_fill_bulk_urb(&urb->instance, chip->dev, usb_sndbulkpipe(chip->dev, ep), (void *)urb->buffer, XDB4_PCM_PACKET_SIZE, handler, urb);
+	memset(urb->buffer + 0, 0, 432);
+	memset(urb->buffer + 432, 0xFD, 2);
+	memset(urb->buffer + 434, 0, 480);
+	memset(urb->buffer + 914, 0xFD, 2);
+	memset(urb->buffer + 916, 0, 480);
+	memset(urb->buffer + 1396, 0xFD, 2);
+	memset(urb->buffer + 1398, 0, 480);
+	memset(urb->buffer + 1878, 0xFD, 2);
+	memset(urb->buffer + 1880, 0, 48);
+
+	usb_fill_int_urb(&urb->instance, chip->dev, usb_sndintpipe(chip->dev, ep), (void *)urb->buffer, XDB4_PCM_OUT_PACKET_SIZE, handler, urb, XDB4_INT_LATENCY);
 	if (usb_urb_ep_type_check(&urb->instance)) {
-		printk("sanity check failed.....\n");
+		dev_err(&chip->dev->dev, "%s: Sanity check failed!\n", __func__);
 		return -EINVAL;
 	}
+
 	init_usb_anchor(&urb->submitted);
 
 	return 0;
 }
 
-static int xonedb4_pcm_init_bulk_in_urb(struct pcm_urb *urb, struct xonedb4_chip *chip, unsigned int ep, void (*handler)(struct urb *))
+static int xonedb4_pcm_init_int_in_urb(struct pcm_urb *urb, struct xonedb4_chip *chip, unsigned int ep, void (*handler)(struct urb *))
 {
-	printk("xonedb4_pcm_init_bulk_in_urb");
-	
 	urb->chip = chip;
 	usb_init_urb(&urb->instance);
 
-	urb->buffer = kzalloc(XDB4_PCM_PACKET_SIZE, GFP_KERNEL);
+	urb->buffer = kzalloc(XDB4_PCM_IN_PACKET_SIZE, GFP_KERNEL);
 	if (!urb->buffer) {
 		return -ENOMEM;
 	}
 
-	usb_fill_bulk_urb(&urb->instance, chip->dev, usb_rcvbulkpipe(chip->dev, ep), (void *)urb->buffer, XDB4_PCM_PACKET_SIZE, handler, urb);
+	usb_fill_int_urb(&urb->instance, chip->dev, usb_rcvintpipe(chip->dev, ep), (void *)urb->buffer, XDB4_PCM_IN_PACKET_SIZE, handler, urb, XDB4_INT_LATENCY);
 	if (usb_urb_ep_type_check(&urb->instance)) {
-		printk("sanity check failed.....\n");
+		dev_err(&chip->dev->dev, "%s: Sanity check failed!\n", __func__);
 		return -EINVAL;
 	}
+
 	init_usb_anchor(&urb->submitted);
 
 	return 0;
 }
 
-int xonedb4_pcm_init_bulk_urbs(struct xonedb4_chip *chip)
+int xonedb4_pcm_init_int_urbs(struct xonedb4_chip *chip)
 {
-	printk("xonedb4_pcm_init_bulk_urbs...\n");
-	int i;
+	uint8_t i;
 	int ret;
 
 	struct pcm_runtime *rt = chip->pcm;
 	rt->chip = chip;
 
 	for (i = 0; i < PCM_N_URBS; i++) {
-		ret = xonedb4_pcm_init_bulk_in_urb(&rt->pcm_in_urbs[i], chip, PCM_IN_EP, xonedb4_pcm_in_urb_handler);
+		ret = xonedb4_pcm_init_int_in_urb(&rt->pcm_in_urbs[i], chip, PCM_IN_EP, xonedb4_pcm_in_urb_handler);
 		if (ret < 0) {
 			goto error;
 		}
 	}
 
 	for (i = 0; i < PCM_N_URBS; i++) {
-		ret = xonedb4_pcm_init_bulk_out_urb(&rt->pcm_out_urbs[i], chip, PCM_OUT_EP, xonedb4_pcm_out_urb_handler);
+		ret = xonedb4_pcm_init_int_out_urb(&rt->pcm_out_urbs[i], chip, PCM_OUT_EP, xonedb4_pcm_out_urb_handler);
 		if (ret < 0)
 			goto error;
 	}
@@ -674,9 +699,6 @@ int xonedb4_pcm_init_bulk_urbs(struct xonedb4_chip *chip)
 	}
 
 	for (i = 0; i < PCM_N_URBS; i++) {
-		memset(rt->pcm_out_urbs[i].buffer, 0, 480);
-		ploytec_sync_bytes(rt->pcm_out_urbs[i].buffer + 480);
-
 		usb_anchor_urb(&rt->pcm_out_urbs[i].instance, &rt->pcm_out_urbs[i].submitted);
 		ret = usb_submit_urb(&rt->pcm_out_urbs[i].instance, GFP_ATOMIC);
 		if (ret < 0) {
@@ -690,7 +712,7 @@ int xonedb4_pcm_init_bulk_urbs(struct xonedb4_chip *chip)
 	return 0;
 
 	error:
-	printk("ERRRORRRR");
+	dev_err(&chip->dev->dev, "%s: ERROR\n", __func__);
 	mutex_unlock(&rt->stream_mutex);
 	for (i = 0; i < PCM_N_URBS; i++)
 		kfree(rt->pcm_out_urbs[i].buffer);
@@ -700,11 +722,13 @@ int xonedb4_pcm_init_bulk_urbs(struct xonedb4_chip *chip)
 
 int xonedb4_pcm_init(struct xonedb4_chip *chip)
 {
-	printk("xonedb4_pcm_init...\n");
 	int ret;
 
 	struct snd_pcm *pcm;
 	struct pcm_runtime *rt = kzalloc(sizeof(struct pcm_runtime), GFP_KERNEL);
+	if (!rt) {
+		return -ENOMEM;
+	}
 
 	rt->chip = chip;
 	rt->stream_state = STREAM_DISABLED;
@@ -712,16 +736,16 @@ int xonedb4_pcm_init(struct xonedb4_chip *chip)
 	mutex_init(&rt->stream_mutex);
 	spin_lock_init(&rt->playback.lock);
 
-	ret = snd_pcm_new(chip->card, "XoneDB4PCM", 0, 1, 1, &pcm);
+	ret = snd_pcm_new(chip->card, chip->dev->product, 0, 1, 1, &pcm);
 	if (ret < 0) {
 		kfree(rt);
-		dev_err(&chip->dev->dev, "Cannot create pcm instance\n");
+		dev_err(&chip->dev->dev, "%s: Cannot create PCM instance\n", __func__);
 		return ret;
 	}
 
 	pcm->private_data = rt;
 
-	strscpy(pcm->name, "Xone:DB4 PCM", sizeof(pcm->name));
+	strscpy(pcm->name, chip->dev->product, sizeof(pcm->name));
 	snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_PLAYBACK, &pcm_ops);
 	snd_pcm_set_ops(pcm, SNDRV_PCM_STREAM_CAPTURE, &pcm_ops);
 	snd_pcm_set_managed_buffer_all(pcm, SNDRV_DMA_TYPE_VMALLOC, NULL, 0, 0);
@@ -729,7 +753,7 @@ int xonedb4_pcm_init(struct xonedb4_chip *chip)
 	rt->instance = pcm;
 	chip->pcm = rt;
 
-	ret = xonedb4_pcm_init_bulk_urbs(chip);
+	ret = xonedb4_pcm_init_int_urbs(chip);
 	if (ret < 0) {
 		goto error;
 	}
@@ -737,7 +761,7 @@ int xonedb4_pcm_init(struct xonedb4_chip *chip)
 	return 0;
 
 	error:
-	printk("ERRRORRRR");
+	dev_err(&chip->dev->dev, "%s: ERROR\n", __func__);
 	kfree(rt);
 	return ret;
 }
