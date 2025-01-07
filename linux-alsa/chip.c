@@ -249,7 +249,7 @@ static int xonedb4_probe(struct usb_interface *intf, const struct usb_device_id 
 			dev_err(&device->dev, "%s: MIDI fail!\n", __func__);
 			goto err_chip_destroy;
 		}
-		ret = xonedb4_pcm_init_int_urbs(chip);
+		ret = xonedb4_pcm_init_urbs(chip);
 		if (ret < 0) {
 			dev_err(&device->dev, "%s: PCM fail!\n", __func__);
 			goto err_chip_destroy;
