@@ -398,6 +398,12 @@ static const struct usb_device_id device_table[] = {
 		.idVendor = 0x0a4a,
 		.idProduct = 0xffd2
 	},
+	// Allen&Heath Xone:DX
+	{
+		.match_flags = USB_DEVICE_ID_MATCH_DEVICE,
+		.idVendor = 0x0a4a,
+		.idProduct = 0xffdd
+	},
 	{}
 };
 
