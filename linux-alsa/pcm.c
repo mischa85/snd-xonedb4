@@ -525,7 +525,7 @@ static void xonedb4_pcm_int_out_urb_handler(struct urb *usb_urb)
 
 	xonedb4_get_midi_output(out_urb->buffer + 432, 2);
 	xonedb4_get_midi_output(out_urb->buffer + 914, 2);
-	xonedb4_get_midi_output(out_urb->buffer + 1386, 2);
+	xonedb4_get_midi_output(out_urb->buffer + 1396, 2);
 	xonedb4_get_midi_output(out_urb->buffer + 1878, 2);
 
 	ret = usb_submit_urb(&out_urb->instance, GFP_ATOMIC);
