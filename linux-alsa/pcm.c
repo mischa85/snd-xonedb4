@@ -253,8 +253,17 @@ static bool xonedb4_pcm_bulk_playback(struct pcm_substream *sub, struct pcm_urb 
 		uint8_t *src = urb->buffer;
 		uint8_t *dest = alsa_rt->dma_area + sub->dma_off;
 
-		for (curframe = 0; curframe < 40; curframe++) {
+		for (curframe = 0; curframe < 10; curframe++) {
 			ploytec_convert_from_s24_3le(src + (curframe * XDB4_PCM_OUT_FRAME_SIZE), dest + (curframe * ALSA_BYTES_PER_FRAME));
+		}
+		for (curframe = 10; curframe < 20; curframe++) {
+			ploytec_convert_from_s24_3le(src + (curframe * XDB4_PCM_OUT_FRAME_SIZE) + 512, dest + (curframe * ALSA_BYTES_PER_FRAME));
+		}
+		for (curframe = 20; curframe < 30; curframe++) {
+			ploytec_convert_from_s24_3le(src + (curframe * XDB4_PCM_OUT_FRAME_SIZE) + 1024, dest + (curframe * ALSA_BYTES_PER_FRAME));
+		}
+		for (curframe = 30; curframe < 40; curframe++) {
+			ploytec_convert_from_s24_3le(src + (curframe * XDB4_PCM_OUT_FRAME_SIZE) + 1536, dest + (curframe * ALSA_BYTES_PER_FRAME));
 		}
 	} else {
 		/* wrap around at end of ring buffer */
@@ -269,12 +278,39 @@ static bool xonedb4_pcm_bulk_playback(struct pcm_substream *sub, struct pcm_urb 
 		uint8_t *dest1 = alsa_rt->dma_area + sub->dma_off;
 		uint8_t *dest2 = alsa_rt->dma_area;
 
-		for (curframexone = 0; curframexone < 40; curframexone++) {
+		for (curframexone = 0; curframexone < 10; curframexone++) {
 			if (curframealsa1 < numframesalsa1) {
 				ploytec_convert_from_s24_3le(src + (curframexone * XDB4_PCM_OUT_FRAME_SIZE), dest1 + (curframealsa1 * ALSA_BYTES_PER_FRAME));
 				curframealsa1++;
 			} else if (curframealsa2 < numframesalsa2) {
 				ploytec_convert_from_s24_3le(src + (curframexone * XDB4_PCM_OUT_FRAME_SIZE), dest2 + (curframealsa2 * ALSA_BYTES_PER_FRAME));
+				curframealsa2++;
+			}
+		}
+		for (curframexone = 10; curframexone < 20; curframexone++) {
+			if (curframealsa1 < numframesalsa1) {
+				ploytec_convert_from_s24_3le(src + (curframexone * XDB4_PCM_OUT_FRAME_SIZE) + 512, dest1 + (curframealsa1 * ALSA_BYTES_PER_FRAME));
+				curframealsa1++;
+			} else if (curframealsa2 < numframesalsa2) {
+				ploytec_convert_from_s24_3le(src + (curframexone * XDB4_PCM_OUT_FRAME_SIZE) + 512, dest2 + (curframealsa2 * ALSA_BYTES_PER_FRAME));
+				curframealsa2++;
+			}
+		}
+		for (curframexone = 20; curframexone < 30; curframexone++) {
+			if (curframealsa1 < numframesalsa1) {
+				ploytec_convert_from_s24_3le(src + (curframexone * XDB4_PCM_OUT_FRAME_SIZE) + 1024, dest1 + (curframealsa1 * ALSA_BYTES_PER_FRAME));
+				curframealsa1++;
+			} else if (curframealsa2 < numframesalsa2) {
+				ploytec_convert_from_s24_3le(src + (curframexone * XDB4_PCM_OUT_FRAME_SIZE) + 1024, dest2 + (curframealsa2 * ALSA_BYTES_PER_FRAME));
+				curframealsa2++;
+			}
+		}
+		for (curframexone = 30; curframexone < 40; curframexone++) {
+			if (curframealsa1 < numframesalsa1) {
+				ploytec_convert_from_s24_3le(src + (curframexone * XDB4_PCM_OUT_FRAME_SIZE) + 1536, dest1 + (curframealsa1 * ALSA_BYTES_PER_FRAME));
+				curframealsa1++;
+			} else if (curframealsa2 < numframesalsa2) {
+				ploytec_convert_from_s24_3le(src + (curframexone * XDB4_PCM_OUT_FRAME_SIZE) + 1536, dest2 + (curframealsa2 * ALSA_BYTES_PER_FRAME));
 				curframealsa2++;
 			}
 		}
@@ -472,10 +508,10 @@ static void xonedb4_pcm_bulk_out_urb_handler(struct urb *usb_urb)
 		snd_pcm_period_elapsed(sub->instance);
 	}
 
-	xonedb4_get_midi_output(out_urb->buffer + 480, 2);
-	xonedb4_get_midi_output(out_urb->buffer + 992, 2);
-	xonedb4_get_midi_output(out_urb->buffer + 1504, 2);
-	xonedb4_get_midi_output(out_urb->buffer + 2016, 2);
+	xonedb4_get_midi_output(out_urb->buffer + 480, 1);
+	xonedb4_get_midi_output(out_urb->buffer + 992, 1);
+	xonedb4_get_midi_output(out_urb->buffer + 1504, 1);
+	xonedb4_get_midi_output(out_urb->buffer + 2016, 1);
 
 	ret = usb_submit_urb(&out_urb->instance, GFP_ATOMIC);
 
@@ -730,16 +766,20 @@ static int xonedb4_pcm_init_bulk_out_urbs(struct pcm_urb *urb, struct xonedb4_ch
 	}
 
 	memset(urb->buffer + 0, 0, 480);
-	xonedb4_get_midi_output(urb->buffer + 480, 2);
+	xonedb4_get_midi_output(urb->buffer + 480, 1);
+	memset(urb->buffer + 481, 0xff, 1);
 	memset(urb->buffer + 482, 0, 30);
 	memset(urb->buffer + 512, 0, 480);
-	xonedb4_get_midi_output(urb->buffer + 992, 2);
+	xonedb4_get_midi_output(urb->buffer + 992, 1);
+	memset(urb->buffer + 993, 0xff, 1);
 	memset(urb->buffer + 994, 0, 30);
 	memset(urb->buffer + 1024, 0, 480);
-	xonedb4_get_midi_output(urb->buffer + 1504, 2);
+	xonedb4_get_midi_output(urb->buffer + 1504, 1);
+	memset(urb->buffer + 1505, 0xff, 1);
 	memset(urb->buffer + 1506, 0, 30);
 	memset(urb->buffer + 1536, 0, 480);
-	xonedb4_get_midi_output(urb->buffer + 2016, 2);
+	xonedb4_get_midi_output(urb->buffer + 2016, 1);
+	memset(urb->buffer + 2017, 0xff, 1);
 	memset(urb->buffer + 2018, 0, 30);
 
 	usb_fill_bulk_urb(&urb->instance, chip->dev, usb_sndbulkpipe(chip->dev, ep), (void *)urb->buffer, XDB4_PCM_BULK_OUT_PACKET_SIZE, handler, urb);
