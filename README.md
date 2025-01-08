@@ -6,6 +6,12 @@ The development of the macOS driverkit driver has been an unpleasant experience 
 
 Also, with minor modifications these drivers should also work on Allen&Heath Xone:DB2 and Allen&Heath Xone:4D.
 
+**Supported Devices**:
+
+- [x] Allen&Heath Xone:DB4
+- [x] Allen&Heath Xone:DB2
+- [x] Allen&Heath Xone:DX
+
 **Linux**:
 
 - [x] PCM out 8 channels
