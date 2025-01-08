@@ -11,6 +11,7 @@ Also, with minor modifications these drivers should also work on Allen&Heath Xon
 - [x] Allen&Heath Xone:DB4
 - [x] Allen&Heath Xone:DB2
 - [x] Allen&Heath Xone:DX
+- [ ] Allen&Heath Xone:4D
 
 **Linux**:
 
