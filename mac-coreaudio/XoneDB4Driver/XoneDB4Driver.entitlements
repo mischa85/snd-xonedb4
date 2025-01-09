@@ -10,6 +10,12 @@
 			<key>idVendor</key>
 			<integer>2634</integer>
 			<key>idProduct</key>
+			<integer>65501</integer>
+		</dict>
+		<dict>
+			<key>idVendor</key>
+			<integer>2634</integer>
+			<key>idProduct</key>
 			<integer>65490</integer>
 		</dict>
 		<dict>
