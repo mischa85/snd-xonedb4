@@ -1,10 +1,8 @@
 # snd-xonedb4
 
-This is a driver for the Allen & Heath Xone:DB4 mixer. The driver requires the latest Ploytec (audio) firmware to be flashed to the mixer. These are part of the "device software" section of the Allen&Heath website.
+This is a driver for several Ploytec audio/MIDI interfaces. It supports both BULK and INTERRUPT streaming modes.
 
 The development of the macOS driverkit driver has been an unpleasant experience to say the least. Apart from the largely undocumented functions and the severe lack of examples, which made the development a hell, there are many issues regarding the codesigning. Of course it would be easier if I could just make a signed binary available, but as Apple wants $99/year for this I kindly refuse to pay that out of my own pocket. If anyone is able to get me one of those I'll start supplying a signed binary for the driver.
-
-Also, with minor modifications these drivers should also work on Allen&Heath Xone:DB2 and Allen&Heath Xone:4D.
 
 **Supported Devices**:
 
@@ -46,7 +44,7 @@ make linux
 - ```sudo nvram boot-args="amfi_get_out_of_my_way=0x1"```
 - Reboot to macOS.
 - Open a terminal.
-- ```systemextensionsctl developer on``` to enable developer mode.
+- ```systemextensionsctl developer on``` to enable developer mode. This allows for the app to run outside of the ```/Applications``` directory.
 - Clone the repo using ```git clone https://github.com/mischa85/snd-xonedb4```
 - Change the directory to the cloned repo: ```cd snd-xonedb4```
 - Get a (free) Apple developer account via Xcode.
