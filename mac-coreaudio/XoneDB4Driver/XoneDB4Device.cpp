@@ -33,7 +33,8 @@ constexpr uint16_t totalframesout = numpacketsout * framesperpacketout;
 constexpr uint8_t framesperpacketin = 8;
 constexpr uint16_t totalframesin = numpacketsin * framesperpacketin;
 
-constexpr uint16_t pcmsizeout = numpacketsout * 482; // 40 frames
+constexpr uint16_t pcmsizeoutbulk = numpacketsout * 512; // 40 frames
+constexpr uint16_t pcmsizeoutint = numpacketsout * 482; // 40 frames
 constexpr uint16_t pcmsizein = numpacketsin * 512; // 32 frames
 
 constexpr uint8_t pcmouturbs = 8;
@@ -55,8 +56,10 @@ struct XoneDB4Device_IVars
 	OSSharedPtr<IOMemoryMap>				m_input_ploytec_memory_map;
 
 	IOUSBHostPipe*							PCMinPipe;
+	IOUSBEndpointDescriptor					PCMinDescriptor;
 	OSAction*								PCMinCallback;
 	IOUSBHostPipe*							PCMoutPipe;
+	IOUSBEndpointDescriptor					PCMoutDescriptor;
 	OSAction*								PCMoutCallback;
 	
 	IOBufferMemoryDescriptor*				PCMinDataEmpty;
@@ -142,23 +145,60 @@ bool XoneDB4Device::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 	ivars->startpcmin = false;
 	ivars->startpcmout = false;
 	
+	IOUSBStandardEndpointDescriptors indescriptor;
+	IOUSBStandardEndpointDescriptors outdescriptor;
+
+	ret = ivars->PCMinPipe->GetDescriptors(&indescriptor, kIOUSBGetEndpointDescriptorOriginal);
+	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to GetDescriptors from PCM in!");
+	ret = ivars->PCMoutPipe->GetDescriptors(&outdescriptor, kIOUSBGetEndpointDescriptorOriginal);
+	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to GetDescriptors from PCM out!");
+
+	ivars->PCMinDescriptor = indescriptor.descriptor;
+	ivars->PCMoutDescriptor = outdescriptor.descriptor;
+
 	ret = device->CreateIOBuffer(kIOMemoryDirectionInOut, pcmsizein, &ivars->PCMinDataEmpty);
 	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create output IOBufferMemoryDescriptor");
-	ret = device->CreateIOBuffer(kIOMemoryDirectionInOut, pcmsizeout, &ivars->PCMoutDataEmpty);
+
+	if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeBulk) {
+		ret = device->CreateIOBuffer(kIOMemoryDirectionInOut, pcmsizeoutbulk, &ivars->PCMoutDataEmpty);
+	}
+	if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeInterrupt) {
+		ret = device->CreateIOBuffer(kIOMemoryDirectionInOut, pcmsizeoutint, &ivars->PCMoutDataEmpty);
+	}
 	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create output IOBufferMemoryDescriptor");
 	
 	ivars->PCMoutDataEmpty->GetAddressRange(&range);
 	PCMoutDataEmptyAddr = reinterpret_cast<uint8_t*>(range.address);
 	
-	// UART
-	PCMoutDataEmptyAddr[432] = 0xfd;
-	PCMoutDataEmptyAddr[433] = 0xfd;
-	PCMoutDataEmptyAddr[914] = 0xfd;
-	PCMoutDataEmptyAddr[915] = 0xfd;
-	PCMoutDataEmptyAddr[1396] = 0xfd;
-	PCMoutDataEmptyAddr[1397] = 0xfd;
-	PCMoutDataEmptyAddr[1878] = 0xfd;
-	PCMoutDataEmptyAddr[1879] = 0xfd;
+	if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeBulk) {
+		memset(PCMoutDataEmptyAddr + 0, 0, 480); // PCM
+		memset(PCMoutDataEmptyAddr + 480, 0xfd, 1); // UART
+		memset(PCMoutDataEmptyAddr + 481, 0xff, 1);
+		memset(PCMoutDataEmptyAddr + 482, 0, 30);
+		memset(PCMoutDataEmptyAddr + 512, 0, 480); // PCM
+		memset(PCMoutDataEmptyAddr + 992, 0xfd, 1); // UART
+		memset(PCMoutDataEmptyAddr + 993, 0xff, 1);
+		memset(PCMoutDataEmptyAddr + 994, 0, 30);
+		memset(PCMoutDataEmptyAddr + 1024, 0, 480); // PCM
+		memset(PCMoutDataEmptyAddr + 1504, 0xfd, 1); // UART
+		memset(PCMoutDataEmptyAddr + 1505, 0xff, 1);
+		memset(PCMoutDataEmptyAddr + 1506, 0, 30);
+		memset(PCMoutDataEmptyAddr + 1536, 0, 480); // PCM
+		memset(PCMoutDataEmptyAddr + 2016, 0xfd, 1); // UART
+		memset(PCMoutDataEmptyAddr + 2017, 0xff, 1);
+		memset(PCMoutDataEmptyAddr + 2018, 0, 30);
+	}
+	if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeInterrupt) {
+		memset(PCMoutDataEmptyAddr + 0, 0, 432); // PCM
+		memset(PCMoutDataEmptyAddr + 432, 0xfd, 2); // UART
+		memset(PCMoutDataEmptyAddr + 434, 0, 480); // PCM
+		memset(PCMoutDataEmptyAddr + 914, 0xfd, 2); // UART
+		memset(PCMoutDataEmptyAddr + 916, 0, 480); // PCM
+		memset(PCMoutDataEmptyAddr + 1396, 0xfd, 2); // UART
+		memset(PCMoutDataEmptyAddr + 1398, 0, 480); // PCM
+		memset(PCMoutDataEmptyAddr + 1878, 0xfd, 2); // UART
+		memset(PCMoutDataEmptyAddr + 1880, 0, 48); // PCM
+	}
 	
 	ret = device->CreateIOBuffer(kIOMemoryDirectionInOut, maxbuffersize * xonedb4framesizeout, ivars->output_ploytec_ring_buffer.attach());
 	ivars->output_ploytec_ring_buffer->GetAddressRange(&range);
@@ -172,8 +212,13 @@ bool XoneDB4Device::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 	SetSampleRate(96000);
 	
 	for (i = 0; i < pcmouturbs; i++) {
-		ret = ivars->PCMoutPipe->AsyncIO(ivars->PCMoutDataEmpty, pcmsizeout, ivars->PCMoutCallback, 0);
-		FailIf(ret != kIOReturnSuccess, , Failure, "Failed to send PCMoutData urbs");
+		if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeBulk) {
+			ret = ivars->PCMoutPipe->AsyncIO(ivars->PCMoutDataEmpty, pcmsizeoutbulk, ivars->PCMoutCallback, 0);
+		}
+		if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeInterrupt) {
+			ret = ivars->PCMoutPipe->AsyncIO(ivars->PCMoutDataEmpty, pcmsizeoutint, ivars->PCMoutCallback, 0);
+		}
+		FailIf(ret != kIOReturnSuccess, , Failure, "Failed to send PCMoutDataEmpty urbs");
 	}
 	
 	for (i = 0; i < pcminurbs; i++) {
@@ -217,8 +262,7 @@ bool XoneDB4Device::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 	{
 		__block int i = 0;
 		
-		if (in_io_operation == IOUserAudioIOOperationWriteEnd)
-		{
+		if (in_io_operation == IOUserAudioIOOperationWriteEnd) {
 			if(ivars->out_sample_time_usb < (in_sample_time - (ivars->buffersize - in_io_buffer_frame_size)) || ivars->out_sample_time_usb > in_sample_time)
 			{
 				ivars->xruns++;
@@ -226,27 +270,44 @@ bool XoneDB4Device::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 				ivars->out_sample_time_usb = in_sample_time - (ivars->buffersize/2);
 			}
 			
-			for (i = 0; i < in_io_buffer_frame_size; i++)
-			{
-				int sampleoffset = ((in_sample_time + i) % ivars->buffersize);
-				int byteoffset = 0;
-				
-				if (sampleoffset >= 9) {
-					byteoffset = ((sampleoffset - 9) / 10) * 2 + 2;
+			int sampleoffset;
+			int byteoffset;
+
+			if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeBulk) {
+				for (i = 0; i < in_io_buffer_frame_size; i++)
+				{
+					sampleoffset = ((in_sample_time + i) % ivars->buffersize);
+
+					if (sampleoffset >= 10) {
+						byteoffset = ((sampleoffset - 10) / 10) * 32 + 32;
+					} else {
+						byteoffset = 0;
+					}
+
+					ploytec_convert_from_s24_3le(ivars->PloytecOutputBufferAddr + byteoffset + (sampleoffset * xonedb4framesizeout), ivars->CoreAudioOutputBufferAddr + (sampleoffset * s24_3leframe));
 				}
-				
-				ploytec_convert_from_s24_3le(ivars->PloytecOutputBufferAddr + byteoffset + (sampleoffset * xonedb4framesizeout), ivars->CoreAudioOutputBufferAddr + (sampleoffset * s24_3leframe));
+			} else if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeInterrupt) {
+				for (i = 0; i < in_io_buffer_frame_size; i++)
+				{
+					sampleoffset = ((in_sample_time + i) % ivars->buffersize);
+
+					if (sampleoffset >= 9) {
+						byteoffset = ((sampleoffset - 9) / 10) * 2 + 2;
+					} else {
+						byteoffset = 0;
+					}
+
+					ploytec_convert_from_s24_3le(ivars->PloytecOutputBufferAddr + byteoffset + (sampleoffset * xonedb4framesizeout), ivars->CoreAudioOutputBufferAddr + (sampleoffset * s24_3leframe));
+				}
 			}
-		}
-		else if (in_io_operation == IOUserAudioIOOperationBeginRead)
-		{
+		} else if (in_io_operation == IOUserAudioIOOperationBeginRead) {
 			if(ivars->in_sample_time_usb > (in_sample_time + (ivars->buffersize - in_io_buffer_frame_size)) || ivars->in_sample_time_usb < in_sample_time)
 			{
 				ivars->xruns++;
 				os_log(OS_LOG_DEFAULT, "RESYNC IN");
 				ivars->in_sample_time_usb = in_sample_time + (ivars->buffersize/2);
 			}
-			
+
 			for (i = 0; i < in_io_buffer_frame_size; i++)
 			{
 				ploytec_convert_to_s24_3le(ivars->CoreAudioInputBufferAddr + (((in_sample_time + i) % ivars->buffersize) * s24_3leframe), ivars->PloytecInputBufferAddr + (((in_sample_time + i) % ivars->buffersize) * xonedb4framesizein));
@@ -296,11 +357,53 @@ kern_return_t XoneDB4Device::StartIO(IOUserAudioStartStopFlags in_flags)
 		FailIfNULL(output_ploytec_iomd.get(), ret = kIOReturnNoMemory, Failure, "Failed to get output ploytec IOMemoryDescriptor");
 		ret = output_ploytec_iomd->CreateMapping(0, 0, 0, 0, 0, ivars->m_output_ploytec_memory_map.attach());
 		FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create memory map from output ploytec IOMemoryDescriptor");
-		
+
 		for (i = 0; i < (ivars->buffersize/totalframesout); i++) {
-			ret = output_ploytec_iomd->CreateSubMemoryDescriptor(kIOMemoryDirectionInOut, i * pcmsizeout, pcmsizeout, output_ploytec_iomd.get(), ivars->PCMoutData[i].attach());
+			if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeBulk) {
+				ret = output_ploytec_iomd->CreateSubMemoryDescriptor(kIOMemoryDirectionInOut, i * pcmsizeoutbulk, pcmsizeoutbulk, output_ploytec_iomd.get(), ivars->PCMoutData[i].attach());
+			} else if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeInterrupt) {
+				ret = output_ploytec_iomd->CreateSubMemoryDescriptor(kIOMemoryDirectionInOut, i * pcmsizeoutint, pcmsizeoutint, output_ploytec_iomd.get(), ivars->PCMoutData[i].attach());
+			} else {
+				ret = kIOReturnError;
+			}
 			FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create output SubMemoryDescriptor");
-			ivars->PCMoutDataAddr[i] = ivars->PloytecOutputBufferAddr + (i * pcmsizeout);
+
+			if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeBulk) {
+				ivars->PCMoutDataAddr[i] = ivars->PloytecOutputBufferAddr + (i * pcmsizeoutbulk);
+			}
+			if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeInterrupt) {
+				ivars->PCMoutDataAddr[i] = ivars->PloytecOutputBufferAddr + (i * pcmsizeoutint);
+			}
+
+			if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeBulk) {
+				memset(ivars->PCMoutDataAddr[i] + 0, 0, 480); // PCM
+				memset(ivars->PCMoutDataAddr[i] + 480, 0xfd, 1); // UART
+				memset(ivars->PCMoutDataAddr[i] + 481, 0xff, 1);
+				memset(ivars->PCMoutDataAddr[i] + 482, 0, 30);
+				memset(ivars->PCMoutDataAddr[i] + 512, 0, 480); // PCM
+				memset(ivars->PCMoutDataAddr[i] + 992, 0xfd, 1); // UART
+				memset(ivars->PCMoutDataAddr[i] + 993, 0xff, 1);
+				memset(ivars->PCMoutDataAddr[i] + 994, 0, 30);
+				memset(ivars->PCMoutDataAddr[i] + 1024, 0, 480); // PCM
+				memset(ivars->PCMoutDataAddr[i] + 1504, 0xfd, 1); // UART
+				memset(ivars->PCMoutDataAddr[i] + 1505, 0xff, 1);
+				memset(ivars->PCMoutDataAddr[i] + 1506, 0, 30);
+				memset(ivars->PCMoutDataAddr[i] + 1536, 0, 480); // PCM
+				memset(ivars->PCMoutDataAddr[i] + 2016, 0xfd, 1); // UART
+				memset(ivars->PCMoutDataAddr[i] + 2017, 0xff, 1);
+				memset(ivars->PCMoutDataAddr[i] + 2018, 0, 30);
+			}
+			if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeInterrupt) {
+				memset(ivars->PCMoutDataAddr[i] + 0, 0, 432); // PCM
+				memset(ivars->PCMoutDataAddr[i] + 432, 0xfd, 2); // UART
+				memset(ivars->PCMoutDataAddr[i] + 434, 0, 480); // PCM
+				memset(ivars->PCMoutDataAddr[i] + 914, 0xfd, 2); // UART
+				memset(ivars->PCMoutDataAddr[i] + 916, 0, 480); // PCM
+				memset(ivars->PCMoutDataAddr[i] + 1396, 0xfd, 2); // UART
+				memset(ivars->PCMoutDataAddr[i] + 1398, 0, 480); // PCM
+				memset(ivars->PCMoutDataAddr[i] + 1878, 0xfd, 2); // UART
+				memset(ivars->PCMoutDataAddr[i] + 1880, 0, 48); // PCM
+			}
 		}
 		
 		input_iomd = ivars->m_input_stream->GetIOMemoryDescriptor();
@@ -430,16 +533,29 @@ kern_return_t XoneDB4Device::SendPCMToDevice(uint64_t completionTimestamp)
 		int currentpos = (ivars->out_sample_time_usb % ivars->buffersize) / totalframesout;
 		
 		// UART
-		ivars->PCMoutDataAddr[currentpos][432] = 0xfd;
-		ivars->PCMoutDataAddr[currentpos][433] = 0xfd;
-		ivars->PCMoutDataAddr[currentpos][914] = 0xfd;
-		ivars->PCMoutDataAddr[currentpos][915] = 0xfd;
-		ivars->PCMoutDataAddr[currentpos][1396] = 0xfd;
-		ivars->PCMoutDataAddr[currentpos][1397] = 0xfd;
-		ivars->PCMoutDataAddr[currentpos][1878] = 0xfd;
-		ivars->PCMoutDataAddr[currentpos][1879] = 0xfd;
+		if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeBulk) {
+			memset(ivars->PCMoutDataAddr + currentpos + 480, 0xfd, 1); // UART
+			memset(ivars->PCMoutDataAddr + currentpos + 481, 0xff, 1);
+			memset(ivars->PCMoutDataAddr + currentpos + 992, 0xfd, 1); // UART
+			memset(ivars->PCMoutDataAddr + currentpos + 993, 0xff, 1);
+			memset(ivars->PCMoutDataAddr + currentpos + 1504, 0xfd, 1); // UART
+			memset(ivars->PCMoutDataAddr + currentpos + 1505, 0xff, 1);
+			memset(ivars->PCMoutDataAddr + currentpos + 2016, 0xfd, 1); // UART
+			memset(ivars->PCMoutDataAddr + currentpos + 2017, 0xff, 1);
+		} else if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeInterrupt) {
+			memset(ivars->PCMoutDataAddr + currentpos + 432, 0xfd, 2); // UART
+			memset(ivars->PCMoutDataAddr + currentpos + 914, 0xfd, 2); // UART
+			memset(ivars->PCMoutDataAddr + currentpos + 1396, 0xfd, 2); // UART
+			memset(ivars->PCMoutDataAddr + currentpos + 1878, 0xfd, 2); // UART
+		}
 		
-		ret = ivars->PCMoutPipe->AsyncIO(ivars->PCMoutData[currentpos].get(), pcmsizeout, ivars->PCMoutCallback, 0);
+		if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeBulk) {
+			ret = ivars->PCMoutPipe->AsyncIO(ivars->PCMoutData[currentpos].get(), pcmsizeoutbulk, ivars->PCMoutCallback, 0);
+		} else if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeInterrupt) {
+			ret = ivars->PCMoutPipe->AsyncIO(ivars->PCMoutData[currentpos].get(), pcmsizeoutint, ivars->PCMoutCallback, 0);
+		} else {
+			ret = kIOReturnError;
+		}
 		if (ret != kIOReturnSuccess)
 		{
 			os_log(OS_LOG_DEFAULT, "SEND ERROR %d", ret);
@@ -455,7 +571,13 @@ kern_return_t XoneDB4Device::SendPCMToDevice(uint64_t completionTimestamp)
 		ivars->out_sample_time_usb += totalframesout;
 		ivars->out_current_buffer_pos_usb += totalframesout;
 	} else {
-		ret = ivars->PCMoutPipe->AsyncIO(ivars->PCMoutDataEmpty, pcmsizeout, ivars->PCMoutCallback, 0);
+		if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeBulk) {
+			ret = ivars->PCMoutPipe->AsyncIO(ivars->PCMoutDataEmpty, pcmsizeoutbulk, ivars->PCMoutCallback, 0);
+		} else if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeInterrupt) {
+			ret = ivars->PCMoutPipe->AsyncIO(ivars->PCMoutDataEmpty, pcmsizeoutint, ivars->PCMoutCallback, 0);
+		} else {
+			ret = kIOReturnError;
+		}
 		if (ret != kIOReturnSuccess) {
 			os_log(OS_LOG_DEFAULT, "SEND ERROR %d", ret);
 		}
