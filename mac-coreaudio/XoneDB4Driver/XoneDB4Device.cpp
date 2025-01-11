@@ -10,38 +10,30 @@
 #include "XoneDB4Device.h"
 #include "XoneDB4Driver.h"
 
-// Number of audio frames to buffer in the driver.
-// Also sets the clocking.
-// Should be divisible between both 10 and 8.
-// Could theoratically be set as low as 40, but I've seen CoreAudio crap itself at those values.
-// Beware.
-constexpr uint32_t buffersize = 2560;
+#define INITIAL_BUFFERSIZE					2560
+#define MAX_BUFFERSIZE						800000
 
-// This is the size the buffer has at time of allocation, it can shrink according to settings
-constexpr uint32_t maxbuffersize = 800000;
+#define PCM_N_URBS							4
+#define PCM_N_PLAYBACK_CHANNELS				8
+#define PCM_N_CAPTURE_CHANNELS				8
 
-constexpr uint8_t bytesperframe = 3;
-constexpr uint8_t numchannels = 8;
+#define XDB4_UART_OUT_BYTES_PER_PACKET		8
 
-constexpr uint8_t s24_3leframe = bytesperframe * numchannels;
+#define XDB4_PCM_OUT_FRAMES_PER_PACKET		40
+#define XDB4_PCM_OUT_FRAME_SIZE				48
+#define XDB4_PCM_OUT_BYTES_PER_PACKET		(XDB4_PCM_OUT_FRAMES_PER_PACKET * XDB4_PCM_OUT_FRAME_SIZE)
+#define XDB4_PCM_OUT_BULK_PACKET_SIZE		((XDB4_PCM_OUT_BYTES_PER_PACKET + XDB4_UART_OUT_BYTES_PER_PACKET + ((XDB4_PCM_OUT_FRAMES_PER_PACKET / 10) * 30)))
+#define XDB4_PCM_OUT_INT_PACKET_SIZE		(XDB4_PCM_OUT_BYTES_PER_PACKET + XDB4_UART_OUT_BYTES_PER_PACKET)
 
-constexpr uint8_t numpacketsout = 4;
-constexpr uint8_t numpacketsin = 4;
+#define XDB4_PCM_IN_FRAMES_PER_PACKET		32
+#define XDB4_PCM_IN_FRAME_SIZE				64
+#define XDB4_PCM_IN_PACKET_SIZE				(XDB4_PCM_IN_FRAMES_PER_PACKET * XDB4_PCM_IN_FRAME_SIZE)
 
-constexpr uint8_t framesperpacketout = 10;
-constexpr uint16_t totalframesout = numpacketsout * framesperpacketout;
-constexpr uint8_t framesperpacketin = 8;
-constexpr uint16_t totalframesin = numpacketsin * framesperpacketin;
-
-constexpr uint16_t pcmsizeoutbulk = numpacketsout * 512; // 40 frames
-constexpr uint16_t pcmsizeoutint = numpacketsout * 482; // 40 frames
-constexpr uint16_t pcmsizein = numpacketsin * 512; // 32 frames
-
-constexpr uint8_t pcmouturbs = 8;
-constexpr uint8_t pcminurbs = 8;
-
-constexpr uint16_t xonedb4framesizeout = 48;
-constexpr uint16_t xonedb4framesizein = 64;
+#define COREAUDIO_BYTES_PER_SAMPLE			3 // S24_3LE
+#define COREAUDIO_PLAYBACK_BYTES_PER_FRAME	(PCM_N_PLAYBACK_CHANNELS * COREAUDIO_BYTES_PER_SAMPLE)
+#define COREAUDIO_CAPTURE_BYTES_PER_FRAME	(PCM_N_CAPTURE_CHANNELS * COREAUDIO_BYTES_PER_SAMPLE)
+#define COREAUDIO_PCM_OUT_PACKET_SIZE		(PCM_N_PLAYBACK_CHANNELS * COREAUDIO_BYTES_PER_SAMPLE * XDB4_PCM_OUT_FRAMES_PER_PACKET)
+#define COREAUDIO_PCM_IN_PACKET_SIZE		(PCM_N_CAPTURE_CHANNELS * COREAUDIO_BYTES_PER_SAMPLE * XDB4_PCM_IN_FRAMES_PER_PACKET)
 
 struct XoneDB4Device_IVars
 {
@@ -71,10 +63,10 @@ struct XoneDB4Device_IVars
 	OSSharedPtr<IOBufferMemoryDescriptor> 	output_ploytec_ring_buffer;
 	OSSharedPtr<IOBufferMemoryDescriptor> 	input_io_ring_buffer;
 	OSSharedPtr<IOBufferMemoryDescriptor> 	input_ploytec_ring_buffer;
-	OSSharedPtr<IOMemoryDescriptor>			PCMoutData[maxbuffersize/totalframesout];
-	OSSharedPtr<IOMemoryDescriptor>			PCMinData[maxbuffersize/totalframesin];
+	OSSharedPtr<IOMemoryDescriptor>			PCMoutData[MAX_BUFFERSIZE/XDB4_PCM_OUT_FRAMES_PER_PACKET];
+	OSSharedPtr<IOMemoryDescriptor>			PCMinData[MAX_BUFFERSIZE/XDB4_PCM_IN_PACKET_SIZE];
 	
-	uint8_t*								PCMoutDataAddr[maxbuffersize/totalframesout];
+	uint8_t*								PCMoutDataAddr[MAX_BUFFERSIZE/XDB4_PCM_OUT_FRAMES_PER_PACKET];
 	uint8_t*								CoreAudioOutputBufferAddr;
 	uint8_t*								CoreAudioInputBufferAddr;
 	uint8_t*								PloytecOutputBufferAddr;
@@ -102,7 +94,7 @@ bool XoneDB4Device::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 		return false;
 	}
 	
-	ivars->buffersize = buffersize;
+	ivars->buffersize = INITIAL_BUFFERSIZE;
 
 	auto device_uid = OSSharedPtr(OSString::withCString("xonedb4"), OSNoRetain);
 	auto model_uid = OSSharedPtr(OSString::withCString("Model UID"), OSNoRetain);
@@ -121,16 +113,23 @@ bool XoneDB4Device::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 			// S24_3LE
 			96000, IOUserAudioFormatID::LinearPCM,
 			static_cast<IOUserAudioFormatFlags>(IOUserAudioFormatFlags::FormatFlagIsSignedInteger | IOUserAudioFormatFlags::FormatFlagsNativeEndian),
-			static_cast<uint32_t>(s24_3leframe),
+			static_cast<uint32_t>(COREAUDIO_PLAYBACK_BYTES_PER_FRAME),
 			1,
-			static_cast<uint32_t>(s24_3leframe),
-			static_cast<uint32_t>(numchannels),
+			static_cast<uint32_t>(COREAUDIO_PLAYBACK_BYTES_PER_FRAME),
+			static_cast<uint32_t>(PCM_N_PLAYBACK_CHANNELS),
+			24
+		},
+		{
+			// S24_3LE
+			96000, IOUserAudioFormatID::LinearPCM,
+			static_cast<IOUserAudioFormatFlags>(IOUserAudioFormatFlags::FormatFlagIsSignedInteger | IOUserAudioFormatFlags::FormatFlagsNativeEndian),
+			static_cast<uint32_t>(COREAUDIO_CAPTURE_BYTES_PER_FRAME),
+			1,
+			static_cast<uint32_t>(COREAUDIO_CAPTURE_BYTES_PER_FRAME),
+			static_cast<uint32_t>(PCM_N_CAPTURE_CHANNELS),
 			24
 		},
 	};
-	
-	IOUserAudioChannelLabel output_channel_layout[numchannels] = { IOUserAudioChannelLabel::Discrete_0, IOUserAudioChannelLabel::Discrete_1, IOUserAudioChannelLabel::Discrete_2, IOUserAudioChannelLabel::Discrete_3, IOUserAudioChannelLabel::Discrete_4, IOUserAudioChannelLabel::Discrete_5, IOUserAudioChannelLabel::Discrete_6, IOUserAudioChannelLabel::Discrete_7 };
-	IOUserAudioChannelLabel input_channel_layout[numchannels] = { IOUserAudioChannelLabel::Discrete_0, IOUserAudioChannelLabel::Discrete_1, IOUserAudioChannelLabel::Discrete_2, IOUserAudioChannelLabel::Discrete_3, IOUserAudioChannelLabel::Discrete_4, IOUserAudioChannelLabel::Discrete_5, IOUserAudioChannelLabel::Discrete_6, IOUserAudioChannelLabel::Discrete_7 };
 	
 	OSSharedPtr<OSString> output_stream_name = OSSharedPtr(OSString::withCString("Xone:DB4 PCM OUT"), OSNoRetain);
 	OSSharedPtr<OSString> input_stream_name = OSSharedPtr(OSString::withCString("Xone:DB4 PCM IN"), OSNoRetain);
@@ -148,28 +147,29 @@ bool XoneDB4Device::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 	IOUSBStandardEndpointDescriptors indescriptor;
 	IOUSBStandardEndpointDescriptors outdescriptor;
 
+	// get the USB descriptors
 	ret = ivars->PCMinPipe->GetDescriptors(&indescriptor, kIOUSBGetEndpointDescriptorOriginal);
 	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to GetDescriptors from PCM in!");
 	ret = ivars->PCMoutPipe->GetDescriptors(&outdescriptor, kIOUSBGetEndpointDescriptorOriginal);
 	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to GetDescriptors from PCM out!");
-
 	ivars->PCMinDescriptor = indescriptor.descriptor;
 	ivars->PCMoutDescriptor = outdescriptor.descriptor;
 
-	ret = device->CreateIOBuffer(kIOMemoryDirectionInOut, pcmsizein, &ivars->PCMinDataEmpty);
-	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create output IOBufferMemoryDescriptor");
-
+	// allocate the empty packets
+	ret = device->CreateIOBuffer(kIOMemoryDirectionInOut, XDB4_PCM_IN_PACKET_SIZE, &ivars->PCMinDataEmpty);
+	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create empty input buffer");
 	if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeBulk) {
-		ret = device->CreateIOBuffer(kIOMemoryDirectionInOut, pcmsizeoutbulk, &ivars->PCMoutDataEmpty);
+		ret = device->CreateIOBuffer(kIOMemoryDirectionInOut, XDB4_PCM_OUT_BULK_PACKET_SIZE, &ivars->PCMoutDataEmpty);
 	}
 	if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeInterrupt) {
-		ret = device->CreateIOBuffer(kIOMemoryDirectionInOut, pcmsizeoutint, &ivars->PCMoutDataEmpty);
+		ret = device->CreateIOBuffer(kIOMemoryDirectionInOut, XDB4_PCM_OUT_INT_PACKET_SIZE, &ivars->PCMoutDataEmpty);
 	}
-	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create output IOBufferMemoryDescriptor");
-	
-	ivars->PCMoutDataEmpty->GetAddressRange(&range);
+	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create empty output buffer");
+	ret = ivars->PCMoutDataEmpty->GetAddressRange(&range);
+	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to get address of empty output buffer");
 	PCMoutDataEmptyAddr = reinterpret_cast<uint8_t*>(range.address);
 	
+	// set up the initial packet structure
 	if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeBulk) {
 		memset(PCMoutDataEmptyAddr + 0, 0, 480); // PCM
 		memset(PCMoutDataEmptyAddr + 480, 0xfd, 1); // UART
@@ -200,64 +200,82 @@ bool XoneDB4Device::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 		memset(PCMoutDataEmptyAddr + 1880, 0, 48); // PCM
 	}
 	
-	ret = device->CreateIOBuffer(kIOMemoryDirectionInOut, maxbuffersize * xonedb4framesizeout, ivars->output_ploytec_ring_buffer.attach());
-	ivars->output_ploytec_ring_buffer->GetAddressRange(&range);
+	// allocate the USB ring buffers
+	ret = device->CreateIOBuffer(kIOMemoryDirectionInOut, MAX_BUFFERSIZE * XDB4_PCM_OUT_FRAME_SIZE, ivars->output_ploytec_ring_buffer.attach());
+	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create output ring buffer");
+	ret = ivars->output_ploytec_ring_buffer->GetAddressRange(&range);
+	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to get address of output ring buffer");
 	ivars->PloytecOutputBufferAddr = reinterpret_cast<uint8_t*>(range.address);
-	 
-	ret = device->CreateIOBuffer(kIOMemoryDirectionInOut, maxbuffersize * xonedb4framesizein, ivars->input_ploytec_ring_buffer.attach());
+	ret = device->CreateIOBuffer(kIOMemoryDirectionInOut, MAX_BUFFERSIZE * XDB4_PCM_IN_FRAME_SIZE, ivars->input_ploytec_ring_buffer.attach());
+	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create input ring buffer");
 	ivars->input_ploytec_ring_buffer->GetAddressRange(&range);
+	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to get address of input ring buffer");
 	ivars->PloytecInputBufferAddr = reinterpret_cast<uint8_t*>(range.address);
 
-	SetAvailableSampleRates(sample_rates, 1);
-	SetSampleRate(96000);
-	
-	for (i = 0; i < pcmouturbs; i++) {
+	// set the available sample rates in CoreAudio
+	ret = SetAvailableSampleRates(sample_rates, 1);
+	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to set the available samplerates in CoreAudio");
+
+	// set the current sample rate in CoreAudio
+	ret = SetSampleRate(96000);
+	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to set samplerate in CoreAudio");
+
+	// set the transport type in CoreAudio
+	ret = SetTransportType(IOUserAudioTransportType::USB);
+	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to set transport type in CoreAudio");
+
+	// send the empty urbs
+	for (i = 0; i < PCM_N_URBS; i++) {
 		if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeBulk) {
-			ret = ivars->PCMoutPipe->AsyncIO(ivars->PCMoutDataEmpty, pcmsizeoutbulk, ivars->PCMoutCallback, 0);
+			ret = ivars->PCMoutPipe->AsyncIO(ivars->PCMoutDataEmpty, XDB4_PCM_OUT_BULK_PACKET_SIZE, ivars->PCMoutCallback, 0);
 		}
 		if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeInterrupt) {
-			ret = ivars->PCMoutPipe->AsyncIO(ivars->PCMoutDataEmpty, pcmsizeoutint, ivars->PCMoutCallback, 0);
+			ret = ivars->PCMoutPipe->AsyncIO(ivars->PCMoutDataEmpty, XDB4_PCM_OUT_INT_PACKET_SIZE, ivars->PCMoutCallback, 0);
 		}
-		FailIf(ret != kIOReturnSuccess, , Failure, "Failed to send PCMoutDataEmpty urbs");
-	}
-	
-	for (i = 0; i < pcminurbs; i++) {
-		ret = ivars->PCMinPipe->AsyncIO(ivars->PCMinDataEmpty, pcmsizein, ivars->PCMinCallback, 0);
-		FailIf(ret != kIOReturnSuccess, , Failure, "Failed to send PCMinData urbs");
+		FailIf(ret != kIOReturnSuccess, , Failure, "Failed to send PCM out urbs");
+		ret = ivars->PCMinPipe->AsyncIO(ivars->PCMinDataEmpty, XDB4_PCM_IN_PACKET_SIZE, ivars->PCMinCallback, 0);
+		FailIf(ret != kIOReturnSuccess, , Failure, "Failed to send PCM in urbs");
 	}
 
-	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, maxbuffersize * s24_3leframe, 0, ivars->output_io_ring_buffer.attach());
-	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create output IOBufferMemoryDescriptor");
-	
-	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, maxbuffersize * s24_3leframe, 0, ivars->input_io_ring_buffer.attach());
-	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create input IOBufferMemoryDescriptor");
+	// allocate the CoreAudio ring buffers
+	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, MAX_BUFFERSIZE * COREAUDIO_PLAYBACK_BYTES_PER_FRAME, 0, ivars->output_io_ring_buffer.attach());
+	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create output ring buffer");
+	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, MAX_BUFFERSIZE * COREAUDIO_PLAYBACK_BYTES_PER_FRAME, 0, ivars->input_io_ring_buffer.attach());
+	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create input ring buffer");
 
+	// create the streams
 	ivars->m_output_stream = IOUserAudioStream::Create(in_driver, IOUserAudioStreamDirection::Output, ivars->output_io_ring_buffer.get());
-	FailIfNULL(ivars->m_output_stream.get(), ret = kIOReturnNoMemory, Failure, "failed to create output stream");
-	
+	FailIfNULL(ivars->m_output_stream.get(), ret = kIOReturnNoMemory, Failure, "Failed to create output stream");
 	ivars->m_input_stream = IOUserAudioStream::Create(in_driver, IOUserAudioStreamDirection::Input, ivars->input_io_ring_buffer.get());
-	FailIfNULL(ivars->m_input_stream.get(), ret = kIOReturnNoMemory, Failure, "failed to create input stream");
+	FailIfNULL(ivars->m_input_stream.get(), ret = kIOReturnNoMemory, Failure, "Failed to create input stream");
 
-	ivars->m_output_stream->SetName(output_stream_name.get());
-	ivars->m_output_stream->SetAvailableStreamFormats(stream_formats, 1);
+	// set names on input/output streams
+	ret = ivars->m_output_stream->SetName(output_stream_name.get());
+	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to set name on output stream");
+	ret = ivars->m_input_stream->SetName(input_stream_name.get());
+	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to set name on input stream");
+
+	// set the available sample formats on the streams
+	ret = ivars->m_output_stream->SetAvailableStreamFormats(stream_formats, 1);
+	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to set available stream formats on output stream");
+	ret = ivars->m_input_stream->SetAvailableStreamFormats(stream_formats, 1);
+	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to set available stream formats on input stream");
+
+	// set the current stream format on the stream
 	ivars->m_stream_format = stream_formats[0];
-	ivars->m_output_stream->SetCurrentStreamFormat(&ivars->m_stream_format);
-	
-	ivars->m_input_stream->SetName(input_stream_name.get());
-	ivars->m_input_stream->SetAvailableStreamFormats(stream_formats, 1);
-	ivars->m_input_stream->SetCurrentStreamFormat(&ivars->m_stream_format);
+	ret = ivars->m_output_stream->SetCurrentStreamFormat(&ivars->m_stream_format);
+	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to set current stream format on output stream");
+	ivars->m_stream_format = stream_formats[1];
+	ret = ivars->m_input_stream->SetCurrentStreamFormat(&ivars->m_stream_format);
+	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to set current stream format on input stream");
 
+	// add the streams to CoreAudio
 	ret = AddStream(ivars->m_output_stream.get());
-	FailIfError(ret, , Failure, "failed to add output stream");
-	
+	FailIfError(ret, , Failure, "Failed to add output stream");
 	ret = AddStream(ivars->m_input_stream.get());
-	FailIfError(ret, , Failure, "failed to add input stream");
+	FailIfError(ret, , Failure, "Failed to add input stream");
 
-	SetPreferredOutputChannelLayout(output_channel_layout, numchannels);
-	SetTransportType(IOUserAudioTransportType::USB);
-	SetPreferredInputChannelLayout(input_channel_layout, numchannels);
-	SetTransportType(IOUserAudioTransportType::USB);
-	
+	// this block converts the audio from CoreAudioOutputBuffer to the format the USB device wants in PloytecOutputBuffer
 	io_operation = ^kern_return_t(IOUserAudioObjectID in_device, IOUserAudioIOOperation in_io_operation, uint32_t in_io_buffer_frame_size, uint64_t in_sample_time, uint64_t in_host_time)
 	{
 		__block int i = 0;
@@ -284,7 +302,7 @@ bool XoneDB4Device::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 						byteoffset = 0;
 					}
 
-					ploytec_convert_from_s24_3le(ivars->PloytecOutputBufferAddr + byteoffset + (sampleoffset * xonedb4framesizeout), ivars->CoreAudioOutputBufferAddr + (sampleoffset * s24_3leframe));
+					ploytec_convert_from_s24_3le(ivars->PloytecOutputBufferAddr + byteoffset + (sampleoffset * XDB4_PCM_OUT_FRAME_SIZE), ivars->CoreAudioOutputBufferAddr + (sampleoffset * COREAUDIO_PLAYBACK_BYTES_PER_FRAME));
 				}
 			} else if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeInterrupt) {
 				for (i = 0; i < in_io_buffer_frame_size; i++)
@@ -297,7 +315,7 @@ bool XoneDB4Device::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 						byteoffset = 0;
 					}
 
-					ploytec_convert_from_s24_3le(ivars->PloytecOutputBufferAddr + byteoffset + (sampleoffset * xonedb4framesizeout), ivars->CoreAudioOutputBufferAddr + (sampleoffset * s24_3leframe));
+					ploytec_convert_from_s24_3le(ivars->PloytecOutputBufferAddr + byteoffset + (sampleoffset * XDB4_PCM_OUT_FRAME_SIZE), ivars->CoreAudioOutputBufferAddr + (sampleoffset * COREAUDIO_PLAYBACK_BYTES_PER_FRAME));
 				}
 			}
 		} else if (in_io_operation == IOUserAudioIOOperationBeginRead) {
@@ -310,7 +328,7 @@ bool XoneDB4Device::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 
 			for (i = 0; i < in_io_buffer_frame_size; i++)
 			{
-				ploytec_convert_to_s24_3le(ivars->CoreAudioInputBufferAddr + (((in_sample_time + i) % ivars->buffersize) * s24_3leframe), ivars->PloytecInputBufferAddr + (((in_sample_time + i) % ivars->buffersize) * xonedb4framesizein));
+				ploytec_convert_to_s24_3le(ivars->CoreAudioInputBufferAddr + (((in_sample_time + i) % ivars->buffersize) * COREAUDIO_CAPTURE_BYTES_PER_FRAME), ivars->PloytecInputBufferAddr + (((in_sample_time + i) % ivars->buffersize) * XDB4_PCM_IN_FRAME_SIZE));
 			}
 		}
 		
@@ -337,9 +355,7 @@ kern_return_t XoneDB4Device::StartIO(IOUserAudioStartStopFlags in_flags)
 	__block int i = 0;
 	__block kern_return_t ret = kIOReturnSuccess;
 	__block OSSharedPtr<IOMemoryDescriptor> output_iomd;
-	__block OSSharedPtr<IOMemoryDescriptor> output_ploytec_iomd;
 	__block OSSharedPtr<IOMemoryDescriptor> input_iomd;
-	__block OSSharedPtr<IOMemoryDescriptor> input_ploytec_iomd;
 	__block uint64_t length = 0;
 	
 	ivars->m_work_queue->DispatchSync(^(){
@@ -347,32 +363,30 @@ kern_return_t XoneDB4Device::StartIO(IOUserAudioStartStopFlags in_flags)
 		FailIfError(ret, , Failure, "Failed to start I/O");
 
 		output_iomd = ivars->m_output_stream->GetIOMemoryDescriptor();
-		FailIfNULL(output_iomd.get(), ret = kIOReturnNoMemory, Failure, "Failed to get output stream IOMemoryDescriptor");
+		FailIfNULL(output_iomd.get(), ret = kIOReturnNoMemory, Failure, "Failed to get output stream");
 		ret = output_iomd->CreateMapping(0, 0, 0, 0, 0, ivars->m_output_memory_map.attach());
-		FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create memory map from output stream IOMemoryDescriptor");
-
+		FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create memory map from output stream");
 		ivars->CoreAudioOutputBufferAddr = reinterpret_cast<uint8_t*>(ivars->m_output_memory_map->GetAddress() + ivars->m_output_memory_map->GetOffset());
 		
-		output_ploytec_iomd = ivars->output_ploytec_ring_buffer;
-		FailIfNULL(output_ploytec_iomd.get(), ret = kIOReturnNoMemory, Failure, "Failed to get output ploytec IOMemoryDescriptor");
-		ret = output_ploytec_iomd->CreateMapping(0, 0, 0, 0, 0, ivars->m_output_ploytec_memory_map.attach());
-		FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create memory map from output ploytec IOMemoryDescriptor");
+		ret = ivars->output_ploytec_ring_buffer->CreateMapping(0, 0, 0, 0, 0, ivars->m_output_ploytec_memory_map.attach());
+		FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create memory map from output buffer");
 
-		for (i = 0; i < (ivars->buffersize/totalframesout); i++) {
+		for (i = 0; i < (ivars->buffersize/XDB4_PCM_OUT_FRAMES_PER_PACKET); i++) {
 			if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeBulk) {
-				ret = output_ploytec_iomd->CreateSubMemoryDescriptor(kIOMemoryDirectionInOut, i * pcmsizeoutbulk, pcmsizeoutbulk, output_ploytec_iomd.get(), ivars->PCMoutData[i].attach());
+				ret = ivars->output_ploytec_ring_buffer->CreateSubMemoryDescriptor(kIOMemoryDirectionInOut, i * XDB4_PCM_OUT_BULK_PACKET_SIZE, XDB4_PCM_OUT_BULK_PACKET_SIZE, ivars->output_ploytec_ring_buffer.get(), ivars->PCMoutData[i].attach());
+				FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create USB output SubMemoryDescriptor");
 			} else if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeInterrupt) {
-				ret = output_ploytec_iomd->CreateSubMemoryDescriptor(kIOMemoryDirectionInOut, i * pcmsizeoutint, pcmsizeoutint, output_ploytec_iomd.get(), ivars->PCMoutData[i].attach());
+				ret = ivars->output_ploytec_ring_buffer->CreateSubMemoryDescriptor(kIOMemoryDirectionInOut, i * XDB4_PCM_OUT_INT_PACKET_SIZE, XDB4_PCM_OUT_INT_PACKET_SIZE, ivars->output_ploytec_ring_buffer.get(), ivars->PCMoutData[i].attach());
+				FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create USB output SubMemoryDescriptor");
 			} else {
 				ret = kIOReturnError;
 			}
-			FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create output SubMemoryDescriptor");
 
 			if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeBulk) {
-				ivars->PCMoutDataAddr[i] = ivars->PloytecOutputBufferAddr + (i * pcmsizeoutbulk);
+				ivars->PCMoutDataAddr[i] = ivars->PloytecOutputBufferAddr + (i * XDB4_PCM_OUT_BULK_PACKET_SIZE);
 			}
 			if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeInterrupt) {
-				ivars->PCMoutDataAddr[i] = ivars->PloytecOutputBufferAddr + (i * pcmsizeoutint);
+				ivars->PCMoutDataAddr[i] = ivars->PloytecOutputBufferAddr + (i * XDB4_PCM_OUT_INT_PACKET_SIZE);
 			}
 
 			if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeBulk) {
@@ -407,20 +421,17 @@ kern_return_t XoneDB4Device::StartIO(IOUserAudioStartStopFlags in_flags)
 		}
 		
 		input_iomd = ivars->m_input_stream->GetIOMemoryDescriptor();
-		FailIfNULL(input_iomd.get(), ret = kIOReturnNoMemory, Failure, "Failed to get input stream IOMemoryDescriptor");
+		FailIfNULL(input_iomd.get(), ret = kIOReturnNoMemory, Failure, "Failed to get input stream");
 		ret = input_iomd->CreateMapping(0, 0, 0, 0, 0, ivars->m_input_memory_map.attach());
-		FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create memory map from input stream IOMemoryDescriptor");
-
+		FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create memory map from input stream");
 		ivars->CoreAudioInputBufferAddr = reinterpret_cast<uint8_t*>(ivars->m_input_memory_map->GetAddress() + ivars->m_input_memory_map->GetOffset());
 		
-		input_ploytec_iomd = ivars->input_ploytec_ring_buffer;
-		FailIfNULL(input_ploytec_iomd.get(), ret = kIOReturnNoMemory, Failure, "Failed to get output ploytec IOMemoryDescriptor");
-		ret = input_ploytec_iomd->CreateMapping(0, 0, 0, 0, 0, ivars->m_input_ploytec_memory_map.attach());
-		FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create memory map from output ploytec IOMemoryDescriptor");
+		ret = ivars->input_ploytec_ring_buffer->CreateMapping(0, 0, 0, 0, 0, ivars->m_input_ploytec_memory_map.attach());
+		FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create memory map for USB ring buffer");
 		
-		for (i = 0; i < (ivars->buffersize/totalframesin); i++) {
-			ret = input_ploytec_iomd->CreateSubMemoryDescriptor(kIOMemoryDirectionInOut, i * pcmsizein, pcmsizein, input_ploytec_iomd.get(), ivars->PCMinData[i].attach());
-			FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create input SubMemoryDescriptor");
+		for (i = 0; i < (ivars->buffersize/XDB4_PCM_IN_PACKET_SIZE); i++) {
+			ret = ivars->input_ploytec_ring_buffer->CreateSubMemoryDescriptor(kIOMemoryDirectionInOut, i * XDB4_PCM_IN_PACKET_SIZE, XDB4_PCM_IN_PACKET_SIZE, ivars->input_ploytec_ring_buffer.get(), ivars->PCMinData[i].attach());
+			FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create USB input SubMemoryDescriptor");
 		}
 		
 		UpdateCurrentZeroTimestamp(0, 0);
@@ -530,7 +541,7 @@ kern_return_t XoneDB4Device::SendPCMToDevice(uint64_t completionTimestamp)
 	__block int i = 0;
 	
 	if(ivars->startpcmout == true) {
-		int currentpos = (ivars->out_sample_time_usb % ivars->buffersize) / totalframesout;
+		int currentpos = (ivars->out_sample_time_usb % ivars->buffersize) / XDB4_PCM_OUT_FRAMES_PER_PACKET;
 		
 		// UART
 		if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeBulk) {
@@ -550,9 +561,9 @@ kern_return_t XoneDB4Device::SendPCMToDevice(uint64_t completionTimestamp)
 		}
 		
 		if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeBulk) {
-			ret = ivars->PCMoutPipe->AsyncIO(ivars->PCMoutData[currentpos].get(), pcmsizeoutbulk, ivars->PCMoutCallback, 0);
+			ret = ivars->PCMoutPipe->AsyncIO(ivars->PCMoutData[currentpos].get(), XDB4_PCM_OUT_BULK_PACKET_SIZE, ivars->PCMoutCallback, 0);
 		} else if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeInterrupt) {
-			ret = ivars->PCMoutPipe->AsyncIO(ivars->PCMoutData[currentpos].get(), pcmsizeoutint, ivars->PCMoutCallback, 0);
+			ret = ivars->PCMoutPipe->AsyncIO(ivars->PCMoutData[currentpos].get(), XDB4_PCM_OUT_INT_PACKET_SIZE, ivars->PCMoutCallback, 0);
 		} else {
 			ret = kIOReturnError;
 		}
@@ -568,13 +579,13 @@ kern_return_t XoneDB4Device::SendPCMToDevice(uint64_t completionTimestamp)
 			UpdateCurrentZeroTimestamp(ivars->out_hw_sample_time_usb, completionTimestamp);
 		}
 		
-		ivars->out_sample_time_usb += totalframesout;
-		ivars->out_current_buffer_pos_usb += totalframesout;
+		ivars->out_sample_time_usb += XDB4_PCM_OUT_FRAMES_PER_PACKET;
+		ivars->out_current_buffer_pos_usb += XDB4_PCM_OUT_FRAMES_PER_PACKET;
 	} else {
 		if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeBulk) {
-			ret = ivars->PCMoutPipe->AsyncIO(ivars->PCMoutDataEmpty, pcmsizeoutbulk, ivars->PCMoutCallback, 0);
+			ret = ivars->PCMoutPipe->AsyncIO(ivars->PCMoutDataEmpty, XDB4_PCM_OUT_BULK_PACKET_SIZE, ivars->PCMoutCallback, 0);
 		} else if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeInterrupt) {
-			ret = ivars->PCMoutPipe->AsyncIO(ivars->PCMoutDataEmpty, pcmsizeoutint, ivars->PCMoutCallback, 0);
+			ret = ivars->PCMoutPipe->AsyncIO(ivars->PCMoutDataEmpty, XDB4_PCM_OUT_INT_PACKET_SIZE, ivars->PCMoutCallback, 0);
 		} else {
 			ret = kIOReturnError;
 		}
@@ -591,17 +602,17 @@ kern_return_t XoneDB4Device::ReceivePCMfromDevice(uint64_t completionTimestamp)
 	__block kern_return_t ret;
 	
 	if(ivars->startpcmin == true) {
-		int currentpos = (ivars->in_sample_time_usb % ivars->buffersize) / totalframesin;
+		int currentpos = (ivars->in_sample_time_usb % ivars->buffersize) / XDB4_PCM_IN_PACKET_SIZE;
 		
-		ret = ivars->PCMinPipe->AsyncIO(ivars->PCMinData[currentpos].get(), pcmsizein, ivars->PCMinCallback, 0);
+		ret = ivars->PCMinPipe->AsyncIO(ivars->PCMinData[currentpos].get(), XDB4_PCM_IN_PACKET_SIZE, ivars->PCMinCallback, 0);
 		if (ret != kIOReturnSuccess)
 		{
 			os_log(OS_LOG_DEFAULT, "RECEIVE ERROR %d", ret);
 		}
 		
-		ivars->in_sample_time_usb += totalframesin;
+		ivars->in_sample_time_usb += XDB4_PCM_IN_FRAMES_PER_PACKET;
 	} else {
-		ret = ivars->PCMinPipe->AsyncIO(ivars->PCMinDataEmpty, pcmsizein, ivars->PCMinCallback, 0);
+		ret = ivars->PCMinPipe->AsyncIO(ivars->PCMinDataEmpty, XDB4_PCM_IN_PACKET_SIZE, ivars->PCMinCallback, 0);
 		if (ret != kIOReturnSuccess)
 		{
 			os_log(OS_LOG_DEFAULT, "RECEIVE ERROR %d", ret);
