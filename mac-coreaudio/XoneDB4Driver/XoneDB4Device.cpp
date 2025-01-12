@@ -95,18 +95,24 @@ bool XoneDB4Device::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 	}
 	
 	ivars->buffersize = INITIAL_BUFFERSIZE;
-
-	auto device_uid = OSSharedPtr(OSString::withCString("xonedb4"), OSNoRetain);
-	auto model_uid = OSSharedPtr(OSString::withCString("Model UID"), OSNoRetain);
-
 	int i = 0;
-
 	IOReturn ret = kIOReturnSuccess;
 	IOAddressSegment range;
 	IOOperationHandler io_operation = nullptr;
 	uint8_t* PCMoutDataEmptyAddr;
 	double sample_rates[] = {96000};
-	
+	OSSharedPtr<OSString> output_stream_name = OSSharedPtr(OSString::withCString("Xone:DB4 PCM OUT"), OSNoRetain);
+	OSSharedPtr<OSString> input_stream_name = OSSharedPtr(OSString::withCString("Xone:DB4 PCM IN"), OSNoRetain);
+	ivars->m_driver = OSSharedPtr(in_driver, OSRetain);
+	ivars->m_work_queue = GetWorkQueue();
+	ivars->PCMinPipe = PCMinPipe;
+	ivars->PCMinCallback = PCMinCallback;
+	ivars->PCMoutPipe = PCMoutPipe;
+	ivars->PCMoutCallback = PCMoutCallback;
+	ivars->startpcmin = false;
+	ivars->startpcmout = false;
+	IOUSBStandardEndpointDescriptors indescriptor;
+	IOUSBStandardEndpointDescriptors outdescriptor;
 	IOUserAudioStreamBasicDescription stream_formats[] =
 	{
 		{
@@ -130,22 +136,6 @@ bool XoneDB4Device::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 			24
 		},
 	};
-	
-	OSSharedPtr<OSString> output_stream_name = OSSharedPtr(OSString::withCString("Xone:DB4 PCM OUT"), OSNoRetain);
-	OSSharedPtr<OSString> input_stream_name = OSSharedPtr(OSString::withCString("Xone:DB4 PCM IN"), OSNoRetain);
-
-	ivars->m_driver = OSSharedPtr(in_driver, OSRetain);
-	ivars->m_work_queue = GetWorkQueue();
-	ivars->PCMinPipe = PCMinPipe;
-	ivars->PCMinCallback = PCMinCallback;
-	ivars->PCMoutPipe = PCMoutPipe;
-	ivars->PCMoutCallback = PCMoutCallback;
-	
-	ivars->startpcmin = false;
-	ivars->startpcmout = false;
-	
-	IOUSBStandardEndpointDescriptors indescriptor;
-	IOUSBStandardEndpointDescriptors outdescriptor;
 
 	// get the USB descriptors
 	ret = ivars->PCMinPipe->GetDescriptors(&indescriptor, kIOUSBGetEndpointDescriptorOriginal);
@@ -600,23 +590,14 @@ kern_return_t XoneDB4Device::ReceivePCMfromDevice(uint64_t completionTimestamp)
 {
 	__block int i;
 	__block kern_return_t ret;
+	__block int currentpos;
 	
 	if(ivars->startpcmin == true) {
-		int currentpos = (ivars->in_sample_time_usb % ivars->buffersize) / XDB4_PCM_IN_PACKET_SIZE;
-		
+		currentpos = (ivars->in_sample_time_usb % ivars->buffersize) / XDB4_PCM_IN_PACKET_SIZE;
 		ret = ivars->PCMinPipe->AsyncIO(ivars->PCMinData[currentpos].get(), XDB4_PCM_IN_PACKET_SIZE, ivars->PCMinCallback, 0);
-		if (ret != kIOReturnSuccess)
-		{
-			os_log(OS_LOG_DEFAULT, "RECEIVE ERROR %d", ret);
-		}
-		
 		ivars->in_sample_time_usb += XDB4_PCM_IN_FRAMES_PER_PACKET;
 	} else {
 		ret = ivars->PCMinPipe->AsyncIO(ivars->PCMinDataEmpty, XDB4_PCM_IN_PACKET_SIZE, ivars->PCMinCallback, 0);
-		if (ret != kIOReturnSuccess)
-		{
-			os_log(OS_LOG_DEFAULT, "RECEIVE ERROR %d", ret);
-		}
 	}
 
 	return ret;
