@@ -21,23 +21,16 @@ public:
 	virtual bool init() override;
 	virtual kern_return_t Start(IOService *provider) override;
 	virtual kern_return_t Stop(IOService *provider) override;
-	
 	virtual kern_return_t NewUserClient(uint32_t in_type, IOUserClient** out_user_client) override;
-	
 	virtual void free() override;
-	
-	virtual kern_return_t StartDevice(IOUserAudioObjectID in_object_id,
-									  IOUserAudioStartStopFlags in_flags) override;
-    
-    virtual kern_return_t StopDevice(IOUserAudioObjectID in_object_id,
-									 IOUserAudioStartStopFlags in_flags) override;
-	
+	virtual kern_return_t StartDevice(IOUserAudioObjectID in_object_id, IOUserAudioStartStopFlags in_flags) override;
+	virtual kern_return_t StopDevice(IOUserAudioObjectID in_object_id, IOUserAudioStartStopFlags in_flags) override;
 	virtual OSData* GetFirmwareVer() LOCALONLY;
-	
+	virtual OSData* GetDeviceName() LOCALONLY;
+	virtual OSData* GetDeviceManufacturer() LOCALONLY;
 	kern_return_t GetPlaybackStats(playbackstats *stats) LOCALONLY;
-	
 	kern_return_t ChangeBufferSize(OSNumber *buffersize) LOCALONLY;
-	
+
 protected:
 	virtual kern_return_t PCMinHandler(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);
 	virtual kern_return_t PCMoutHandler(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);

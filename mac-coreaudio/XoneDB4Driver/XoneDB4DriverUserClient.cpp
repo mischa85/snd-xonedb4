@@ -76,9 +76,7 @@ kern_return_t XoneDB4DriverUserClient::Stop_Impl(IOService* provider)
 	return Stop(provider, SUPERDISPATCH);
 }
 
-kern_return_t	XoneDB4DriverUserClient::ExternalMethod(
-		uint64_t selector, IOUserClientMethodArguments* arguments,
-		const IOUserClientMethodDispatch* dispatch, OSObject* target, void* reference)
+kern_return_t XoneDB4DriverUserClient::ExternalMethod(uint64_t selector, IOUserClientMethodArguments* arguments, const IOUserClientMethodDispatch* dispatch, OSObject* target, void* reference)
 {
 	kern_return_t ret = kIOReturnSuccess;
 
@@ -91,49 +89,44 @@ kern_return_t	XoneDB4DriverUserClient::ExternalMethod(
 
 	switch(static_cast<XoneDB4DriverExternalMethod>(selector)) {
 		case XoneDB4DriverExternalMethod_Open: {
-			os_log(OS_LOG_DEFAULT, "open called");
 			ret = kIOReturnSuccess;
 			break;
 		}
 
 		case XoneDB4DriverExternalMethod_Close: {
-			os_log(OS_LOG_DEFAULT, "close called");
 			ret = kIOReturnSuccess;
 			break;
 		}
-		
+
+		case XoneDB4DriverExternalMethod_GetDeviceName: {
+			ret = kIOReturnSuccess;
+			arguments->structureOutput = ivars->mProvider->GetDeviceName();
+			break;
+		}
+
+		case XoneDB4DriverExternalMethod_GetDeviceManufacturer: {
+			ret = kIOReturnSuccess;
+			arguments->structureOutput = ivars->mProvider->GetDeviceManufacturer();
+			break;
+		}
+
 		case XoneDB4DriverExternalMethod_GetFirmwareVer: {
-			//os_log(OS_LOG_DEFAULT, "getFirmware called");
 			ret = kIOReturnSuccess;
 			arguments->structureOutput = ivars->mProvider->GetFirmwareVer();
 			break;
 		}
-			
+
 		case XoneDB4DriverExternalMethod_ChangeBufferSize: {
-			//os_log(OS_LOG_DEFAULT, "changeBufferSize called");
 			ret = kIOReturnSuccess;
-			
 			OSNumber* buffersize = OSNumber::withNumber(*static_cast<const uint64_t*>(arguments->scalarInput), sizeof(arguments->scalarInput));
-		
 			ivars->mProvider->ChangeBufferSize(buffersize);
 			break;
 		}
-			
+
 		case XoneDB4DriverExternalMethod_GetPlaybackStats: {
-			//os_log(OS_LOG_DEFAULT, "getPlaybackStats called");
-			
 			playbackstats stats;
 			ret = ivars->mProvider->GetPlaybackStats(&stats);
-			
-			//os_log(OS_LOG_DEFAULT, "OUT_SAMPLE_TIME: %llu", stats.out_sample_time);
-			//os_log(OS_LOG_DEFAULT, "OUT_SAMPLE_TIME_USB: %llu", stats.out_sample_time_usb);
-			//os_log(OS_LOG_DEFAULT, "IN_SAMPLE_TIME: %llu", stats.in_sample_time);
-			//os_log(OS_LOG_DEFAULT, "IN_SAMPLE_TIME_USB: %llu", stats.in_sample_time_usb);
-			
 			arguments->structureOutput = OSData::withBytes(&stats, sizeof(stats));
-			
-			//ret = kIOReturnSuccess;
-			//return ret;
 			break;
 		}
 

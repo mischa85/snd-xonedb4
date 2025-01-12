@@ -21,6 +21,8 @@ typedef struct {
 
 - (NSString*)openConnection;
 - (NSString*)getFirmwareVersion;
+- (NSString*)getDeviceName;
+- (NSString*)getDeviceManufacturer;
 - (NSString*)changeBufferSize:(uint32_t)buffersize;
 - (playbackstats)getPlaybackStats;
 

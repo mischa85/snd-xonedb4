@@ -5,6 +5,8 @@ struct XoneDB4AppView: View {
 	var userClient = XoneDB4AppUserClient()
 	@State private var userClientText = ""
 	@State private var firmwareVersionText = ""
+	@State private var deviceNameText = ""
+	@State private var deviceManufacturerText = ""
 	@State private var playbackStatsText = ""
 	@State private var selectedBufferSize = 2560
 	let bufferSize = [160, 320, 480, 640, 800, 960, 1120, 1280, 1440, 1600, 1760, 1920, 2080, 2240, 2400, 2560, 2720, 2880, 3040, 3200, 3360, 3520, 3680, 3840, 4000]
@@ -52,6 +54,8 @@ struct XoneDB4AppView: View {
 						Button(action: {
 							userClientText = self.userClient.openConnection()
 							firmwareVersionText = self.userClient.getFirmwareVersion()
+							deviceNameText = self.userClient.getDeviceName()
+							deviceManufacturerText = self.userClient.getDeviceManufacturer()
 						}, label: {
 							Text("Open User Client")
 						})
@@ -71,8 +75,9 @@ struct XoneDB4AppView: View {
 					}
 					.padding()
 
+					Text(deviceNameText)
+					Text(deviceManufacturerText)
 					Text(firmwareVersionText)
-						.padding()
 					
 					Text(playbackStatsText)
 						.font(.system(.body, design: .monospaced))
@@ -110,8 +115,6 @@ struct XoneDB4AppView: View {
 
 	private func updatePlaybackStats() {
 		let stats = self.userClient.getPlaybackStats()
-		let outdiff = stats.out_sample_time_usb - stats.out_sample_time
-		let indiff = stats.in_sample_time_usb - stats.in_sample_time
 		self.playbackStatsText = "Playing             : \(stats.playing)\n" +
 			"Recording           : \(stats.recording)\n" +
 			"Out Sample Time     : \(stats.out_sample_time)\n" +

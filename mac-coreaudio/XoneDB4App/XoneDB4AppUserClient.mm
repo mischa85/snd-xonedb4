@@ -53,12 +53,48 @@
 	return @"User client is already connected";
 }
 
+- (NSString*)getDeviceName
+{
+	if (_ioConnection == IO_OBJECT_NULL) {
+		return @"Can't toggle the data source because the user client isn't connected.";
+	}
+
+	char devicename[128] = {0};
+	size_t devicenameSize = sizeof(devicename);
+
+	kern_return_t error = IOConnectCallMethod(_ioConnection, static_cast<uint64_t>(XoneDB4DriverExternalMethod_GetDeviceName), nullptr, 0, nullptr, 0, nullptr, nullptr, devicename, &devicenameSize);
+
+	if (error != kIOReturnSuccess) {
+		return [NSString stringWithFormat:@"Failed to get device name, error: %s.", mach_error_string(error)];
+	}
+
+	return [NSString stringWithFormat:@"Device: %s", devicename];
+}
+
+- (NSString*)getDeviceManufacturer
+{
+	if (_ioConnection == IO_OBJECT_NULL) {
+		return @"Can't toggle the data source because the user client isn't connected.";
+	}
+
+	char devicemanufacturer[128] = {0};
+	size_t devicemanufacturerSize = sizeof(devicemanufacturer);
+
+	kern_return_t error = IOConnectCallMethod(_ioConnection, static_cast<uint64_t>(XoneDB4DriverExternalMethod_GetDeviceManufacturer), nullptr, 0, nullptr, 0, nullptr, nullptr, devicemanufacturer, &devicemanufacturerSize);
+
+	if (error != kIOReturnSuccess) {
+		return [NSString stringWithFormat:@"Failed to get device manufacturer, error: %s.", mach_error_string(error)];
+	}
+	
+	return [NSString stringWithFormat:@"Manufacturer: %s", devicemanufacturer];
+}
+
 - (NSString*)getFirmwareVersion
 {
 	if (_ioConnection == IO_OBJECT_NULL) {
 		return @"Can't toggle the data source because the user client isn't connected.";
 	}
-	
+
 	char firmwarever[15] = {0};
 	size_t firmwareverSize = sizeof(firmwarever);
 	
@@ -70,7 +106,7 @@
 	if (error != kIOReturnSuccess) {
 		return [NSString stringWithFormat:@"Failed to get firmware, error: %s.", mach_error_string(error)];
 	}
-	
+
 	return [NSString stringWithFormat:@"Firmware: 1.%d.%d", (firmwarever[2]/10), (firmwarever[2]%10)];
 }
 
@@ -79,7 +115,7 @@
 	if (_ioConnection == IO_OBJECT_NULL) {
 		return @"Can't toggle the data source because the user client isn't connected.";
 	}
-	
+
 	kern_return_t error =
 		IOConnectCallMethod(_ioConnection,
 							static_cast<uint64_t>(XoneDB4DriverExternalMethod_ChangeBufferSize),
@@ -97,7 +133,7 @@
 	if (_ioConnection == IO_OBJECT_NULL) {
 		return;
 	}
-	
+
 	playbackstats stats;
 	size_t playbackstatsSize = sizeof(stats);
 	

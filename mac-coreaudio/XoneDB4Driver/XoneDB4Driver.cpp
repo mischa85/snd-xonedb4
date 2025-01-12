@@ -12,30 +12,9 @@
 
 constexpr uint32_t k_zero_time_stamp_period = 2560;
 
-#define __Require(assertion, exceptionLabel)                               \
-do                                                                      \
-{                                                                       \
-if ( __builtin_expect(!(assertion), 0) )                            \
-{                                                                   \
-goto exceptionLabel;                                            \
-}                                                                   \
-} while ( 0 )
-
-#define __Require_Action(assertion, exceptionLabel, action)                \
-do                                                                      \
-{                                                                       \
-if ( __builtin_expect(!(assertion), 0) )                            \
-{                                                                   \
-{                                                               \
-action;                                                     \
-}                                                               \
-goto exceptionLabel;                                            \
-}                                                                   \
-} while ( 0 )
-
-static const uint8_t kMIDIinEndpointAddress = 0x83;
-static const uint8_t kPCMoutEndpointAddress = 0x05;
-static const uint8_t kPCMinEndpointAddress = 0x86;
+#define PCM_OUT_EP	0x05
+#define PCM_IN_EP	0x86
+#define MIDI_IN_EP	0x83
 
 static const char8_t sampleratebytes48[3] = { 0x80, 0xBB, 0x00 };
 static const char8_t sampleratebytes96[3] = { 0x00, 0x77, 0x01 };
@@ -60,6 +39,10 @@ struct XoneDB4Driver_IVars
 	IOBufferMemoryDescriptor		*PCMinData;
 	
 	OSSharedPtr<OSString>			FirmwareVersionBytes;
+	OSSharedPtr<OSString>			manufacturer_uid;
+	OSSharedPtr<OSString>			device_name;
+	char 							*manufacturer_utf8;
+	char 							*device_name_utf8;
 };
 
 bool XoneDB4Driver::init()
@@ -67,10 +50,10 @@ bool XoneDB4Driver::init()
 	bool result = false;
 	
 	result = super::init();
-	__Require(true == result, Exit);
+	FailIf(result != true, , Exit, "Failed to init driver");
 
 	ivars = IONewZero(XoneDB4Driver_IVars, 1);
-	__Require_Action(NULL != ivars, Exit, result = false);
+	FailIfNULL(ivars, result = false, Exit, "Failed to init vars");
 
 Exit:
 	return result;
@@ -78,163 +61,135 @@ Exit:
 
 kern_return_t IMPL(XoneDB4Driver, Start)
 {
-	kern_return_t                       ret;
-	uintptr_t                           interfaceIterator;
-	IOAddressSegment                    range;
-
-	int i, j;
-	char* manufacturer_utf8;
-	char* device_name_utf8;
+	kern_return_t ret;
+	uintptr_t interfaceIterator;
+	IOAddressSegment range;
+	uint16_t bytesTransferred;
 	bool success = false;
 	auto device_uid = OSSharedPtr(OSString::withCString("xonedb4"), OSNoRetain);
 	auto model_uid = OSSharedPtr(OSString::withCString("Model UID"), OSNoRetain);
-	OSSharedPtr<OSString> manufacturer_uid;
-	OSSharedPtr<OSString> device_name;
-	//char* tempstring;
-	
-	uint16_t bytesTransferred;
-	
+
 	ret = Start(provider, SUPERDISPATCH);
-	__Require(kIOReturnSuccess == ret, Exit);
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to start driver");
 
 	ivars->device = OSDynamicCast(IOUSBHostDevice, provider);
-	__Require_Action(NULL != ivars->device, Exit, ret = kIOReturnNoDevice);
+	FailIfNULL(ivars->device, ret = kIOReturnNoDevice, Exit, "No device");
 
 	ret = ivars->device->Open(this, 0, NULL);
-	__Require(kIOReturnSuccess == ret, Exit);
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to open device");
 
-	manufacturer_utf8 = new char[(ivars->device->CopyStringDescriptor(1)->bLength / 2)];
+	int i, j;
+	ivars->manufacturer_utf8 = new char[(ivars->device->CopyStringDescriptor(1)->bLength / 2)];
 	j = 0;
 	for(i = 0; i < (ivars->device->CopyStringDescriptor(1)->bLength / 2); i++) {
-		manufacturer_utf8[i] = ivars->device->CopyStringDescriptor(1)->bString[j];
+		ivars->manufacturer_utf8[i] = ivars->device->CopyStringDescriptor(1)->bString[j];
 		j+=2;
 	}
-
-	device_name_utf8 = new char[(ivars->device->CopyStringDescriptor(2)->bLength / 2)];
+	ivars->device_name_utf8 = new char[(ivars->device->CopyStringDescriptor(2)->bLength / 2)];
 	j = 0;
 	for(i = 0; i < (ivars->device->CopyStringDescriptor(2)->bLength / 2); i++) {
-		device_name_utf8[i] = ivars->device->CopyStringDescriptor(2)->bString[j];
+		ivars->device_name_utf8[i] = ivars->device->CopyStringDescriptor(2)->bString[j];
 		j+=2;
 	}
 
-	manufacturer_uid = OSSharedPtr(OSString::withCString(manufacturer_utf8), OSNoRetain);
-	device_name = OSSharedPtr(OSString::withCString(device_name_utf8), OSNoRetain);
+	ivars->manufacturer_uid = OSSharedPtr(OSString::withCString(ivars->manufacturer_utf8), OSNoRetain);
+	ivars->device_name = OSSharedPtr(OSString::withCString(ivars->device_name_utf8), OSNoRetain);
 
 	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, 0x0f, 0, &ivars->receivebuffer);
-	__Require(kIOReturnSuccess == ret, Exit);
-	
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to allocate USB receive buffer");
+
+	// get firmware
 	ret = ivars->device->DeviceRequest(this, 0xc0, 0x56, 0x00, 0x00, 0x0f, ivars->receivebuffer, &bytesTransferred, 0);
-	__Require(kIOReturnSuccess == ret, Exit);
-	
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to get firmware version from device");
 	ret = ivars->receivebuffer->GetAddressRange(&range);
-	__Require(kIOReturnSuccess == ret, Exit);
-	
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to get firmware address bytes");
 	ivars->firmwarever = new char[range.length];
 	memcpy(ivars->firmwarever, reinterpret_cast<const uint8_t *>(range.address), range.length);
 
+	// get status
+	ret = ivars->device->DeviceRequest(this, 0xC0, 0x49, 0x0000, 0x0000, 0x01, ivars->receivebuffer, &bytesTransferred, 0);
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to get status from device");
+
+	// get samplerate
 	ret = ivars->sampleratebytes->Create(kIOMemoryDirectionInOut, 0x03, 0, &ivars->sampleratebytes);
-	__Require(kIOReturnSuccess == ret, Exit);
-
-	// get status
-	ret = ivars->device->DeviceRequest(this, 0xC0, 0x49, 0x0000, 0x0000, 0x01, ivars->sampleratebytes, &bytesTransferred, 0);
-	__Require(kIOReturnSuccess == ret, Exit);
-	
-	// get samplerate
-
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to allocate samplerate receive buffer");
 	ret = ivars->device->DeviceRequest(this, 0xA2, 0x81, 0x0100, 0, 0x03, ivars->sampleratebytes, &bytesTransferred, 0);
-	__Require(kIOReturnSuccess == ret, Exit);
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to get current samplerate from device");
 
-	ret = ivars->sampleratebytes->GetAddressRange(&range);
-	__Require(kIOReturnSuccess == ret, Exit);
-
-	memcpy(reinterpret_cast<void *>(range.address), sampleratebytes96, 3);
-	
 	// set 96 khz
-	
+	ret = ivars->sampleratebytes->GetAddressRange(&range);
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to get samplerate bytes");
+	memcpy(reinterpret_cast<void *>(range.address), sampleratebytes96, 3);
 	ret = ivars->device->DeviceRequest(this, 0x22, 0x01, 0x0100, 0x0086, 0x03, ivars->sampleratebytes, &bytesTransferred, 0);
-	__Require(kIOReturnSuccess == ret, Exit);
-
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to set samplerate on device");
 	ret = ivars->device->DeviceRequest(this, 0x22, 0x01, 0x0100, 0x0005, 0x03, ivars->sampleratebytes, &bytesTransferred, 0);
-	__Require(kIOReturnSuccess == ret, Exit);
-
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to set samplerate on device");
 	ret = ivars->device->DeviceRequest(this, 0x22, 0x01, 0x0100, 0x0086, 0x03, ivars->sampleratebytes, &bytesTransferred, 0);
-	__Require(kIOReturnSuccess == ret, Exit);
-
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to set samplerate on device");
 	ret = ivars->device->DeviceRequest(this, 0x22, 0x01, 0x0100, 0x0005, 0x03, ivars->sampleratebytes, &bytesTransferred, 0);
-	__Require(kIOReturnSuccess == ret, Exit);
-
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to set samplerate on device");
 	ret = ivars->device->DeviceRequest(this, 0x22, 0x01, 0x0100, 0x0086, 0x03, ivars->sampleratebytes, &bytesTransferred, 0);
-	__Require(kIOReturnSuccess == ret, Exit);
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to set samplerate on device");
 
 	// get samplerate
-
 	ret = ivars->device->DeviceRequest(this, 0xA2, 0x81, 0x0100, 0, 0x03, ivars->sampleratebytes, &bytesTransferred, 0);
-	__Require(kIOReturnSuccess == ret, Exit);
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to get current samplerate from device");
 
 	// get status
-	
 	ret = ivars->device->DeviceRequest(this, 0xC0, 0x49, 0x0000, 0x0000, 0x01, ivars->sampleratebytes, &bytesTransferred, 0);
-	__Require(kIOReturnSuccess == ret, Exit);
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to get status from device");
 
 	// allgood
-
 	ret = ivars->device->DeviceRequest(this, 0x40, 0x49, 0xFFB2, 0x0000, 0x00, ivars->sampleratebytes, &bytesTransferred, 0);
-	__Require(kIOReturnSuccess == ret, Exit);
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to get allgood from device");
 
+	// get the USB pipes
 	ret = ivars->device->SetConfiguration(1, false);
-	__Require(kIOReturnSuccess == ret, Exit);
-
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to set config 1 on USB device");
 	ret = ivars->device->CreateInterfaceIterator(&interfaceIterator);
-	__Require(kIOReturnSuccess == ret, Exit);
-
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create the interface iterator");
 	ret = ivars->device->CopyInterface(interfaceIterator, &ivars->interface0);
-	__Require(kIOReturnSuccess == ret, Exit);
-	
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to copy interface 0 from iterator");
 	ret = ivars->interface0->Open(this, NULL, NULL);
-	__Require(kIOReturnSuccess == ret, Exit);
-
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to open interface 0");
 	ret = ivars->interface0->SelectAlternateSetting(1);
-	__Require(kIOReturnSuccess == ret, Exit);
-
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to select alternate setting on interface 0");
 	ret = ivars->device->CopyInterface(interfaceIterator, &ivars->interface1);
-	__Require(kIOReturnSuccess == ret, Exit);
-
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to copy interface 1 from iterator");
 	ret = ivars->interface1->Open(this, NULL, NULL);
-	__Require(kIOReturnSuccess == ret, Exit);
-
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to open interface 1");
 	ret = ivars->interface1->SelectAlternateSetting(1);
-	__Require(kIOReturnSuccess == ret, Exit);
-
-	ret = ivars->interface0->CopyPipe(kMIDIinEndpointAddress, &ivars->MIDIinPipe);
-	__Require(kIOReturnSuccess == ret, Exit);
-
-	ret = ivars->interface1->CopyPipe(kPCMinEndpointAddress, &ivars->PCMinPipe);
-	__Require(kIOReturnSuccess == ret, Exit);
-
-	ret = ivars->interface0->CopyPipe(kPCMoutEndpointAddress, &ivars->PCMoutPipe);
-	__Require(kIOReturnSuccess == ret, Exit);
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to select alternate setting on interface 1");
+	ret = ivars->interface0->CopyPipe(MIDI_IN_EP, &ivars->MIDIinPipe);
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to copy the MIDI in pipe");
+	ret = ivars->interface1->CopyPipe(PCM_IN_EP, &ivars->PCMinPipe);
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to copy the PCM in pipe");
+	ret = ivars->interface0->CopyPipe(PCM_OUT_EP, &ivars->PCMoutPipe);
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to copy the PCM out pipe");
 
 	ret = OSAction::Create(this, XoneDB4Driver_PCMinHandler_ID, IOUSBHostPipe_CompleteAsyncIO_ID, 0, &ivars->PCMinCallback);
-	__Require(kIOReturnSuccess == ret, Exit);
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create the PCM in USB handler");
 
 	ret = OSAction::Create(this, XoneDB4Driver_PCMoutHandler_ID, IOUSBHostPipe_CompleteAsyncIO_ID, 0, &ivars->PCMoutCallback);
-	__Require(kIOReturnSuccess == ret, Exit);
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create the PCM out USB handler");
 
 	ivars->m_work_queue = GetWorkQueue();
-	__Require_Action(NULL != ivars->m_work_queue.get(), Exit, ret = kIOReturnInvalid);
+	FailIfNULL(ivars->m_work_queue.get(), ret = kIOReturnInvalid, Exit, "Invalid device");
 
 	ivars->m_audio_device = OSSharedPtr(OSTypeAlloc(XoneDB4Device), OSNoRetain);
-	__Require_Action(NULL != ivars->m_audio_device.get(), Exit, ret = kIOReturnNoMemory);
+	FailIfNULL(ivars->m_audio_device.get(), ret = kIOReturnNoMemory, Exit, "Cannot allocate memory for audio device");
 
-    success = ivars->m_audio_device->init(this, false, device_uid.get(), model_uid.get(), manufacturer_uid.get(), k_zero_time_stamp_period, ivars->PCMinPipe, ivars->PCMinCallback, ivars->PCMoutPipe, ivars->PCMoutCallback, ivars->device);
-	__Require_Action(false != success, Exit, ret = kIOReturnNoMemory);
+	success = ivars->m_audio_device->init(this, false, device_uid.get(), model_uid.get(), ivars->manufacturer_uid.get(), k_zero_time_stamp_period, ivars->PCMinPipe, ivars->PCMinCallback, ivars->PCMoutPipe, ivars->PCMoutCallback, ivars->device);
+	FailIf(false == success, , Exit, "No memory");
 
-	ivars->m_audio_device->SetName(device_name.get());
+	ivars->m_audio_device->SetName(ivars->device_name.get());
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to set name to audio device");
 
 	AddObject(ivars->m_audio_device.get());
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to add object to audio device");
 
 	ret = RegisterService();
-	__Require(kIOReturnSuccess == ret, Exit);
+	FailIf(ret != kIOReturnSuccess, , Exit, "Cannot register service");
 Exit:
 	return ret;
 }
@@ -322,7 +277,17 @@ kern_return_t XoneDB4Driver::StopDevice(IOUserAudioObjectID in_object_id, IOUser
 
 OSData* XoneDB4Driver::GetFirmwareVer()
 {
-	return OSData::withBytes(ivars->firmwarever, sizeof(ivars->firmwarever));
+	return OSData::withBytes(ivars->firmwarever, sizeof(&ivars->firmwarever));
+}
+
+OSData* XoneDB4Driver::GetDeviceName()
+{
+	return OSData::withBytes(ivars->device_name_utf8, strlen(ivars->device_name_utf8));
+}
+
+OSData* XoneDB4Driver::GetDeviceManufacturer()
+{
+	return OSData::withBytes(ivars->manufacturer_utf8, strlen(ivars->manufacturer_utf8));
 }
 
 kern_return_t XoneDB4Driver::GetPlaybackStats(playbackstats *stats)
@@ -337,22 +302,22 @@ kern_return_t XoneDB4Driver::ChangeBufferSize(OSNumber *buffersize)
 
 kern_return_t IMPL(XoneDB4Driver, PCMinHandler)
 {
-	kern_return_t ret;
-
+	__block kern_return_t ret;
 	ret = ivars->m_audio_device->ReceivePCMfromDevice(completionTimestamp);
-	__Require(kIOReturnSuccess == ret, Exit);
- 
-Exit:
+	if (ret != kIOReturnSuccess)
+	{
+		os_log(OS_LOG_DEFAULT, "USB receive error: %s", IOService::StringFromReturn(ret));
+	}
 	return ret;
 }
 
 kern_return_t IMPL(XoneDB4Driver, PCMoutHandler)
 {
-	kern_return_t ret;
- 
+	__block kern_return_t ret;
 	ret = ivars->m_audio_device->SendPCMToDevice(completionTimestamp);
-	__Require(kIOReturnSuccess == ret, Exit);
- 
-Exit:
+	if (ret != kIOReturnSuccess)
+	{
+		os_log(OS_LOG_DEFAULT, "USB send error: %s", IOService::StringFromReturn(ret));
+	}
 	return ret;
 }

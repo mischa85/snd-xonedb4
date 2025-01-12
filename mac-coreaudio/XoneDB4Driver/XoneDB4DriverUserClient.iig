@@ -16,16 +16,9 @@ class XoneDB4DriverUserClient : public IOUserClient
 public:
 	virtual bool init() final;
 	virtual void free() final;
-
 	virtual kern_return_t Start(IOService* provider) final;
 	virtual kern_return_t Stop(IOService* provider) final;
-	
-	virtual kern_return_t ExternalMethod(uint64_t selector,
-										 IOUserClientMethodArguments* arguments,
-										 const IOUserClientMethodDispatch* dispatch,
-										 OSObject* target,
-										 void* reference) final;
-	
+	virtual kern_return_t ExternalMethod(uint64_t selector, IOUserClientMethodArguments* arguments, const IOUserClientMethodDispatch* dispatch, OSObject* target, void* reference) final;
 };
 
 #endif /* XoneDB4DriverUserClient_hpp */
