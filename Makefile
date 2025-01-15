@@ -4,8 +4,16 @@ snd-usb-xonedb4-objs := common/ploytec.o linux-alsa/chip.o linux-alsa/pcm.o linu
 linux:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
 
-linux-install:
-	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules_install
+mac:
+	cd mac-coreaudio
+	xcodebuild -configuration Release SYMROOT="$(CURDIR)/build"
+	./codesign.sh
 
-clean:
+linux-clean:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
+
+mac-clean:
+	rm -rf mac-coreaudio/build
+
+mac-install:
+	rsync -a --delete mac-coreaudio/build/Release/XoneDB4App.app /Applications
