@@ -22,7 +22,7 @@ The development of the macOS driverkit driver has been an unpleasant experience 
 - [x] MIDI out
 - [x] MIDI in
 
-**Mac**:
+**macOS**:
 
 - [x] PCM out 8 channels
 - [x] PCM in 8 channels
@@ -35,11 +35,15 @@ How to install:
 
 **Linux**:
 
-```
-make linux
-```
+- Clone the repo using ```git clone https://github.com/mischa85/snd-xonedb4```
+- Change the directory to the cloned repo: ```cd snd-xonedb4```
+- ```make linux``` to compile the kernel module.
+- ```zstd snd-usb-xonedb4.ko``` to compress the compiled kernel module.
+- ```cp -f snd-usb-xonedb4.ko.zst /usr/lib/modules/$(uname -r)/kernel/sound/usb``` to copy the kernel module to the running kernel.
+- ```depmod``` to rebuild the module dependency tree.
+- ```modprobe snd-usb-xonedb4```
 
-**macOS (Apple)**:
+**macOS**:
 
 - Reboot the system and keep ```COMMAND ⌘ + R``` pressed while booting, this will bring you in recovery.
 - Open a terminal.
@@ -53,8 +57,7 @@ make linux
 - Get a (free) Apple developer account via Xcode.
 - Get your developer ID using ```security find-identity -v```
 - Change CHANGEME in codesign.sh for this developer ID: ```sed -i '' 's/CHANGEME/XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/g' mac-coreaudio/codesign.sh```
-- ```cd mac-coreaudio```
-- ```make build```
-- Start the app in the build folder.
+- ```make mac``` to compile the driver.
+- Start the app in the build folder, or run ```make mac-install``` to move it to the ```/Applications``` directory.
 
 <a href="https://www.buymeacoffee.com/mischa85" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174"></a>
