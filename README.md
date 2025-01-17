@@ -51,11 +51,11 @@ How to install:
 - ```sudo nvram boot-args="amfi_get_out_of_my_way=0x1"```
 - Reboot to macOS.
 - Open a terminal.
-- ```systemextensionsctl developer on``` to enable developer mode. This allows for the app to run outside of the ```/Applications``` directory.
 - Clone the repo using ```git clone https://github.com/mischa85/snd-xonedb4```
 - Change the directory to the cloned repo: ```cd snd-xonedb4```
 - Get a (free) Apple developer account via Xcode.
 - ```make mac``` to compile the driver.
-- Start the app in the build folder, or run ```make mac-install``` to move it to the ```/Applications``` directory.
+- ```make mac-install``` to move it to the ```/Applications``` directory.
+- Start ```XoneXB4App``` from Applications.
 
 <a href="https://www.buymeacoffee.com/mischa85" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174"></a>
