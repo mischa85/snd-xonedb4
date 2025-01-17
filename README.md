@@ -55,8 +55,6 @@ How to install:
 - Clone the repo using ```git clone https://github.com/mischa85/snd-xonedb4```
 - Change the directory to the cloned repo: ```cd snd-xonedb4```
 - Get a (free) Apple developer account via Xcode.
-- Get your developer ID using ```security find-identity -v```
-- Change CHANGEME in codesign.sh for this developer ID: ```sed -i '' 's/CHANGEME/XXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX/g' mac-coreaudio/codesign.sh```
 - ```make mac``` to compile the driver.
 - Start the app in the build folder, or run ```make mac-install``` to move it to the ```/Applications``` directory.
 
