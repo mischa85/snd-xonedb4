@@ -5,15 +5,14 @@ linux:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) modules
 
 mac:
-	cd mac-coreaudio
-	xcodebuild -configuration Release SYMROOT="$(CURDIR)/build"
+	xcodebuild -project "$(CURDIR)/mac-coreaudio/XoneDB4Driver.xcodeproj" -configuration Release SYMROOT="$(CURDIR)/build"
 	./codesign.sh
 
 linux-clean:
 	make -C /lib/modules/$(shell uname -r)/build M=$(PWD) clean
 
 mac-clean:
-	rm -rf mac-coreaudio/build
+	rm -rf build
 
 mac-install:
 	rsync -a --delete mac-coreaudio/build/Release/XoneDB4App.app /Applications
