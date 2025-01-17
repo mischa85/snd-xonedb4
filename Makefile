@@ -15,4 +15,4 @@ mac-clean:
 	rm -rf build
 
 mac-install:
-	rsync -a --delete mac-coreaudio/build/Release/XoneDB4App.app /Applications
+	rsync -a --delete build/Release/XoneDB4App.app /Applications
