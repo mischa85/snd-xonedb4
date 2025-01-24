@@ -18,8 +18,8 @@
 #define XDB4_PCM_OUT_FRAMES_PER_PACKET	40
 #define XDB4_PCM_IN_FRAMES_PER_PACKET	32
 #define XDB4_UART_OUT_BYTES_PER_PACKET	8
-#define XDB4_PCM_BULK_OUT_PACKET_SIZE	(XDB4_PCM_OUT_FRAMES_PER_PACKET * XDB4_PCM_OUT_FRAME_SIZE) + XDB4_UART_OUT_BYTES_PER_PACKET + ((XDB4_PCM_OUT_FRAMES_PER_PACKET / 10) * 30) // 40 frames
-#define XDB4_PCM_INT_OUT_PACKET_SIZE	(XDB4_PCM_OUT_FRAMES_PER_PACKET * XDB4_PCM_OUT_FRAME_SIZE) + XDB4_UART_OUT_BYTES_PER_PACKET // 40 frames
+#define XDB4_PCM_BULK_OUT_PACKET_SIZE	((XDB4_PCM_OUT_FRAMES_PER_PACKET * XDB4_PCM_OUT_FRAME_SIZE) + XDB4_UART_OUT_BYTES_PER_PACKET + ((XDB4_PCM_OUT_FRAMES_PER_PACKET / 10) * 30)) // 40 frames
+#define XDB4_PCM_INT_OUT_PACKET_SIZE	((XDB4_PCM_OUT_FRAMES_PER_PACKET * XDB4_PCM_OUT_FRAME_SIZE) + XDB4_UART_OUT_BYTES_PER_PACKET) // 40 frames
 #define XDB4_PCM_IN_PACKET_SIZE			XDB4_PCM_IN_FRAMES_PER_PACKET * XDB4_PCM_IN_FRAME_SIZE // 32 frames
 
 #define ALSA_BYTES_PER_SAMPLE			3 // S24_3LE
@@ -257,13 +257,13 @@ static bool xonedb4_pcm_bulk_playback(struct pcm_substream *sub, struct pcm_urb 
 			ploytec_convert_from_s24_3le(src + (curframe * XDB4_PCM_OUT_FRAME_SIZE), dest + (curframe * ALSA_BYTES_PER_FRAME));
 		}
 		for (curframe = 10; curframe < 20; curframe++) {
-			ploytec_convert_from_s24_3le(src + (curframe * XDB4_PCM_OUT_FRAME_SIZE) + 512, dest + (curframe * ALSA_BYTES_PER_FRAME));
+			ploytec_convert_from_s24_3le(src + (curframe * XDB4_PCM_OUT_FRAME_SIZE) + 32, dest + (curframe * ALSA_BYTES_PER_FRAME));
 		}
 		for (curframe = 20; curframe < 30; curframe++) {
-			ploytec_convert_from_s24_3le(src + (curframe * XDB4_PCM_OUT_FRAME_SIZE) + 1024, dest + (curframe * ALSA_BYTES_PER_FRAME));
+			ploytec_convert_from_s24_3le(src + (curframe * XDB4_PCM_OUT_FRAME_SIZE) + 64, dest + (curframe * ALSA_BYTES_PER_FRAME));
 		}
 		for (curframe = 30; curframe < 40; curframe++) {
-			ploytec_convert_from_s24_3le(src + (curframe * XDB4_PCM_OUT_FRAME_SIZE) + 1536, dest + (curframe * ALSA_BYTES_PER_FRAME));
+			ploytec_convert_from_s24_3le(src + (curframe * XDB4_PCM_OUT_FRAME_SIZE) + 96, dest + (curframe * ALSA_BYTES_PER_FRAME));
 		}
 	} else {
 		/* wrap around at end of ring buffer */
@@ -289,28 +289,28 @@ static bool xonedb4_pcm_bulk_playback(struct pcm_substream *sub, struct pcm_urb 
 		}
 		for (curframexone = 10; curframexone < 20; curframexone++) {
 			if (curframealsa1 < numframesalsa1) {
-				ploytec_convert_from_s24_3le(src + (curframexone * XDB4_PCM_OUT_FRAME_SIZE) + 512, dest1 + (curframealsa1 * ALSA_BYTES_PER_FRAME));
+				ploytec_convert_from_s24_3le(src + (curframexone * XDB4_PCM_OUT_FRAME_SIZE) + 32, dest1 + (curframealsa1 * ALSA_BYTES_PER_FRAME));
 				curframealsa1++;
 			} else if (curframealsa2 < numframesalsa2) {
-				ploytec_convert_from_s24_3le(src + (curframexone * XDB4_PCM_OUT_FRAME_SIZE) + 512, dest2 + (curframealsa2 * ALSA_BYTES_PER_FRAME));
+				ploytec_convert_from_s24_3le(src + (curframexone * XDB4_PCM_OUT_FRAME_SIZE) + 32, dest2 + (curframealsa2 * ALSA_BYTES_PER_FRAME));
 				curframealsa2++;
 			}
 		}
 		for (curframexone = 20; curframexone < 30; curframexone++) {
 			if (curframealsa1 < numframesalsa1) {
-				ploytec_convert_from_s24_3le(src + (curframexone * XDB4_PCM_OUT_FRAME_SIZE) + 1024, dest1 + (curframealsa1 * ALSA_BYTES_PER_FRAME));
+				ploytec_convert_from_s24_3le(src + (curframexone * XDB4_PCM_OUT_FRAME_SIZE) + 64, dest1 + (curframealsa1 * ALSA_BYTES_PER_FRAME));
 				curframealsa1++;
 			} else if (curframealsa2 < numframesalsa2) {
-				ploytec_convert_from_s24_3le(src + (curframexone * XDB4_PCM_OUT_FRAME_SIZE) + 1024, dest2 + (curframealsa2 * ALSA_BYTES_PER_FRAME));
+				ploytec_convert_from_s24_3le(src + (curframexone * XDB4_PCM_OUT_FRAME_SIZE) + 64, dest2 + (curframealsa2 * ALSA_BYTES_PER_FRAME));
 				curframealsa2++;
 			}
 		}
 		for (curframexone = 30; curframexone < 40; curframexone++) {
 			if (curframealsa1 < numframesalsa1) {
-				ploytec_convert_from_s24_3le(src + (curframexone * XDB4_PCM_OUT_FRAME_SIZE) + 1536, dest1 + (curframealsa1 * ALSA_BYTES_PER_FRAME));
+				ploytec_convert_from_s24_3le(src + (curframexone * XDB4_PCM_OUT_FRAME_SIZE) + 96, dest1 + (curframealsa1 * ALSA_BYTES_PER_FRAME));
 				curframealsa1++;
 			} else if (curframealsa2 < numframesalsa2) {
-				ploytec_convert_from_s24_3le(src + (curframexone * XDB4_PCM_OUT_FRAME_SIZE) + 1536, dest2 + (curframealsa2 * ALSA_BYTES_PER_FRAME));
+				ploytec_convert_from_s24_3le(src + (curframexone * XDB4_PCM_OUT_FRAME_SIZE) + 96, dest2 + (curframealsa2 * ALSA_BYTES_PER_FRAME));
 				curframealsa2++;
 			}
 		}
