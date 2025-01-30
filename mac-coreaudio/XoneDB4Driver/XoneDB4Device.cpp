@@ -535,19 +535,19 @@ kern_return_t XoneDB4Device::SendPCMToDevice(uint64_t completionTimestamp)
 		
 		// UART
 		if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeBulk) {
-			memset(ivars->PCMoutDataAddr + currentpos + 480, 0xfd, 1); // UART
-			memset(ivars->PCMoutDataAddr + currentpos + 481, 0xff, 1);
-			memset(ivars->PCMoutDataAddr + currentpos + 992, 0xfd, 1); // UART
-			memset(ivars->PCMoutDataAddr + currentpos + 993, 0xff, 1);
-			memset(ivars->PCMoutDataAddr + currentpos + 1504, 0xfd, 1); // UART
-			memset(ivars->PCMoutDataAddr + currentpos + 1505, 0xff, 1);
-			memset(ivars->PCMoutDataAddr + currentpos + 2016, 0xfd, 1); // UART
-			memset(ivars->PCMoutDataAddr + currentpos + 2017, 0xff, 1);
+			memset(ivars->PCMoutDataAddr[currentpos] + 480, 0xfd, 1); // UART
+			memset(ivars->PCMoutDataAddr[currentpos] + 481, 0xff, 1);
+			memset(ivars->PCMoutDataAddr[currentpos] + 992, 0xfd, 1); // UART
+			memset(ivars->PCMoutDataAddr[currentpos] + 993, 0xff, 1);
+			memset(ivars->PCMoutDataAddr[currentpos] + 1504, 0xfd, 1); // UART
+			memset(ivars->PCMoutDataAddr[currentpos] + 1505, 0xff, 1);
+			memset(ivars->PCMoutDataAddr[currentpos] + 2016, 0xfd, 1); // UART
+			memset(ivars->PCMoutDataAddr[currentpos] + 2017, 0xff, 1);
 		} else if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeInterrupt) {
-			memset(ivars->PCMoutDataAddr + currentpos + 432, 0xfd, 2); // UART
-			memset(ivars->PCMoutDataAddr + currentpos + 914, 0xfd, 2); // UART
-			memset(ivars->PCMoutDataAddr + currentpos + 1396, 0xfd, 2); // UART
-			memset(ivars->PCMoutDataAddr + currentpos + 1878, 0xfd, 2); // UART
+			memset(ivars->PCMoutDataAddr[currentpos] + 432, 0xfd, 2); // UART
+			memset(ivars->PCMoutDataAddr[currentpos] + 914, 0xfd, 2); // UART
+			memset(ivars->PCMoutDataAddr[currentpos] + 1396, 0xfd, 2); // UART
+			memset(ivars->PCMoutDataAddr[currentpos] + 1878, 0xfd, 2); // UART
 		}
 		
 		if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeBulk) {
