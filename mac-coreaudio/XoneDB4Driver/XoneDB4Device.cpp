@@ -419,7 +419,7 @@ kern_return_t XoneDB4Device::StartIO(IOUserAudioStartStopFlags in_flags)
 		ret = ivars->input_ploytec_ring_buffer->CreateMapping(0, 0, 0, 0, 0, ivars->m_input_ploytec_memory_map.attach());
 		FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create memory map for USB ring buffer");
 		
-		for (i = 0; i < (ivars->buffersize/XDB4_PCM_IN_PACKET_SIZE); i++) {
+		for (i = 0; i < (ivars->buffersize/XDB4_PCM_IN_FRAMES_PER_PACKET); i++) {
 			ret = ivars->input_ploytec_ring_buffer->CreateSubMemoryDescriptor(kIOMemoryDirectionInOut, i * XDB4_PCM_IN_PACKET_SIZE, XDB4_PCM_IN_PACKET_SIZE, ivars->input_ploytec_ring_buffer.get(), ivars->PCMinData[i].attach());
 			FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create USB input SubMemoryDescriptor");
 		}
