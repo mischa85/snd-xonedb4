@@ -302,22 +302,20 @@ kern_return_t XoneDB4Driver::ChangeBufferSize(OSNumber *buffersize)
 
 kern_return_t IMPL(XoneDB4Driver, PCMinHandler)
 {
-	__block kern_return_t ret;
+	kern_return_t ret;
 	ret = ivars->m_audio_device->ReceivePCMfromDevice(completionTimestamp);
-	if (ret != kIOReturnSuccess)
-	{
-		os_log(OS_LOG_DEFAULT, "USB receive error: %s", IOService::StringFromReturn(ret));
-	}
+	FailIf(ret != kIOReturnSuccess, , Exit, "USB receive error");
+
+Exit:
 	return ret;
 }
 
 kern_return_t IMPL(XoneDB4Driver, PCMoutHandler)
 {
-	__block kern_return_t ret;
+	kern_return_t ret;
 	ret = ivars->m_audio_device->SendPCMToDevice(completionTimestamp);
-	if (ret != kIOReturnSuccess)
-	{
-		os_log(OS_LOG_DEFAULT, "USB send error: %s", IOService::StringFromReturn(ret));
-	}
+	FailIf(ret != kIOReturnSuccess, , Exit, "USB send error");
+
+Exit:
 	return ret;
 }
