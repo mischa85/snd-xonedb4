@@ -1,0 +1,38 @@
+#ifndef PloytecAudioDevice_h
+#define PloytecAudioDevice_h
+
+#include <DriverKit/DriverKit.iig>
+#include <AudioDriverKit/IOUserAudioDevice.iig>
+#include <AudioDriverKit/IOUserAudioStream.iig>
+#include <AudioDriverKit/AudioDriverKitTypes.h>
+
+using namespace AudioDriverKit;
+
+constexpr uint64_t changeSampleRateAction = 1234;
+
+class PloytecAudioDevice: public IOUserAudioDevice
+{
+public:
+	virtual bool init(IOUserAudioDriver* in_driver, bool in_supports_prewarming, OSString* in_device_uid, OSString* in_model_uid, OSString* in_manufacturer_uid, uint32_t in_zero_timestamp_period) override LOCALONLY;
+	virtual void free() override LOCALONLY;
+	
+public:
+	virtual kern_return_t StartIO(IOUserAudioStartStopFlags in_flags) final LOCALONLY;
+	virtual kern_return_t StopIO(IOUserAudioStartStopFlags in_flags) final LOCALONLY;
+	
+public:
+	virtual kern_return_t PerformDeviceConfigurationChange(uint64_t change_action, OSObject* in_change_info) final LOCALONLY;
+	virtual kern_return_t AbortDeviceConfigurationChange(uint64_t change_action, OSObject* in_change_info) final LOCALONLY;
+	
+public:
+	virtual bool FillPCMPacketBulk(uint8_t* buffer, uint32_t packetSize, uint64_t completionTimestamp) LOCALONLY;
+	virtual bool FillPCMPacketInt(uint8_t* buffer, uint32_t packetSize, uint64_t completionTimestamp) LOCALONLY;
+	virtual bool ReadPCMPacketBulk(uint8_t* buffer, uint32_t packetSize, uint64_t completionTimestamp) LOCALONLY;
+	virtual bool ReadPCMPacketInt(uint8_t* buffer, uint32_t packetSize, uint64_t completionTimestamp) LOCALONLY;
+
+private:
+	void ploytecPCMencode(uint8_t *dest, uint8_t *src) LOCALONLY;
+	void ploytecPCMdecode(uint8_t *dest, uint8_t *src) LOCALONLY;
+};
+
+#endif /* PloytecAudioDevice_h */

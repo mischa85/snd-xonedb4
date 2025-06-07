@@ -1,0 +1,36 @@
+//
+//  PloytecDriver.iig
+//  PloytecDriver
+//
+//  Created by Marcel Bierling on 20/05/2024.
+//  Copyright © 2024 Hackerman. All rights reserved.
+//
+
+#ifndef PloytecAudioDriver_h
+#define PloytecAudioDriver_h
+
+#include <DriverKit/IOService.iig>
+#include <AudioDriverKit/IOUserAudioDriver.iig>
+#include "PloytecAudioDevice.iig"
+
+using namespace AudioDriverKit;
+
+class PloytecAudioDriver: public IOUserAudioDriver
+{
+public:
+	virtual bool init() override;
+	virtual kern_return_t Start(IOService *provider) override;
+	virtual kern_return_t Stop(IOService *provider) override;
+	virtual void free() override;
+
+	virtual kern_return_t StartDevice(IOUserAudioObjectID in_object_id, IOUserAudioStartStopFlags in_flags) override;
+	virtual kern_return_t StopDevice(IOUserAudioObjectID in_object_id, IOUserAudioStartStopFlags in_flags) override;
+	
+public:
+	virtual kern_return_t FillPCMPacketBulk(IOBufferMemoryDescriptor *buffer, uint32_t packetSize, uint64_t timestamp);
+	virtual kern_return_t FillPCMPacketInt(IOBufferMemoryDescriptor *buffer, uint32_t packetSize, uint64_t timestamp);
+	virtual kern_return_t ReadPCMPacketBulk(IOBufferMemoryDescriptor *buffer, uint32_t packetSize, uint64_t timestamp);
+	virtual kern_return_t ReadPCMPacketInt(IOBufferMemoryDescriptor *buffer, uint32_t packetSize, uint64_t timestamp);
+};
+
+#endif /* PloytecDriver_h */

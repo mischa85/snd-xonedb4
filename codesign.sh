@@ -13,7 +13,7 @@ set -e
 set -x
 security unlock-keychain -p '{}' /Users/${USER}/Library/Keychains/login.keychain
 
-codesign --sign $CODE_SIGN_IDENTITY --entitlements mac-coreaudio/XoneDB4Driver/XoneDB4Driver.entitlements --options runtime --verbose --force build/Release/XoneDB4App.app/Contents/Library/SystemExtensions/sc.hackerman.xonedb4driver.dext
-codesign --verify --verbose build/Release/XoneDB4App.app/Contents/Library/SystemExtensions/sc.hackerman.xonedb4driver.dext
-codesign --sign $CODE_SIGN_IDENTITY --entitlements mac-coreaudio/XoneDB4App/XoneDB4App.entitlements --options runtime --verbose --force build/Release/XoneDB4App.app
-codesign --verify --verbose build/Release/XoneDB4App.app
+codesign --sign $CODE_SIGN_IDENTITY --entitlements mac-coreaudio/PloytecDriver/PloytecDriver.entitlements --options runtime --verbose --force build/Release/Ozzy.app/Contents/Library/SystemExtensions/sc.hackerman.ploytecdriver.dext
+codesign --verify --verbose build/Release/Ozzy.app/Contents/Library/SystemExtensions/sc.hackerman.ploytecdriver.dext
+codesign --sign $CODE_SIGN_IDENTITY --entitlements mac-coreaudio/Ozzy/Ozzy.entitlements --options runtime --verbose --force build/Release/Ozzy.app
+codesign --verify --verbose build/Release/Ozzy.app

@@ -1,17 +1,17 @@
 //
-//  XoneDB4DriverUserClient.iig
-//  XoneDB4Driver
+//  PloytecDriverUserClient.iig
+//  PloytecDriver
 //
 //  Created by Marcel Bierling on 04/07/2024.
 //  Copyright © 2024 Hackerman. All rights reserved.
 //
 
-#ifndef XoneDB4DriverUserClient_hpp
-#define XoneDB4DriverUserClient_hpp
+#ifndef PloytecDriverUserClient_hpp
+#define PloytecDriverUserClient_hpp
 
 #include <DriverKit/IOUserClient.iig>
 
-class XoneDB4DriverUserClient : public IOUserClient
+class PloytecDriverUserClient : public IOUserClient
 {
 public:
 	virtual bool init() final;
@@ -21,4 +21,4 @@ public:
 	virtual kern_return_t ExternalMethod(uint64_t selector, IOUserClientMethodArguments* arguments, const IOUserClientMethodDispatch* dispatch, OSObject* target, void* reference) final;
 };
 
-#endif /* XoneDB4DriverUserClient_hpp */
+#endif /* PloytecDriverUserClient_hpp */
