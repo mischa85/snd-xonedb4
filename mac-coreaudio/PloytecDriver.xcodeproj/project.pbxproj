@@ -73,7 +73,7 @@
 		1FCE8FD82C37434300313EB4 /* PloytecDriverUserClient.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = PloytecDriverUserClient.cpp; sourceTree = "<group>"; };
 		1FCE8FD92C37434300313EB4 /* PloytecDriverUserClient.iig */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.iig; path = PloytecDriverUserClient.iig; sourceTree = "<group>"; };
 		1FCE8FDC2C37446400313EB4 /* PloytecDriverKeys.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PloytecDriverKeys.h; sourceTree = "<group>"; };
-		6F55575222B2C4D900139F6B /* PloytecApp.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PloytecApp.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		6F55575222B2C4D900139F6B /* Ploytec Driver Extension.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Ploytec Driver Extension.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		6F55575522B2C4D900139F6B /* PloytecApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PloytecApp.swift; sourceTree = "<group>"; };
 		6F55575722B2C4D900139F6B /* PloytecAppView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PloytecAppView.swift; sourceTree = "<group>"; };
 		6F55575922B2C4DB00139F6B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -121,7 +121,7 @@
 		6F55575322B2C4D900139F6B /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				6F55575222B2C4D900139F6B /* PloytecApp.app */,
+				6F55575222B2C4D900139F6B /* Ploytec Driver Extension.app */,
 				6F55576D22B2C52C00139F6B /* sc.hackerman.ploytecdriver.dext */,
 			);
 			name = Products;
@@ -211,7 +211,7 @@
 			);
 			name = PloytecApp;
 			productName = USBApp;
-			productReference = 6F55575222B2C4D900139F6B /* PloytecApp.app */;
+			productReference = 6F55575222B2C4D900139F6B /* Ploytec Driver Extension.app */;
 			productType = "com.apple.product-type.application";
 		};
 		6F55576C22B2C52C00139F6B /* PloytecDriver */ = {
@@ -369,7 +369,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				INFOPLIST_FILE = "$(SRCROOT)/PloytecApp/Info.plist";
 				PRODUCT_BUNDLE_IDENTIFIER = sc.hackerman.ploytecapp;
-				PRODUCT_NAME = PloytecApp;
+				PRODUCT_NAME = "Ploytec Driver Extension";
 				SDKROOT = macosx;
 				SWIFT_OBJC_BRIDGING_HEADER = PloytecApp/PloytecAppUserClient.h;
 				SWIFT_VERSION = 5.0;
@@ -382,7 +382,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				INFOPLIST_FILE = "$(SRCROOT)/PloytecApp/Info.plist";
 				PRODUCT_BUNDLE_IDENTIFIER = sc.hackerman.ploytecapp;
-				PRODUCT_NAME = PloytecApp;
+				PRODUCT_NAME = "Ploytec Driver Extension";
 				SDKROOT = macosx;
 				SWIFT_OBJC_BRIDGING_HEADER = PloytecApp/PloytecAppUserClient.h;
 				SWIFT_VERSION = 5.0;

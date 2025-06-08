@@ -13,7 +13,7 @@ set -e
 set -x
 security unlock-keychain -p '{}' /Users/${USER}/Library/Keychains/login.keychain
 
-codesign --sign $CODE_SIGN_IDENTITY --entitlements mac-coreaudio/PloytecDriver/PloytecDriver.entitlements --options runtime --verbose --force build/Release/PloytecApp.app/Contents/Library/SystemExtensions/sc.hackerman.ploytecdriver.dext
-codesign --verify --verbose build/Release/PloytecApp.app/Contents/Library/SystemExtensions/sc.hackerman.ploytecdriver.dext
-codesign --sign $CODE_SIGN_IDENTITY --entitlements mac-coreaudio/PloytecApp/PloytecApp.entitlements --options runtime --verbose --force build/Release/PloytecApp.app
-codesign --verify --verbose build/Release/PloytecApp.app
+codesign --sign $CODE_SIGN_IDENTITY --entitlements mac-coreaudio/PloytecDriver/PloytecDriver.entitlements --options runtime --verbose --force "build/Release/Ploytec Driver Extension.app/Contents/Library/SystemExtensions/sc.hackerman.ploytecdriver.dext"
+codesign --verify --verbose "build/Release/Ploytec Driver Extension.app/Contents/Library/SystemExtensions/sc.hackerman.ploytecdriver.dext"
+codesign --sign $CODE_SIGN_IDENTITY --entitlements mac-coreaudio/PloytecApp/PloytecApp.entitlements --options runtime --verbose --force "build/Release/Ploytec Driver Extension.app"
+codesign --verify --verbose "build/Release/Ploytec Driver Extension.app"

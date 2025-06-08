@@ -15,4 +15,4 @@ mac-clean:
 	rm -rf build
 
 mac-install:
-	rsync -a --delete build/Release/PloytecApp.app /Applications
+	rsync -a --delete "build/Release/Ploytec Driver Extension.app" /Applications
