@@ -1,13 +1,13 @@
 //
-//  XoneDB4Device.iig
-//  XoneDB4Driver
+//  PloytecDevice.iig
+//  PloytecDriver
 //
 //  Created by Marcel Bierling on 20/05/2024.
 //  Copyright © 2024 Hackerman. All rights reserved.
 //
 
-#ifndef XoneDB4Device_h
-#define XoneDB4Device_h
+#ifndef PloytecDevice_h
+#define PloytecDevice_h
 
 #include <DriverKit/DriverKit.iig>
 #include <AudioDriverKit/IOUserAudioDevice.iig>
@@ -32,7 +32,7 @@ constexpr uint64_t k_change_buffer_size_action = 1234;
 
 class IOUserAudioDriver;
 
-class XoneDB4Device: public IOUserAudioDevice
+class PloytecDevice: public IOUserAudioDevice
 {
 public:
 	virtual bool init(IOUserAudioDriver* in_driver, bool in_supports_prewarming, OSString* in_device_uid, OSString* in_model_uid, OSString* in_manufacturer_uid, uint32_t in_zero_timestamp_period, IOUSBHostPipe* PCMinPipe, OSAction* PCMinCallback, IOUSBHostPipe* PCMoutPipe, OSAction* PCMoutCallback, IOUSBHostDevice* device) LOCALONLY;
@@ -50,4 +50,4 @@ private:
 	void ploytec_convert_to_s24_3le(uint8_t *dest, uint8_t *src) LOCALONLY;
 };
 
-#endif /* XoneDB4Device_h */
+#endif /* PloytecDevice_h */

@@ -5,7 +5,7 @@ linux:
 	make -C /lib/modules/$(shell uname -r)/build M=$(shell pwd) modules
 
 mac:
-	xcodebuild -project "$(CURDIR)/mac-coreaudio/XoneDB4Driver.xcodeproj" -configuration Release SYMROOT="$(CURDIR)/build"
+	xcodebuild -project "$(CURDIR)/mac-coreaudio/PloytecDriver.xcodeproj" -configuration Release SYMROOT="$(CURDIR)/build"
 	./codesign.sh
 
 linux-clean:
@@ -15,4 +15,4 @@ mac-clean:
 	rm -rf build
 
 mac-install:
-	rsync -a --delete build/Release/XoneDB4App.app /Applications
+	rsync -a --delete build/Release/PloytecApp.app /Applications

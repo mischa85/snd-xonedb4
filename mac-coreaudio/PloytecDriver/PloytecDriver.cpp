@@ -1,14 +1,14 @@
 //
-//  XoneDB4Driver.cpp
-//  XoneDB4Driver
+//  PloytecDriver.cpp
+//  PloytecDriver
 //
 //  Created by Marcel Bierling on 20/05/2024.
 //  Copyright © 2024 Hackerman. All rights reserved.
 //
 
 #include <AudioDriverKit/AudioDriverKit.h>
-#include "XoneDB4Driver.h"
-#include "XoneDB4Device.h"
+#include "PloytecDriver.h"
+#include "PloytecDevice.h"
 
 constexpr uint32_t k_zero_time_stamp_period = 2560;
 
@@ -19,10 +19,10 @@ constexpr uint32_t k_zero_time_stamp_period = 2560;
 static const char8_t sampleratebytes48[3] = { 0x80, 0xBB, 0x00 };
 static const char8_t sampleratebytes96[3] = { 0x00, 0x77, 0x01 };
 
-struct XoneDB4Driver_IVars
+struct PloytecDriver_IVars
 {
 	OSSharedPtr<IODispatchQueue>	m_work_queue;
-	OSSharedPtr<XoneDB4Device>		m_audio_device;
+	OSSharedPtr<PloytecDevice>		m_audio_device;
 
 	IOUSBHostDevice					*device;
 	IOUSBHostInterface				*interface0;
@@ -45,28 +45,28 @@ struct XoneDB4Driver_IVars
 	char 							*device_name_utf8;
 };
 
-bool XoneDB4Driver::init()
+bool PloytecDriver::init()
 {
 	bool result = false;
 	
 	result = super::init();
 	FailIf(result != true, , Exit, "Failed to init driver");
 
-	ivars = IONewZero(XoneDB4Driver_IVars, 1);
+	ivars = IONewZero(PloytecDriver_IVars, 1);
 	FailIfNULL(ivars, result = false, Exit, "Failed to init vars");
 
 Exit:
 	return result;
 }
 
-kern_return_t IMPL(XoneDB4Driver, Start)
+kern_return_t IMPL(PloytecDriver, Start)
 {
 	kern_return_t ret;
 	uintptr_t interfaceIterator;
 	IOAddressSegment range;
 	uint16_t bytesTransferred;
 	bool success = false;
-	auto device_uid = OSSharedPtr(OSString::withCString("xonedb4"), OSNoRetain);
+	auto device_uid = OSSharedPtr(OSString::withCString("ploytec"), OSNoRetain);
 	auto model_uid = OSSharedPtr(OSString::withCString("Model UID"), OSNoRetain);
 
 	ret = Start(provider, SUPERDISPATCH);
@@ -167,16 +167,16 @@ kern_return_t IMPL(XoneDB4Driver, Start)
 	ret = ivars->interface0->CopyPipe(PCM_OUT_EP, &ivars->PCMoutPipe);
 	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to copy the PCM out pipe");
 
-	ret = OSAction::Create(this, XoneDB4Driver_PCMinHandler_ID, IOUSBHostPipe_CompleteAsyncIO_ID, 0, &ivars->PCMinCallback);
+	ret = OSAction::Create(this, PloytecDriver_PCMinHandler_ID, IOUSBHostPipe_CompleteAsyncIO_ID, 0, &ivars->PCMinCallback);
 	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create the PCM in USB handler");
 
-	ret = OSAction::Create(this, XoneDB4Driver_PCMoutHandler_ID, IOUSBHostPipe_CompleteAsyncIO_ID, 0, &ivars->PCMoutCallback);
+	ret = OSAction::Create(this, PloytecDriver_PCMoutHandler_ID, IOUSBHostPipe_CompleteAsyncIO_ID, 0, &ivars->PCMoutCallback);
 	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create the PCM out USB handler");
 
 	ivars->m_work_queue = GetWorkQueue();
 	FailIfNULL(ivars->m_work_queue.get(), ret = kIOReturnInvalid, Exit, "Invalid device");
 
-	ivars->m_audio_device = OSSharedPtr(OSTypeAlloc(XoneDB4Device), OSNoRetain);
+	ivars->m_audio_device = OSSharedPtr(OSTypeAlloc(PloytecDevice), OSNoRetain);
 	FailIfNULL(ivars->m_audio_device.get(), ret = kIOReturnNoMemory, Exit, "Cannot allocate memory for audio device");
 
 	success = ivars->m_audio_device->init(this, false, device_uid.get(), model_uid.get(), ivars->manufacturer_uid.get(), k_zero_time_stamp_period, ivars->PCMinPipe, ivars->PCMinCallback, ivars->PCMoutPipe, ivars->PCMoutCallback, ivars->device);
@@ -194,7 +194,7 @@ Exit:
 	return ret;
 }
 
-kern_return_t IMPL(XoneDB4Driver, Stop)
+kern_return_t IMPL(PloytecDriver, Stop)
 {
 	kern_return_t ret = kIOReturnSuccess;
 
@@ -203,18 +203,18 @@ kern_return_t IMPL(XoneDB4Driver, Stop)
 	return ret;
 }
 
-void XoneDB4Driver::free()
+void PloytecDriver::free()
 {
 	if (ivars != nullptr)
 	{
 		ivars->m_work_queue.reset();
 		ivars->m_audio_device.reset();
 	}
-	IOSafeDeleteNULL(ivars, XoneDB4Driver_IVars, 1);
+	IOSafeDeleteNULL(ivars, PloytecDriver_IVars, 1);
 	super::free();
 }
 
-kern_return_t XoneDB4Driver::NewUserClient_Impl(uint32_t in_type, IOUserClient** out_user_client)
+kern_return_t PloytecDriver::NewUserClient_Impl(uint32_t in_type, IOUserClient** out_user_client)
 {
 	kern_return_t error = kIOReturnSuccess;
 	
@@ -227,8 +227,8 @@ kern_return_t XoneDB4Driver::NewUserClient_Impl(uint32_t in_type, IOUserClient**
 	else
 	{
 		IOService* user_client_service = nullptr;
-		error = Create(this, "XoneDB4DriverUserClientProperties", &user_client_service);
-		FailIfError(error, , Failure, "failed to create the XoneDB4Driver user client");
+		error = Create(this, "PloytecDriverUserClientProperties", &user_client_service);
+		FailIfError(error, , Failure, "failed to create the PloytecDriver user client");
 		*out_user_client = OSDynamicCast(IOUserClient, user_client_service);
 	}
 	
@@ -236,7 +236,7 @@ Failure:
 	return error;
 }
 
-kern_return_t XoneDB4Driver::StartDevice(IOUserAudioObjectID in_object_id, IOUserAudioStartStopFlags in_flags)
+kern_return_t PloytecDriver::StartDevice(IOUserAudioObjectID in_object_id, IOUserAudioStartStopFlags in_flags)
 {
 	if (in_object_id != ivars->m_audio_device->GetObjectID())
 	{
@@ -255,7 +255,7 @@ kern_return_t XoneDB4Driver::StartDevice(IOUserAudioObjectID in_object_id, IOUse
 	return ret;
 }
 
-kern_return_t XoneDB4Driver::StopDevice(IOUserAudioObjectID in_object_id, IOUserAudioStartStopFlags in_flags)
+kern_return_t PloytecDriver::StopDevice(IOUserAudioObjectID in_object_id, IOUserAudioStartStopFlags in_flags)
 {
 	if (in_object_id != ivars->m_audio_device->GetObjectID())
 	{
@@ -275,32 +275,32 @@ kern_return_t XoneDB4Driver::StopDevice(IOUserAudioObjectID in_object_id, IOUser
 	return ret;
 }
 
-OSData* XoneDB4Driver::GetFirmwareVer()
+OSData* PloytecDriver::GetFirmwareVer()
 {
 	return OSData::withBytes(ivars->firmwarever, sizeof(&ivars->firmwarever));
 }
 
-OSData* XoneDB4Driver::GetDeviceName()
+OSData* PloytecDriver::GetDeviceName()
 {
 	return OSData::withBytes(ivars->device_name_utf8, strlen(ivars->device_name_utf8));
 }
 
-OSData* XoneDB4Driver::GetDeviceManufacturer()
+OSData* PloytecDriver::GetDeviceManufacturer()
 {
 	return OSData::withBytes(ivars->manufacturer_utf8, strlen(ivars->manufacturer_utf8));
 }
 
-kern_return_t XoneDB4Driver::GetPlaybackStats(playbackstats *stats)
+kern_return_t PloytecDriver::GetPlaybackStats(playbackstats *stats)
 {
 	return ivars->m_audio_device->GetPlaybackStats(stats);
 }
 
-kern_return_t XoneDB4Driver::ChangeBufferSize(OSNumber *buffersize)
+kern_return_t PloytecDriver::ChangeBufferSize(OSNumber *buffersize)
 {
 	return ivars->m_audio_device->RequestDeviceConfigurationChange(k_change_buffer_size_action, buffersize);
 }
 
-kern_return_t IMPL(XoneDB4Driver, PCMinHandler)
+kern_return_t IMPL(PloytecDriver, PCMinHandler)
 {
 	kern_return_t ret;
 	ret = ivars->m_audio_device->ReceivePCMfromDevice(completionTimestamp);
@@ -310,7 +310,7 @@ Exit:
 	return ret;
 }
 
-kern_return_t IMPL(XoneDB4Driver, PCMoutHandler)
+kern_return_t IMPL(PloytecDriver, PCMoutHandler)
 {
 	kern_return_t ret;
 	ret = ivars->m_audio_device->SendPCMToDevice(completionTimestamp);

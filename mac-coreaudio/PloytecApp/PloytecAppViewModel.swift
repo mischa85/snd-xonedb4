@@ -1,6 +1,6 @@
 //
-//  XoneDB4AppViewModel.swift
-//  XoneDB4App
+//  PloytecAppViewModel.swift
+//  PloytecApp
 //
 //  Created by Marcel Bierling on 04/07/2024.
 //  Copyright © 2024 Hackerman. All rights reserved.
@@ -13,7 +13,7 @@ import os.log
 import SystemExtensions
 #endif
 
-class XoneDB4AppStateMachine {
+class PloytecAppStateMachine {
 
 	enum State {
 		case activating
@@ -189,12 +189,12 @@ class XoneDB4AppStateMachine {
 	}
 }
 
-class XoneDB4AppViewModel: NSObject {
+class PloytecAppViewModel: NSObject {
 	
-	private let dextIdentifier: String = "sc.hackerman.xonedb4driver"
+	private let dextIdentifier: String = "sc.hackerman.ploytecdriver"
 	
 	// Check the initial state of the dext because it doesn't necessarily start in an unloaded state.
-	@Published private(set) var state: XoneDB4AppStateMachine.State = .deactivated
+	@Published private(set) var state: PloytecAppStateMachine.State = .deactivated
 	@Published var isConnected = false
 	
 	private var cancellables = Set<AnyCancellable>()
@@ -211,21 +211,21 @@ class XoneDB4AppViewModel: NSObject {
 	public var dextLoadingState: String {
 		switch state {
 		case .activating:
-			return "Activating XoneDB4Driver, please wait."
+			return "Activating PloytecDriver, please wait."
 		case .needsActivatingApproval:
-			return "Please follow the prompt to approve XoneDB4Driver."
+			return "Please follow the prompt to approve PloytecDriver."
 		case .needsDeactivatingApproval:
-			return "Please follow the prompt to remove XoneDB4Driver."
+			return "Please follow the prompt to remove PloytecDriver."
 		case .activated:
-			return "XoneDB4Driver has been activated and is ready to use."
+			return "PloytecDriver has been activated and is ready to use."
 		case .activationError:
-			return "XoneDB4Driver has experienced an error during activation.\nPlease check the logs to find the error."
+			return "PloytecDriver has experienced an error during activation.\nPlease check the logs to find the error."
 		case .deactivationError:
-			return "XoneDB4Driver has experienced an error during deactivation.\nPlease check the logs to find the error."
+			return "PloytecDriver has experienced an error during deactivation.\nPlease check the logs to find the error."
 		case .deactivating:
-			return "Deactivating XoneDB4Driver, please wait."
+			return "Deactivating PloytecDriver, please wait."
 		case .deactivated:
-			return "XoneDB4Driver deactivated."
+			return "PloytecDriver deactivated."
 		case .dextNotPresentError:
 			return "Error: dext is not present."
 		case .codeSigningError:
@@ -234,11 +234,11 @@ class XoneDB4AppViewModel: NSObject {
 	}
 }
 	
-extension XoneDB4AppViewModel: ObservableObject {
+extension PloytecAppViewModel: ObservableObject {
 
 }
 	
-extension XoneDB4AppViewModel {
+extension PloytecAppViewModel {
 #if os(macOS)
 	func activateMyDext() {
 		activateExtension(dextIdentifier)
@@ -253,7 +253,7 @@ extension XoneDB4AppViewModel {
 		request.delegate = self
 		OSSystemExtensionManager.shared.submitRequest(request)
 
-		self.state = XoneDB4AppStateMachine.process(self.state, .activationStarted)
+		self.state = PloytecAppStateMachine.process(self.state, .activationStarted)
 	}
 
 	func deactivateExtension(_ dextIdentifier: String) {
@@ -261,13 +261,13 @@ extension XoneDB4AppViewModel {
 		request.delegate = self
 		OSSystemExtensionManager.shared.submitRequest(request)
 		
-		self.state = XoneDB4AppStateMachine.process(self.state, .deactivationStarted)
+		self.state = PloytecAppStateMachine.process(self.state, .deactivationStarted)
 	}
 #endif
 }
 
 #if os(macOS)
-extension XoneDB4AppViewModel: OSSystemExtensionRequestDelegate {
+extension PloytecAppViewModel: OSSystemExtensionRequestDelegate {
 	
 	func request(
 		_ request: OSSystemExtensionRequest,
@@ -287,31 +287,31 @@ extension XoneDB4AppViewModel: OSSystemExtensionRequestDelegate {
 		replacementAction = .replace
 
 		// The upgrade case may require a separate set of states.
-		self.state = XoneDB4AppStateMachine.process(self.state, .activationStarted)
+		self.state = PloytecAppStateMachine.process(self.state, .activationStarted)
 
 		return replacementAction
 	}
 
 	func requestNeedsUserApproval(_ request: OSSystemExtensionRequest) {
 		os_log("system extension requestNeedsUserApproval")
-		self.state = XoneDB4AppStateMachine.process(self.state, .promptForApproval)
+		self.state = PloytecAppStateMachine.process(self.state, .promptForApproval)
 	}
 
 	func request(_ request: OSSystemExtensionRequest, didFinishWithResult result: OSSystemExtensionRequest.Result) {
 		os_log("system extension didFinishWithResult: %d", result.rawValue)
-		self.state = XoneDB4AppStateMachine.process(self.state, .activationFinished)
+		self.state = PloytecAppStateMachine.process(self.state, .activationFinished)
 	}
 
 	func request(_ request: OSSystemExtensionRequest, didFailWithError error: Error) {
 		os_log("system extension didFailWithError: %@", error.localizedDescription)
 		if let extensionError = error as NSError?, extensionError.domain == OSSystemExtensionErrorDomain {
 			if extensionError.code == 4 {
-				self.state = XoneDB4AppStateMachine.process(self.state, .dextNotPresent)
+				self.state = PloytecAppStateMachine.process(self.state, .dextNotPresent)
 			} else if extensionError.code == 8 {
-				self.state = XoneDB4AppStateMachine.process(self.state, .codeSigningErr)
+				self.state = PloytecAppStateMachine.process(self.state, .codeSigningErr)
 			}
 		}
-		self.state = XoneDB4AppStateMachine.process(self.state, .activationFailed)
+		self.state = PloytecAppStateMachine.process(self.state, .activationFailed)
 	}
 }
 #endif

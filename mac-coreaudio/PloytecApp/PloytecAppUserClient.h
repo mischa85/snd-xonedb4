@@ -17,7 +17,7 @@ typedef struct {
 	uint64_t xruns;
 } playbackstats;
 
-@interface XoneDB4AppUserClient : NSObject
+@interface PloytecAppUserClient : NSObject
 
 - (NSString*)openConnection;
 - (NSString*)getFirmwareVersion;

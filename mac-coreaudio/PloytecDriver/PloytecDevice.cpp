@@ -1,14 +1,14 @@
 //
-//  XoneDB4Device.cpp
-//  XoneDB4Driver
+//  PloytecDevice.cpp
+//  PloytecDriver
 //
 //  Created by Marcel Bierling on 20/05/2024.
 //  Copyright © 2024 Hackerman. All rights reserved.
 //
 
 #include <AudioDriverKit/AudioDriverKit.h>
-#include "XoneDB4Device.h"
-#include "XoneDB4Driver.h"
+#include "PloytecDevice.h"
+#include "PloytecDriver.h"
 
 #define INITIAL_BUFFERSIZE					2560
 #define MAX_BUFFERSIZE						800000
@@ -35,7 +35,7 @@
 #define COREAUDIO_PCM_OUT_PACKET_SIZE		(PCM_N_PLAYBACK_CHANNELS * COREAUDIO_BYTES_PER_SAMPLE * XDB4_PCM_OUT_FRAMES_PER_PACKET)
 #define COREAUDIO_PCM_IN_PACKET_SIZE		(PCM_N_CAPTURE_CHANNELS * COREAUDIO_BYTES_PER_SAMPLE * XDB4_PCM_IN_FRAMES_PER_PACKET)
 
-struct XoneDB4Device_IVars
+struct PloytecDevice_IVars
 {
 	OSSharedPtr<IOUserAudioDriver>			m_driver;
 	OSSharedPtr<IODispatchQueue>			m_work_queue;
@@ -83,13 +83,13 @@ struct XoneDB4Device_IVars
 	bool									startpcmout;
 };
 
-bool XoneDB4Device::init(IOUserAudioDriver* in_driver, bool in_supports_prewarming, OSString* in_device_uid, OSString* in_model_uid, OSString* in_manufacturer_uid, uint32_t in_zero_timestamp_period, IOUSBHostPipe* PCMinPipe, OSAction* PCMinCallback, IOUSBHostPipe* PCMoutPipe, OSAction* PCMoutCallback, IOUSBHostDevice* device)
+bool PloytecDevice::init(IOUserAudioDriver* in_driver, bool in_supports_prewarming, OSString* in_device_uid, OSString* in_model_uid, OSString* in_manufacturer_uid, uint32_t in_zero_timestamp_period, IOUSBHostPipe* PCMinPipe, OSAction* PCMinCallback, IOUSBHostPipe* PCMoutPipe, OSAction* PCMoutCallback, IOUSBHostDevice* device)
 {
 	auto success = super::init(in_driver, in_supports_prewarming, in_device_uid, in_model_uid, in_manufacturer_uid, in_zero_timestamp_period);
 	if (!success) {
 		return false;
 	}
-	ivars = IONewZero(XoneDB4Device_IVars, 1);
+	ivars = IONewZero(PloytecDevice_IVars, 1);
 	if (ivars == nullptr) {
 		return false;
 	}
@@ -101,8 +101,8 @@ bool XoneDB4Device::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 	IOOperationHandler io_operation = nullptr;
 	uint8_t* PCMoutDataEmptyAddr;
 	double sample_rates[] = {96000};
-	OSSharedPtr<OSString> output_stream_name = OSSharedPtr(OSString::withCString("Xone:DB4 PCM OUT"), OSNoRetain);
-	OSSharedPtr<OSString> input_stream_name = OSSharedPtr(OSString::withCString("Xone:DB4 PCM IN"), OSNoRetain);
+	OSSharedPtr<OSString> output_stream_name = OSSharedPtr(OSString::withCString("PLOYTEC PCM OUT"), OSNoRetain);
+	OSSharedPtr<OSString> input_stream_name = OSSharedPtr(OSString::withCString("PLOYTEC PCM IN"), OSNoRetain);
 	ivars->m_driver = OSSharedPtr(in_driver, OSRetain);
 	ivars->m_work_queue = GetWorkQueue();
 	ivars->PCMinPipe = PCMinPipe;
@@ -340,7 +340,7 @@ Failure:
 	return false;
 }
 
-kern_return_t XoneDB4Device::StartIO(IOUserAudioStartStopFlags in_flags)
+kern_return_t PloytecDevice::StartIO(IOUserAudioStartStopFlags in_flags)
 {
 	__block int i = 0;
 	__block kern_return_t ret = kIOReturnSuccess;
@@ -446,7 +446,7 @@ kern_return_t XoneDB4Device::StartIO(IOUserAudioStartStopFlags in_flags)
 	return ret;
 }
 
-kern_return_t XoneDB4Device::StopIO(IOUserAudioStartStopFlags in_flags)
+kern_return_t PloytecDevice::StopIO(IOUserAudioStartStopFlags in_flags)
 {
 	__block kern_return_t ret;
 
@@ -464,7 +464,7 @@ kern_return_t XoneDB4Device::StopIO(IOUserAudioStartStopFlags in_flags)
 	return ret;
 }
 
-kern_return_t XoneDB4Device::PerformDeviceConfigurationChange(uint64_t change_action, OSObject* in_change_info)
+kern_return_t PloytecDevice::PerformDeviceConfigurationChange(uint64_t change_action, OSObject* in_change_info)
 {
 	kern_return_t ret = kIOReturnSuccess;
 	switch (change_action) {
@@ -484,12 +484,12 @@ kern_return_t XoneDB4Device::PerformDeviceConfigurationChange(uint64_t change_ac
 	return ret;
 }
 
-kern_return_t XoneDB4Device::AbortDeviceConfigurationChange(uint64_t change_action, OSObject* in_change_info)
+kern_return_t PloytecDevice::AbortDeviceConfigurationChange(uint64_t change_action, OSObject* in_change_info)
 {
 	return super::AbortDeviceConfigurationChange(change_action, in_change_info);
 }
 
-void XoneDB4Device::free()
+void PloytecDevice::free()
 {
 	if (ivars != nullptr) {
 		ivars->m_driver.reset();
@@ -501,11 +501,11 @@ void XoneDB4Device::free()
 		ivars->m_input_ploytec_memory_map.reset();
 		ivars->m_work_queue.reset();
 	}
-	IOSafeDeleteNULL(ivars, XoneDB4Device_IVars, 1);
+	IOSafeDeleteNULL(ivars, PloytecDevice_IVars, 1);
 	super::free();
 }
 
-kern_return_t XoneDB4Device::GetPlaybackStats(playbackstats *stats)
+kern_return_t PloytecDevice::GetPlaybackStats(playbackstats *stats)
 {
 	uint64_t out_sample_time, in_sample_time;
 	
@@ -525,7 +525,7 @@ kern_return_t XoneDB4Device::GetPlaybackStats(playbackstats *stats)
 	return kIOReturnSuccess;
 }
 
-kern_return_t XoneDB4Device::SendPCMToDevice(uint64_t completionTimestamp)
+kern_return_t PloytecDevice::SendPCMToDevice(uint64_t completionTimestamp)
 {
 	__block kern_return_t ret;
 	__block int i = 0;
@@ -586,7 +586,7 @@ kern_return_t XoneDB4Device::SendPCMToDevice(uint64_t completionTimestamp)
 	return ret;
 }
 
-kern_return_t XoneDB4Device::ReceivePCMfromDevice(uint64_t completionTimestamp)
+kern_return_t PloytecDevice::ReceivePCMfromDevice(uint64_t completionTimestamp)
 {
 	__block int i;
 	__block kern_return_t ret;
@@ -604,7 +604,7 @@ kern_return_t XoneDB4Device::ReceivePCMfromDevice(uint64_t completionTimestamp)
 }
 
 /* Takes 24 bytes, outputs 48 bytes */
-void XoneDB4Device::ploytec_convert_from_s24_3le(uint8_t *dest, uint8_t *src)
+void PloytecDevice::ploytec_convert_from_s24_3le(uint8_t *dest, uint8_t *src)
 {
     //                        =============== channel 1 ===============   =============== channel 3 ===============   =============== channel 5 ===============   =============== channel 7 ===============
     ((uint8_t *)dest)[0x00] = ((((uint8_t *)src)[0x02] & 0x80) >> 0x07) | ((((uint8_t *)src)[0x08] & 0x80) >> 0x06) | ((((uint8_t *)src)[0x0E] & 0x80) >> 0x05) | ((((uint8_t *)src)[0x14] & 0x80) >> 0x04);
@@ -659,7 +659,7 @@ void XoneDB4Device::ploytec_convert_from_s24_3le(uint8_t *dest, uint8_t *src)
 }
 
 /* Takes 64 bytes, outputs 24 bytes */
-void XoneDB4Device::ploytec_convert_to_s24_3le(uint8_t *dest, uint8_t *src)
+void PloytecDevice::ploytec_convert_to_s24_3le(uint8_t *dest, uint8_t *src)
 {
 	// channel 1
 	((uint8_t *)dest)[0x00] = ((((uint8_t *)src)[0x17] & 0x01) << 0x00) | ((((uint8_t *)src)[0x16] & 0x01) << 0x01) | ((((uint8_t *)src)[0x15] & 0x01) << 0x02) | ((((uint8_t *)src)[0x14] & 0x01) << 0x03) | ((((uint8_t *)src)[0x13] & 0x01) << 0x04) | ((((uint8_t *)src)[0x12] & 0x01) << 0x05) | ((((uint8_t *)src)[0x11] & 0x01) << 0x06) | ((((uint8_t *)src)[0x10] & 0x01) << 0x07);

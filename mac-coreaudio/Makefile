@@ -16,13 +16,13 @@ xcode:
 	open USBApp.xcodeproj
 
 open: 
-	open build/Release/XoneDB4App.app
+	open build/Release/PloytecApp.app
 
 install:
-	rsync -a --delete build/Release/XoneDB4App.app /Applications
+	rsync -a --delete build/Release/PloytecApp.app /Applications
 
 run: install
-	open /Applications/XoneDB4App.app
+	open /Applications/PloytecApp.app
 
 systemextensionsctl-list:
 	systemextensionsctl list

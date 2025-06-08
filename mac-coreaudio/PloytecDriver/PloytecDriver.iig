@@ -1,21 +1,21 @@
 //
-//  XoneDB4Driver.iig
-//  XoneDB4Driver
+//  PloytecDriver.iig
+//  PloytecDriver
 //
 //  Created by Marcel Bierling on 20/05/2024.
 //  Copyright © 2024 Hackerman. All rights reserved.
 //
 
-#ifndef XoneDB4Driver_h
-#define XoneDB4Driver_h
+#ifndef PloytecDriver_h
+#define PloytecDriver_h
 
 #include <DriverKit/IOService.iig>
 #include <AudioDriverKit/IOUserAudioDriver.iig>
-#include "XoneDB4Device.iig"
+#include "PloytecDevice.iig"
 
 using namespace AudioDriverKit;
 
-class XoneDB4Driver: public IOUserAudioDriver
+class PloytecDriver: public IOUserAudioDriver
 {	
 public:
 	virtual bool init() override;
@@ -36,4 +36,4 @@ protected:
 	virtual kern_return_t PCMoutHandler(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);
 };
 
-#endif /* XoneDB4Driver_h */
+#endif /* PloytecDriver_h */

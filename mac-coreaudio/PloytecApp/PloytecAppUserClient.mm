@@ -1,20 +1,20 @@
 //
-//  XoneDB4AppUserClient.mm
-//  XoneDB4App
+//  PloytecAppUserClient.mm
+//  PloytecApp
 //
 //  Created by Marcel Bierling on 04/07/2024.
 //  Copyright © 2024 Hackerman. All rights reserved.
 //
 
-#import "XoneDB4AppUserClient.h"
-#import "XoneDB4DriverKeys.h"
+#import "PloytecAppUserClient.h"
+#import "PloytecDriverKeys.h"
 
-@interface XoneDB4AppUserClient()
+@interface PloytecAppUserClient()
 @property io_object_t ioObject;
 @property io_connect_t ioConnection;
 @end
 
-@implementation XoneDB4AppUserClient
+@implementation PloytecAppUserClient
 
 // Open a user client instance, which initiates communication with the driver.
 - (NSString*)openConnection
@@ -32,7 +32,7 @@
 		// Note that classes you publish by a dext need to match by class name
 		// (for example, use `IOServiceNameMatching` to construct the
 		// matching dictionary, not `IOServiceMatching`).
-		CFDictionaryRef theMatchingDictionary = IOServiceNameMatching("XoneDB4Driver");
+		CFDictionaryRef theMatchingDictionary = IOServiceNameMatching("PloytecDriver");
 		io_service_t matchedService = IOServiceGetMatchingService(theMainPort, theMatchingDictionary);
 		if (matchedService) {
 			_ioObject = matchedService;
@@ -62,7 +62,7 @@
 	char devicename[128] = {0};
 	size_t devicenameSize = sizeof(devicename);
 
-	kern_return_t error = IOConnectCallMethod(_ioConnection, static_cast<uint64_t>(XoneDB4DriverExternalMethod_GetDeviceName), nullptr, 0, nullptr, 0, nullptr, nullptr, devicename, &devicenameSize);
+	kern_return_t error = IOConnectCallMethod(_ioConnection, static_cast<uint64_t>(PloytecDriverExternalMethod_GetDeviceName), nullptr, 0, nullptr, 0, nullptr, nullptr, devicename, &devicenameSize);
 
 	if (error != kIOReturnSuccess) {
 		return [NSString stringWithFormat:@"Failed to get device name, error: %s.", mach_error_string(error)];
@@ -80,7 +80,7 @@
 	char devicemanufacturer[128] = {0};
 	size_t devicemanufacturerSize = sizeof(devicemanufacturer);
 
-	kern_return_t error = IOConnectCallMethod(_ioConnection, static_cast<uint64_t>(XoneDB4DriverExternalMethod_GetDeviceManufacturer), nullptr, 0, nullptr, 0, nullptr, nullptr, devicemanufacturer, &devicemanufacturerSize);
+	kern_return_t error = IOConnectCallMethod(_ioConnection, static_cast<uint64_t>(PloytecDriverExternalMethod_GetDeviceManufacturer), nullptr, 0, nullptr, 0, nullptr, nullptr, devicemanufacturer, &devicemanufacturerSize);
 
 	if (error != kIOReturnSuccess) {
 		return [NSString stringWithFormat:@"Failed to get device manufacturer, error: %s.", mach_error_string(error)];
@@ -100,7 +100,7 @@
 	
 	kern_return_t error =
 		IOConnectCallMethod(_ioConnection,
-							static_cast<uint64_t>(XoneDB4DriverExternalMethod_GetFirmwareVer),
+							static_cast<uint64_t>(PloytecDriverExternalMethod_GetFirmwareVer),
 							nullptr, 0, nullptr, 0, nullptr, nullptr, firmwarever, &firmwareverSize);
 
 	if (error != kIOReturnSuccess) {
@@ -118,7 +118,7 @@
 
 	kern_return_t error =
 		IOConnectCallMethod(_ioConnection,
-							static_cast<uint64_t>(XoneDB4DriverExternalMethod_ChangeBufferSize),
+							static_cast<uint64_t>(PloytecDriverExternalMethod_ChangeBufferSize),
 							reinterpret_cast<const uint64_t*>(&buffersize), sizeof(buffersize), nullptr, 0, nullptr, nullptr, nullptr, 0);
 
 	if (error != kIOReturnSuccess) {
@@ -139,7 +139,7 @@
 	
 	kern_return_t error =
 		IOConnectCallMethod(_ioConnection,
-							static_cast<uint64_t>(XoneDB4DriverExternalMethod_GetPlaybackStats),
+							static_cast<uint64_t>(PloytecDriverExternalMethod_GetPlaybackStats),
 							nullptr, 0, nullptr, 0, nullptr, nullptr, &stats, &playbackstatsSize);
 	
 	//NSLog(@"PLAYBACKSTATS: %llu %llu %llu %llu", stats.out_sample_time, stats.out_sample_time_usb, stats.in_sample_time, stats.in_sample_time_usb);

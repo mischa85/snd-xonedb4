@@ -1,8 +1,8 @@
 import SwiftUI
 
-struct XoneDB4AppView: View {
-	@ObservedObject var viewModel = XoneDB4AppViewModel()
-	var userClient = XoneDB4AppUserClient()
+struct PloytecAppView: View {
+	@ObservedObject var viewModel = PloytecAppViewModel()
+	var userClient = PloytecAppUserClient()
 	@State private var userClientText = ""
 	@State private var firmwareVersionText = ""
 	@State private var deviceNameText = ""
@@ -127,8 +127,8 @@ struct XoneDB4AppView: View {
 	}
 }
 
-struct XoneDB4AppView_Previews: PreviewProvider {
+struct PloytecAppView_Previews: PreviewProvider {
 	static var previews: some View {
-		XoneDB4AppView()
+		PloytecAppView()
 	}
 }
