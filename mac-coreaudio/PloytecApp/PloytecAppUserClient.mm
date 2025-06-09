@@ -110,24 +110,6 @@
 	return [NSString stringWithFormat:@"Firmware: 1.%d.%d", (firmwarever[2]/10), (firmwarever[2]%10)];
 }
 
-- (NSString*)changeBufferSize:(uint32_t)buffersize
-{
-	if (_ioConnection == IO_OBJECT_NULL) {
-		return @"Can't toggle the data source because the user client isn't connected.";
-	}
-
-	kern_return_t error =
-		IOConnectCallMethod(_ioConnection,
-							static_cast<uint64_t>(PloytecDriverExternalMethod_ChangeBufferSize),
-							reinterpret_cast<const uint64_t*>(&buffersize), sizeof(buffersize), nullptr, 0, nullptr, nullptr, nullptr, 0);
-
-	if (error != kIOReturnSuccess) {
-		return [NSString stringWithFormat:@"Failed to change buffersize, error: %s.", mach_error_string(error)];
-	}
-
-	return @"Successfully changed buffersize.";
-}
-
 - (playbackstats)getPlaybackStats
 {
 	if (_ioConnection == IO_OBJECT_NULL) {

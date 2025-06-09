@@ -8,80 +8,53 @@
 
 #include <AudioDriverKit/AudioDriverKit.h>
 #include "PloytecDevice.h"
-#include "PloytecDriver.h"
 
-#define INITIAL_BUFFERSIZE					2560
-#define MAX_BUFFERSIZE						800000
+#define INITIAL_BUFFERSIZE			2560
+#define MAX_BUFFERSIZE				800000
 
-#define PCM_N_URBS							4
-#define PCM_N_PLAYBACK_CHANNELS				8
-#define PCM_N_CAPTURE_CHANNELS				8
-
-#define XDB4_UART_OUT_BYTES_PER_PACKET		8
+#define PCM_N_PLAYBACK_CHANNELS			8
+#define PCM_N_CAPTURE_CHANNELS			8
 
 #define XDB4_PCM_OUT_FRAMES_PER_PACKET		40
-#define XDB4_PCM_OUT_FRAME_SIZE				48
-#define XDB4_PCM_OUT_BYTES_PER_PACKET		(XDB4_PCM_OUT_FRAMES_PER_PACKET * XDB4_PCM_OUT_FRAME_SIZE)
-#define XDB4_PCM_OUT_BULK_PACKET_SIZE		((XDB4_PCM_OUT_BYTES_PER_PACKET + XDB4_UART_OUT_BYTES_PER_PACKET + ((XDB4_PCM_OUT_FRAMES_PER_PACKET / 10) * 30)))
-#define XDB4_PCM_OUT_INT_PACKET_SIZE		(XDB4_PCM_OUT_BYTES_PER_PACKET + XDB4_UART_OUT_BYTES_PER_PACKET)
+#define XDB4_PCM_OUT_FRAME_SIZE			48
 
 #define XDB4_PCM_IN_FRAMES_PER_PACKET		32
-#define XDB4_PCM_IN_FRAME_SIZE				64
-#define XDB4_PCM_IN_PACKET_SIZE				(XDB4_PCM_IN_FRAMES_PER_PACKET * XDB4_PCM_IN_FRAME_SIZE)
+#define XDB4_PCM_IN_FRAME_SIZE			64
 
-#define COREAUDIO_BYTES_PER_SAMPLE			3 // S24_3LE
+#define COREAUDIO_BYTES_PER_SAMPLE		3 // S24_3LE
 #define COREAUDIO_PLAYBACK_BYTES_PER_FRAME	(PCM_N_PLAYBACK_CHANNELS * COREAUDIO_BYTES_PER_SAMPLE)
 #define COREAUDIO_CAPTURE_BYTES_PER_FRAME	(PCM_N_CAPTURE_CHANNELS * COREAUDIO_BYTES_PER_SAMPLE)
-#define COREAUDIO_PCM_OUT_PACKET_SIZE		(PCM_N_PLAYBACK_CHANNELS * COREAUDIO_BYTES_PER_SAMPLE * XDB4_PCM_OUT_FRAMES_PER_PACKET)
-#define COREAUDIO_PCM_IN_PACKET_SIZE		(PCM_N_CAPTURE_CHANNELS * COREAUDIO_BYTES_PER_SAMPLE * XDB4_PCM_IN_FRAMES_PER_PACKET)
 
 struct PloytecDevice_IVars
 {
-	OSSharedPtr<IOUserAudioDriver>			m_driver;
-	OSSharedPtr<IODispatchQueue>			m_work_queue;
-	IOUserAudioStreamBasicDescription		m_stream_format;
-	OSSharedPtr<IOUserAudioStream>			m_output_stream;
-	OSSharedPtr<IOUserAudioStream>			m_input_stream;
-	OSSharedPtr<IOMemoryMap>				m_output_memory_map;
-	OSSharedPtr<IOMemoryMap>				m_input_memory_map;
+	OSSharedPtr<IOUserAudioDriver>		m_driver;
+	OSSharedPtr<IODispatchQueue>		m_work_queue;
+	IOUserAudioStreamBasicDescription	m_stream_format;
+	OSSharedPtr<IOUserAudioStream>		m_output_stream;
+	OSSharedPtr<IOUserAudioStream>		m_input_stream;
+	OSSharedPtr<IOMemoryMap>		m_output_memory_map;
+	OSSharedPtr<IOMemoryMap>		m_input_memory_map;
 
-	IOUSBHostPipe*							PCMinPipe;
-	IOUSBEndpointDescriptor					PCMinDescriptor;
-	OSAction*								PCMinCallback;
-	IOUSBHostPipe*							PCMoutPipe;
-	IOUSBEndpointDescriptor					PCMoutDescriptor;
-	OSAction*								PCMoutCallback;
-	
-	IOBufferMemoryDescriptor*				PCMinDataEmpty;
-	IOBufferMemoryDescriptor*				PCMoutDataEmpty;
-	
-	uint32_t								buffersize;
-	
 	OSSharedPtr<IOBufferMemoryDescriptor> 	output_io_ring_buffer;
-	IOBufferMemoryDescriptor*	output_ploytec_ring_buffer;
 	OSSharedPtr<IOBufferMemoryDescriptor> 	input_io_ring_buffer;
-	IOBufferMemoryDescriptor*	input_ploytec_ring_buffer;
-	OSSharedPtr<IOMemoryDescriptor>			PCMoutData[MAX_BUFFERSIZE/XDB4_PCM_OUT_FRAMES_PER_PACKET];
-	OSSharedPtr<IOMemoryDescriptor>			PCMinData[MAX_BUFFERSIZE/XDB4_PCM_IN_PACKET_SIZE];
 	
-	uint8_t*								PCMoutDataAddr[MAX_BUFFERSIZE/XDB4_PCM_OUT_FRAMES_PER_PACKET];
-	uint8_t*								CoreAudioOutputBufferAddr;
-	uint8_t*								CoreAudioInputBufferAddr;
-	uint8_t*								PloytecOutputBufferAddr;
-	uint8_t*								PloytecInputBufferAddr;
+	uint8_t*				CoreAudioOutputBufferAddr;
+	uint8_t*				CoreAudioInputBufferAddr;
+	uint8_t*				PloytecOutputBufferAddr;
+	uint8_t*				PloytecInputBufferAddr;
 	
-	uint64_t								in_sample_time_usb;
-	uint64_t								out_sample_time_usb;
-	uint64_t								out_hw_sample_time_usb;
-	uint16_t								out_current_buffer_pos_usb;
+	uint64_t				HWSampleTimeIn;
+	uint64_t				HWSampleTimeOut;
+	uint64_t				out_hw_sample_time_usb;
+	uint16_t				out_current_buffer_pos_usb;
 	
-	uint64_t								xruns;
+	uint64_t				xruns;
 
-	bool									startpcmin;
-	bool									startpcmout;
+	bool					startpcmin;
+	bool					startpcmout;
 };
 
-bool PloytecDevice::init(IOUserAudioDriver* in_driver, bool in_supports_prewarming, OSString* in_device_uid, OSString* in_model_uid, OSString* in_manufacturer_uid, uint32_t in_zero_timestamp_period, IOUSBHostPipe* PCMinPipe, OSAction* PCMinCallback, IOUSBHostPipe* PCMoutPipe, OSAction* PCMoutCallback, IOUSBHostDevice* device, IOBufferMemoryDescriptor* usbRXBuffer, IOBufferMemoryDescriptor* usbTXBuffer)
+bool PloytecDevice::init(IOUserAudioDriver* in_driver, bool in_supports_prewarming, OSString* in_device_uid, OSString* in_model_uid, OSString* in_manufacturer_uid, uint32_t in_zero_timestamp_period, IOBufferMemoryDescriptor* usbRXBuffer, IOBufferMemoryDescriptor* usbTXBuffer, TransferMode transferMode)
 {
 	auto success = super::init(in_driver, in_supports_prewarming, in_device_uid, in_model_uid, in_manufacturer_uid, in_zero_timestamp_period);
 	if (!success) {
@@ -92,25 +65,18 @@ bool PloytecDevice::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 		return false;
 	}
 	
-	//GetZeroTimestampPeriod() = INITIAL_BUFFERSIZE;
 	int i = 0;
 	IOReturn ret = kIOReturnSuccess;
 	IOAddressSegment range;
-	IOOperationHandler io_operation = nullptr;
-	uint8_t* PCMoutDataEmptyAddr;
-	double sample_rates[] = {96000};
+	IOOperationHandler ioOperationBulk = nullptr;
+	IOOperationHandler ioOperationInterrupt = nullptr;
 	OSSharedPtr<OSString> output_stream_name = OSSharedPtr(OSString::withCString("PLOYTEC PCM OUT"), OSNoRetain);
 	OSSharedPtr<OSString> input_stream_name = OSSharedPtr(OSString::withCString("PLOYTEC PCM IN"), OSNoRetain);
 	ivars->m_driver = OSSharedPtr(in_driver, OSRetain);
 	ivars->m_work_queue = GetWorkQueue();
-	ivars->PCMinPipe = PCMinPipe;
-	ivars->PCMinCallback = PCMinCallback;
-	ivars->PCMoutPipe = PCMoutPipe;
-	ivars->PCMoutCallback = PCMoutCallback;
 	ivars->startpcmin = false;
 	ivars->startpcmout = false;
-	IOUSBStandardEndpointDescriptors indescriptor;
-	IOUSBStandardEndpointDescriptors outdescriptor;
+	double sample_rates[] = {96000};
 	IOUserAudioStreamBasicDescription stream_formats[] =
 	{
 		{
@@ -135,66 +101,11 @@ bool PloytecDevice::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 		},
 	};
 
-	// get the USB descriptors
-	ret = ivars->PCMinPipe->GetDescriptors(&indescriptor, kIOUSBGetEndpointDescriptorOriginal);
-	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to GetDescriptors from PCM in!");
-	ret = ivars->PCMoutPipe->GetDescriptors(&outdescriptor, kIOUSBGetEndpointDescriptorOriginal);
-	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to GetDescriptors from PCM out!");
-	ivars->PCMinDescriptor = indescriptor.descriptor;
-	ivars->PCMoutDescriptor = outdescriptor.descriptor;
-
-	// allocate the empty packets
-	ret = device->CreateIOBuffer(kIOMemoryDirectionInOut, XDB4_PCM_IN_PACKET_SIZE, &ivars->PCMinDataEmpty);
-	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create empty input buffer");
-	if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeBulk) {
-		ret = device->CreateIOBuffer(kIOMemoryDirectionInOut, XDB4_PCM_OUT_BULK_PACKET_SIZE, &ivars->PCMoutDataEmpty);
-	}
-	if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeInterrupt) {
-		ret = device->CreateIOBuffer(kIOMemoryDirectionInOut, XDB4_PCM_OUT_INT_PACKET_SIZE, &ivars->PCMoutDataEmpty);
-	}
-	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create empty output buffer");
-	ret = ivars->PCMoutDataEmpty->GetAddressRange(&range);
-	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to get address of empty output buffer");
-	PCMoutDataEmptyAddr = reinterpret_cast<uint8_t*>(range.address);
-	
-	// set up the initial packet structure
-	if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeBulk) {
-		memset(PCMoutDataEmptyAddr + 0, 0, 480); // PCM
-		memset(PCMoutDataEmptyAddr + 480, 0xfd, 1); // UART
-		memset(PCMoutDataEmptyAddr + 481, 0xff, 1);
-		memset(PCMoutDataEmptyAddr + 482, 0, 30);
-		memset(PCMoutDataEmptyAddr + 512, 0, 480); // PCM
-		memset(PCMoutDataEmptyAddr + 992, 0xfd, 1); // UART
-		memset(PCMoutDataEmptyAddr + 993, 0xff, 1);
-		memset(PCMoutDataEmptyAddr + 994, 0, 30);
-		memset(PCMoutDataEmptyAddr + 1024, 0, 480); // PCM
-		memset(PCMoutDataEmptyAddr + 1504, 0xfd, 1); // UART
-		memset(PCMoutDataEmptyAddr + 1505, 0xff, 1);
-		memset(PCMoutDataEmptyAddr + 1506, 0, 30);
-		memset(PCMoutDataEmptyAddr + 1536, 0, 480); // PCM
-		memset(PCMoutDataEmptyAddr + 2016, 0xfd, 1); // UART
-		memset(PCMoutDataEmptyAddr + 2017, 0xff, 1);
-		memset(PCMoutDataEmptyAddr + 2018, 0, 30);
-	}
-	if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeInterrupt) {
-		memset(PCMoutDataEmptyAddr + 0, 0, 432); // PCM
-		memset(PCMoutDataEmptyAddr + 432, 0xfd, 2); // UART
-		memset(PCMoutDataEmptyAddr + 434, 0, 480); // PCM
-		memset(PCMoutDataEmptyAddr + 914, 0xfd, 2); // UART
-		memset(PCMoutDataEmptyAddr + 916, 0, 480); // PCM
-		memset(PCMoutDataEmptyAddr + 1396, 0xfd, 2); // UART
-		memset(PCMoutDataEmptyAddr + 1398, 0, 480); // PCM
-		memset(PCMoutDataEmptyAddr + 1878, 0xfd, 2); // UART
-		memset(PCMoutDataEmptyAddr + 1880, 0, 48); // PCM
-	}
-	
 	// allocate the USB ring buffers
-	ivars->output_ploytec_ring_buffer = usbTXBuffer;
-	ret = ivars->output_ploytec_ring_buffer->GetAddressRange(&range);
+	ret = usbTXBuffer->GetAddressRange(&range);
 	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to get address of output ring buffer");
 	ivars->PloytecOutputBufferAddr = reinterpret_cast<uint8_t*>(range.address);
-	ivars->input_ploytec_ring_buffer = usbRXBuffer;
-	ivars->input_ploytec_ring_buffer->GetAddressRange(&range);
+	ret = usbRXBuffer->GetAddressRange(&range);
 	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to get address of input ring buffer");
 	ivars->PloytecInputBufferAddr = reinterpret_cast<uint8_t*>(range.address);
 
@@ -209,19 +120,6 @@ bool PloytecDevice::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 	// set the transport type in CoreAudio
 	ret = SetTransportType(IOUserAudioTransportType::USB);
 	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to set transport type in CoreAudio");
-
-	// send the empty urbs
-	for (i = 0; i < PCM_N_URBS; i++) {
-		if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeBulk) {
-			ret = ivars->PCMoutPipe->AsyncIO(ivars->PCMoutDataEmpty, XDB4_PCM_OUT_BULK_PACKET_SIZE, ivars->PCMoutCallback, 0);
-		}
-		if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeInterrupt) {
-			ret = ivars->PCMoutPipe->AsyncIO(ivars->PCMoutDataEmpty, XDB4_PCM_OUT_INT_PACKET_SIZE, ivars->PCMoutCallback, 0);
-		}
-		FailIf(ret != kIOReturnSuccess, , Failure, "Failed to send PCM out urbs");
-		ret = ivars->PCMinPipe->AsyncIO(ivars->PCMinDataEmpty, XDB4_PCM_IN_PACKET_SIZE, ivars->PCMinCallback, 0);
-		FailIf(ret != kIOReturnSuccess, , Failure, "Failed to send PCM in urbs");
-	}
 
 	// allocate the CoreAudio ring buffers
 	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, MAX_BUFFERSIZE * COREAUDIO_PLAYBACK_BYTES_PER_FRAME, 0, ivars->output_io_ring_buffer.attach());
@@ -262,42 +160,85 @@ bool PloytecDevice::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 	FailIfError(ret, , Failure, "Failed to add input stream");
 
 	// this block converts the audio from CoreAudioOutputBuffer to the format the USB device wants in PloytecOutputBuffer
-	io_operation = ^kern_return_t(IOUserAudioObjectID in_device, IOUserAudioIOOperation in_io_operation, uint32_t in_io_buffer_frame_size, uint64_t in_sample_time, uint64_t in_host_time)
+	ioOperationBulk = ^kern_return_t(IOUserAudioObjectID in_device, IOUserAudioIOOperation in_io_operation, uint32_t in_io_buffer_frame_size, uint64_t in_sample_time, uint64_t in_host_time)
 	{
 		__block int i = 0;
 		
 		if (in_io_operation == IOUserAudioIOOperationWriteEnd) {
+			if(ivars->HWSampleTimeOut < (in_sample_time - (GetZeroTimestampPeriod() - in_io_buffer_frame_size)) || ivars->HWSampleTimeOut > in_sample_time)
+			{
+				ivars->xruns++;
+				os_log(OS_LOG_DEFAULT, "RESYNC OUT");
+				ivars->HWSampleTimeOut = in_sample_time - (GetZeroTimestampPeriod()/4);
+			}
+
 			int sampleoffset;
 			int byteoffset;
 
-			if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeBulk) {
-				for (i = 0; i < in_io_buffer_frame_size; i++)
-				{
-					sampleoffset = ((in_sample_time + i) % GetZeroTimestampPeriod());
+			for (i = 0; i < in_io_buffer_frame_size; i++)
+			{
+				sampleoffset = ((in_sample_time + i) % GetZeroTimestampPeriod());
 
-					if (sampleoffset >= 10) {
-						byteoffset = ((sampleoffset - 10) / 10) * 32 + 32;
-					} else {
-						byteoffset = 0;
-					}
-
-					ploytec_convert_from_s24_3le(ivars->PloytecOutputBufferAddr + byteoffset + (sampleoffset * XDB4_PCM_OUT_FRAME_SIZE), ivars->CoreAudioOutputBufferAddr + (sampleoffset * COREAUDIO_PLAYBACK_BYTES_PER_FRAME));
+				if (sampleoffset >= 10) {
+					byteoffset = ((sampleoffset - 10) / 10) * 32 + 32;
+				} else {
+					byteoffset = 0;
 				}
-			} else if (ivars->PCMoutDescriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeInterrupt) {
-				for (i = 0; i < in_io_buffer_frame_size; i++)
-				{
-					sampleoffset = ((in_sample_time + i) % GetZeroTimestampPeriod());
 
-					if (sampleoffset >= 9) {
-						byteoffset = ((sampleoffset - 9) / 10) * 2 + 2;
-					} else {
-						byteoffset = 0;
-					}
-
-					ploytec_convert_from_s24_3le(ivars->PloytecOutputBufferAddr + byteoffset + (sampleoffset * XDB4_PCM_OUT_FRAME_SIZE), ivars->CoreAudioOutputBufferAddr + (sampleoffset * COREAUDIO_PLAYBACK_BYTES_PER_FRAME));
-				}
+				ploytec_convert_from_s24_3le(ivars->PloytecOutputBufferAddr + byteoffset + (sampleoffset * XDB4_PCM_OUT_FRAME_SIZE), ivars->CoreAudioOutputBufferAddr + (sampleoffset * COREAUDIO_PLAYBACK_BYTES_PER_FRAME));
 			}
 		} else if (in_io_operation == IOUserAudioIOOperationBeginRead) {
+			if(ivars->HWSampleTimeIn > (in_sample_time + (GetZeroTimestampPeriod() - in_io_buffer_frame_size)) || ivars->HWSampleTimeIn < in_sample_time)
+			{
+				ivars->xruns++;
+				os_log(OS_LOG_DEFAULT, "RESYNC IN");
+				ivars->HWSampleTimeIn = in_sample_time + (GetZeroTimestampPeriod()/4);
+			}
+
+			for (i = 0; i < in_io_buffer_frame_size; i++)
+			{
+				ploytec_convert_to_s24_3le(ivars->CoreAudioInputBufferAddr + (((in_sample_time + i) % GetZeroTimestampPeriod()) * COREAUDIO_CAPTURE_BYTES_PER_FRAME), ivars->PloytecInputBufferAddr + (((in_sample_time + i) % GetZeroTimestampPeriod()) * XDB4_PCM_IN_FRAME_SIZE));
+			}
+		}
+
+		return kIOReturnSuccess;
+	};
+
+	ioOperationInterrupt = ^kern_return_t(IOUserAudioObjectID in_device, IOUserAudioIOOperation in_io_operation, uint32_t in_io_buffer_frame_size, uint64_t in_sample_time, uint64_t in_host_time)
+	{
+		__block int i = 0;
+
+		if (in_io_operation == IOUserAudioIOOperationWriteEnd) {
+			if(ivars->HWSampleTimeOut < (in_sample_time - (GetZeroTimestampPeriod() - in_io_buffer_frame_size)) || ivars->HWSampleTimeOut > in_sample_time)
+			{
+				ivars->xruns++;
+				os_log(OS_LOG_DEFAULT, "RESYNC OUT");
+				ivars->HWSampleTimeOut = in_sample_time - (GetZeroTimestampPeriod()/4);
+			}
+
+			int sampleoffset;
+			int byteoffset;
+
+			for (i = 0; i < in_io_buffer_frame_size; i++)
+			{
+				sampleoffset = ((in_sample_time + i) % GetZeroTimestampPeriod());
+
+				if (sampleoffset >= 9) {
+					byteoffset = ((sampleoffset - 9) / 10) * 2 + 2;
+				} else {
+					byteoffset = 0;
+				}
+
+				ploytec_convert_from_s24_3le(ivars->PloytecOutputBufferAddr + byteoffset + (sampleoffset * XDB4_PCM_OUT_FRAME_SIZE), ivars->CoreAudioOutputBufferAddr + (sampleoffset * COREAUDIO_PLAYBACK_BYTES_PER_FRAME));
+			}
+		} else if (in_io_operation == IOUserAudioIOOperationBeginRead) {
+			if(ivars->HWSampleTimeIn > (in_sample_time + (GetZeroTimestampPeriod() - in_io_buffer_frame_size)) || ivars->HWSampleTimeIn < in_sample_time)
+			{
+				ivars->xruns++;
+				os_log(OS_LOG_DEFAULT, "RESYNC IN");
+				ivars->HWSampleTimeIn = in_sample_time + (GetZeroTimestampPeriod()/4);
+			}
+
 			for (i = 0; i < in_io_buffer_frame_size; i++)
 			{
 				ploytec_convert_to_s24_3le(ivars->CoreAudioInputBufferAddr + (((in_sample_time + i) % GetZeroTimestampPeriod()) * COREAUDIO_CAPTURE_BYTES_PER_FRAME), ivars->PloytecInputBufferAddr + (((in_sample_time + i) % GetZeroTimestampPeriod()) * XDB4_PCM_IN_FRAME_SIZE));
@@ -307,7 +248,10 @@ bool PloytecDevice::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 		return kIOReturnSuccess;
 	};
 
-	this->SetIOOperationHandler(io_operation);
+	if (transferMode == INTERRUPT)
+		this->SetIOOperationHandler(ioOperationInterrupt);
+	else if (transferMode == BULK)
+		this->SetIOOperationHandler(ioOperationBulk);
 	
 	return true;
 
@@ -346,8 +290,8 @@ kern_return_t PloytecDevice::StartIO(IOUserAudioStartStopFlags in_flags)
 
 		UpdateCurrentZeroTimestamp(0, 0);
 
-		ivars->out_sample_time_usb = 0;
-		ivars->in_sample_time_usb = 0;
+		ivars->HWSampleTimeOut = 0;
+		ivars->HWSampleTimeIn = 0;
 			
 		ivars->startpcmout = true;
 		ivars->startpcmin = true;
@@ -386,14 +330,6 @@ kern_return_t PloytecDevice::PerformDeviceConfigurationChange(uint64_t change_ac
 {
 	kern_return_t ret = kIOReturnSuccess;
 	switch (change_action) {
-		case k_change_buffer_size_action:
-		{
-			auto change_info_string = OSDynamicCast(OSNumber, in_change_info);
-			//GetZeroTimestampPeriod() = change_info_string->unsigned32BitValue();
-			//SetZeroTimeStampPeriod(change_info_string->unsigned32BitValue());
-		}
-			break;
-			
 		default:
 			ret = super::PerformDeviceConfigurationChange(change_action, in_change_info);
 			break;
@@ -431,28 +367,27 @@ kern_return_t PloytecDevice::GetPlaybackStats(playbackstats *stats)
 	stats->playing = ivars->startpcmout;
 	stats->recording = ivars->startpcmin;
 	stats->out_sample_time = out_sample_time;
-	stats->out_sample_time_usb = ivars->out_sample_time_usb;
-	stats->out_sample_time_diff = ivars->out_sample_time_usb - out_sample_time;
+	stats->out_sample_time_usb = ivars->HWSampleTimeOut;
+	stats->out_sample_time_diff = ivars->HWSampleTimeOut - out_sample_time;
 	stats->in_sample_time = in_sample_time;
-	stats->in_sample_time_usb = ivars->in_sample_time_usb;
-	stats->in_sample_time_diff = ivars->in_sample_time_usb - in_sample_time;
+	stats->in_sample_time_usb = ivars->HWSampleTimeIn;
+	stats->in_sample_time_diff = ivars->HWSampleTimeIn - in_sample_time;
 	stats->xruns = ivars->xruns;
 	
 	return kIOReturnSuccess;
 }
 
-bool PloytecDevice::SendPCMToDevice(uint64_t completionTimestamp)
+bool PloytecDevice::Playback(uint16_t &currentpos, uint64_t completionTimestamp)
 {
-	__block kern_return_t ret;
-	__block int i = 0;
-	
 	if(ivars->startpcmout == true) {
+		currentpos = (ivars->HWSampleTimeOut % GetZeroTimestampPeriod()) / XDB4_PCM_OUT_FRAMES_PER_PACKET;
 		if(ivars->out_current_buffer_pos_usb == GetZeroTimestampPeriod()) {
 			ivars->out_current_buffer_pos_usb = 0;
 			GetCurrentZeroTimestamp(&ivars->out_hw_sample_time_usb, nullptr);
 			ivars->out_hw_sample_time_usb += GetZeroTimestampPeriod();
 			UpdateCurrentZeroTimestamp(ivars->out_hw_sample_time_usb, completionTimestamp);
 		}
+		ivars->HWSampleTimeOut += XDB4_PCM_OUT_FRAMES_PER_PACKET;
 		ivars->out_current_buffer_pos_usb += XDB4_PCM_OUT_FRAMES_PER_PACKET;
 		return true;
 	} else {
@@ -460,17 +395,15 @@ bool PloytecDevice::SendPCMToDevice(uint64_t completionTimestamp)
 	}
 }
 
-kern_return_t PloytecDevice::ReceivePCMfromDevice(uint64_t completionTimestamp)
+bool PloytecDevice::Capture(uint16_t &currentpos, uint64_t completionTimestamp)
 {
-	__block int i;
-	__block kern_return_t ret;
-	__block int currentpos;
-	
 	if(ivars->startpcmin == true) {
-		currentpos = (ivars->in_sample_time_usb % GetZeroTimestampPeriod()) / XDB4_PCM_IN_PACKET_SIZE;
-		ivars->in_sample_time_usb += XDB4_PCM_IN_FRAMES_PER_PACKET;
+		currentpos = (ivars->HWSampleTimeIn % GetZeroTimestampPeriod()) / XDB4_PCM_IN_FRAMES_PER_PACKET;
+		ivars->HWSampleTimeIn += XDB4_PCM_IN_FRAMES_PER_PACKET;
+		return true;
+	} else {
+		return false;
 	}
-	return ret;
 }
 
 /* Takes 24 bytes, outputs 48 bytes */

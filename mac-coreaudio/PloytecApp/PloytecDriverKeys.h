@@ -16,7 +16,6 @@ enum PloytecDriverExternalMethod
 	PloytecDriverExternalMethod_GetFirmwareVer,
 	PloytecDriverExternalMethod_GetDeviceName,
 	PloytecDriverExternalMethod_GetDeviceManufacturer,
-	PloytecDriverExternalMethod_ChangeBufferSize,
 	PloytecDriverExternalMethod_GetPlaybackStats,
 };
 

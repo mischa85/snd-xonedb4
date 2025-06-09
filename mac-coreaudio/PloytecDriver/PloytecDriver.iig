@@ -29,11 +29,11 @@ public:
 	virtual OSData* GetDeviceName() LOCALONLY;
 	virtual OSData* GetDeviceManufacturer() LOCALONLY;
 	kern_return_t GetPlaybackStats(playbackstats *stats) LOCALONLY;
-	kern_return_t ChangeBufferSize(OSNumber *buffersize) LOCALONLY;
 
 protected:
 	virtual kern_return_t PCMinHandler(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);
-	virtual kern_return_t PCMoutHandler(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);
+	virtual kern_return_t PCMoutHandlerBulk(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);
+	virtual kern_return_t PCMoutHandlerInterrupt(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);
 };
 
 #endif /* PloytecDriver_h */

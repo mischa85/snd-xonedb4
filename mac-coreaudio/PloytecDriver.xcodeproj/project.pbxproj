@@ -7,6 +7,7 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		1F6D5CD02DF70DBE00FF47D8 /* PloytecSharedTypes.iig in Sources */ = {isa = PBXBuildFile; fileRef = 1F6D5CCF2DF70DB500FF47D8 /* PloytecSharedTypes.iig */; };
 		1F9FA7792BFB8267000F6942 /* PloytecDevice.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 1F9FA7782BFB8267000F6942 /* PloytecDevice.cpp */; };
 		1F9FA77B2BFB829E000F6942 /* PloytecDevice.iig in Sources */ = {isa = PBXBuildFile; fileRef = 1F9FA77A2BFB8284000F6942 /* PloytecDevice.iig */; };
 		1F9FA7812BFB9C8A000F6942 /* AudioDriverKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1F9FA77C2BFB9BD9000F6942 /* AudioDriverKit.framework */; };
@@ -62,6 +63,7 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		1F6D5CCF2DF70DB500FF47D8 /* PloytecSharedTypes.iig */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.iig; path = PloytecSharedTypes.iig; sourceTree = "<group>"; };
 		1F9FA7782BFB8267000F6942 /* PloytecDevice.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = PloytecDevice.cpp; sourceTree = "<group>"; };
 		1F9FA77A2BFB8284000F6942 /* PloytecDevice.iig */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.iig; path = PloytecDevice.iig; sourceTree = "<group>"; };
 		1F9FA77C2BFB9BD9000F6942 /* AudioDriverKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioDriverKit.framework; path = Platforms/DriverKit.platform/Developer/SDKs/DriverKit23.4.sdk/System/DriverKit/System/Library/Frameworks/AudioDriverKit.framework; sourceTree = DEVELOPER_DIR; };
@@ -170,6 +172,7 @@
 				6F55577722B2C52C00139F6B /* PloytecDriver.entitlements */,
 				1F9FA7782BFB8267000F6942 /* PloytecDevice.cpp */,
 				1F9FA77A2BFB8284000F6942 /* PloytecDevice.iig */,
+				1F6D5CCF2DF70DB500FF47D8 /* PloytecSharedTypes.iig */,
 				6F55577222B2C52C00139F6B /* PloytecDriver.cpp */,
 				6F55577422B2C52C00139F6B /* PloytecDriver.iig */,
 				1FCE8FD82C37434300313EB4 /* PloytecDriverUserClient.cpp */,
@@ -309,6 +312,7 @@
 			files = (
 				1FCE8FDE2C37449F00313EB4 /* PloytecDriverUserClient.iig in Sources */,
 				6F55577322B2C52C00139F6B /* PloytecDriver.cpp in Sources */,
+				1F6D5CD02DF70DBE00FF47D8 /* PloytecSharedTypes.iig in Sources */,
 				6F55577522B2C52C00139F6B /* PloytecDriver.iig in Sources */,
 				1FCE8FDB2C37434300313EB4 /* PloytecDriverUserClient.cpp in Sources */,
 				1F9FA7792BFB8267000F6942 /* PloytecDevice.cpp in Sources */,

@@ -8,8 +8,6 @@ struct PloytecAppView: View {
 	@State private var deviceNameText = ""
 	@State private var deviceManufacturerText = ""
 	@State private var playbackStatsText = ""
-	@State private var selectedBufferSize = 2560
-	let bufferSize = [160, 320, 480, 640, 800, 960, 1120, 1280, 1440, 1600, 1760, 1920, 2080, 2240, 2400, 2560, 2720, 2880, 3040, 3200, 3360, 3520, 3680, 3840, 4000]
 	private let playbackStatsUpdateInterval = 1.0
 	@State private var timer: Timer?
 
@@ -50,29 +48,14 @@ struct PloytecAppView: View {
 						.font(.title)
 					Text(userClientText)
 						.multilineTextAlignment(.center)
-					HStack {
-						Button(action: {
-							userClientText = self.userClient.openConnection()
-							firmwareVersionText = self.userClient.getFirmwareVersion()
-							deviceNameText = self.userClient.getDeviceName()
-							deviceManufacturerText = self.userClient.getDeviceManufacturer()
-						}, label: {
-							Text("Open User Client")
-						})
-						Spacer()
-						// Add a Picker for the dropdown menu
-						Picker("Buffersize", selection: $selectedBufferSize) {
-							ForEach(bufferSize, id: \.self) { size in
-								Text("\(size)")
-							}
-						}
-						.padding()
-						.frame(width: 200)
-						.pickerStyle(MenuPickerStyle()) // Display as dropdown menu
-						.onChange(of: selectedBufferSize) { newValue in
-							self.userClient.changeBufferSize(UInt32(newValue))
-						}
-					}
+					Button(action: {
+						userClientText = self.userClient.openConnection()
+						firmwareVersionText = self.userClient.getFirmwareVersion()
+						deviceNameText = self.userClient.getDeviceName()
+						deviceManufacturerText = self.userClient.getDeviceManufacturer()
+					}, label: {
+						Text("Open User Client")
+					})
 					.padding()
 
 					Text(deviceNameText)

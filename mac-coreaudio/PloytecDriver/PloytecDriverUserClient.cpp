@@ -116,13 +116,6 @@ kern_return_t PloytecDriverUserClient::ExternalMethod(uint64_t selector, IOUserC
 			break;
 		}
 
-		case PloytecDriverExternalMethod_ChangeBufferSize: {
-			ret = kIOReturnSuccess;
-			OSNumber* buffersize = OSNumber::withNumber(*static_cast<const uint64_t*>(arguments->scalarInput), sizeof(arguments->scalarInput));
-			ivars->mProvider->ChangeBufferSize(buffersize);
-			break;
-		}
-
 		case PloytecDriverExternalMethod_GetPlaybackStats: {
 			playbackstats stats;
 			ret = ivars->mProvider->GetPlaybackStats(&stats);
