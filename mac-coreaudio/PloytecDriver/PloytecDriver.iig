@@ -12,6 +12,7 @@
 #include <DriverKit/IOService.iig>
 #include <AudioDriverKit/IOUserAudioDriver.iig>
 #include "PloytecDevice.iig"
+#include "PloytecDriverUserClient.iig"
 
 using namespace AudioDriverKit;
 
@@ -55,6 +56,8 @@ struct PloytecDriver_IVars
 	uint8_t					midiReadIndex = 0;
 	uint8_t					midiWriteIndex = 0;
 	uint8_t					midiCount = 0;
+	IOUserClient* midiUserClient = nullptr;
+	PloytecDriverUserClient* midiClient = nullptr;
 };
 
 class PloytecDriver: public IOUserAudioDriver

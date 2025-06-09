@@ -7,7 +7,7 @@
 //
 
 // The local includes.
-#include "PloytecDriverUserClient.h"
+//#include "PloytecDriverUserClient.h"
 #include "PloytecDriver.h"
 #include "PloytecDevice.h"
 #include "PloytecDriverKeys.h"
@@ -16,12 +16,14 @@
 #include <DriverKit/DriverKit.h>
 #include <DriverKit/OSSharedPtr.h>
 #include <AudioDriverKit/AudioDriverKit.h>
+#include <DriverKit/IODispatchSource.h>
 
 #define	DebugMsg(inFormat, args...)	os_log(OS_LOG_DEFAULT, "%s: " inFormat "\n", __FUNCTION__, ##args)
 
 struct PloytecDriverUserClient_IVars
 {
 	OSSharedPtr<PloytecDriver> mProvider = nullptr;
+	OSAction* midiNotificationAction = nullptr;
 };
 
 bool PloytecDriverUserClient::init()
@@ -41,6 +43,10 @@ bool PloytecDriverUserClient::init()
 void PloytecDriverUserClient::free()
 {
 	if (ivars != nullptr) {
+		if (ivars->midiNotificationAction) {
+			ivars->midiNotificationAction->release();
+			ivars->midiNotificationAction = nullptr;
+		}
 		ivars->mProvider.reset();
 	}
 	IOSafeDeleteNULL(ivars, PloytecDriverUserClient_IVars, 1);
@@ -123,24 +129,55 @@ kern_return_t PloytecDriverUserClient::ExternalMethod(uint64_t selector, IOUserC
 			break;
 		}
 
-		case PloytecDriverExternalMethod_GetNextMIDIPacket: {
-			auto drv = ivars->mProvider->ivars;
-
-			if (drv->midiCount > 0) {
-				arguments->scalarOutput[0] = drv->midiRingBuffer[drv->midiReadIndex];
-				arguments->scalarOutputCount = 1;
-				drv->midiReadIndex = (drv->midiReadIndex + 1) % 256;
-				drv->midiCount--;
-				ret = kIOReturnSuccess;
-			} else {
-				ret = kIOReturnNoResources;
-			}
-			break;
-		}
-
 		default:
 			ret = super::ExternalMethod(selector, arguments, dispatch, target, reference);
 	};
 
 	return ret;
 }
+
+kern_return_t
+PloytecDriverUserClient::registerForMIDINotification_Impl(IOUserClientMethodArguments* arguments)
+{
+	if (!arguments || !arguments->completion)
+		return kIOReturnBadArgument;
+
+	// Retain the OSAction, we will complete it later
+	arguments->completion->retain();
+	ivars->midiNotificationAction = arguments->completion;
+
+	return kIOReturnSuccess;
+}
+
+kern_return_t
+PloytecDriverUserClient::GetNextMIDIMessage_Impl(OSData **msg_out)
+{
+	if (ivars->mProvider->ivars->midiCount == 0)
+		return kIOReturnNoResources;
+
+	uint64_t msg = ivars->mProvider->ivars->midiRingBuffer[ivars->mProvider->ivars->midiReadIndex];
+	ivars->mProvider->ivars->midiReadIndex = (ivars->mProvider->ivars->midiReadIndex + 1) % 255;
+	ivars->mProvider->ivars->midiCount--;
+
+	*msg_out = OSData::withBytes(&msg, sizeof(msg));
+	return (*msg_out) ? kIOReturnSuccess : kIOReturnNoMemory;
+}
+
+kern_return_t
+PloytecDriverUserClient::postMIDIMessage(uint64_t msg)
+{
+	if (!ivars || !ivars->midiNotificationAction)
+		return kIOReturnNoResources;
+
+	uint64_t asyncArgs[1] = { msg };
+
+	// Send async result
+	AsyncCompletion(ivars->midiNotificationAction, kIOReturnSuccess, asyncArgs, 1);
+
+	// Release the OSAction, we are done using it
+	ivars->midiNotificationAction->release();
+	ivars->midiNotificationAction = nullptr;
+
+	return kIOReturnSuccess;
+}
+
