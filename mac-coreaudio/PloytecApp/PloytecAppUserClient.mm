@@ -19,6 +19,8 @@
 // Open a user client instance, which initiates communication with the driver.
 - (NSString*)openConnection
 {
+	bool newlyConnected = false;
+
 	if (_ioObject == IO_OBJECT_NULL && _ioConnection == IO_OBJECT_NULL)
 	{
 		// Get the IOKit main port.
@@ -28,30 +30,78 @@
 			return @"Failed to get IOMainPort.";
 		}
 
-		// Create a matching dictionary for the driver class.
-		// Note that classes you publish by a dext need to match by class name
-		// (for example, use `IOServiceNameMatching` to construct the
-		// matching dictionary, not `IOServiceMatching`).
 		CFDictionaryRef theMatchingDictionary = IOServiceNameMatching("PloytecDriver");
 		io_service_t matchedService = IOServiceGetMatchingService(theMainPort, theMatchingDictionary);
 		if (matchedService) {
 			_ioObject = matchedService;
 			theKernelError = IOServiceOpen(_ioObject, mach_task_self(), 0, &_ioConnection);
-			if (theKernelError == kIOReturnSuccess) {
-				// Post notification for successful connection
-				[[NSNotificationCenter defaultCenter] postNotificationName:@"UserClientConnectionOpened" object:nil];
-				return @"Connection to user client succeeded";
-			}
-			else {
+			if (theKernelError != kIOReturnSuccess) {
 				_ioObject = IO_OBJECT_NULL;
 				_ioConnection = IO_OBJECT_NULL;
 				return [NSString stringWithFormat:@"Failed to open user client connection, error: %s.", mach_error_string(theKernelError)];
 			}
+			newlyConnected = true;
+			[[NSNotificationCenter defaultCenter] postNotificationName:@"UserClientConnectionOpened" object:nil];
+		} else {
+			return @"Driver Extension is not running";
 		}
-		return @"Driver Extension is not running";
 	}
-	return @"User client is already connected";
+
+	mach_port_t notifyPort = MACH_PORT_NULL;
+	kern_return_t kr = IOCreateReceivePort(kOSAsyncCompleteMessageID, &notifyPort);
+	if (kr != KERN_SUCCESS) {
+		return [NSString stringWithFormat:@"Failed to create Mach receive port: %s", mach_error_string(kr)];
+	}
+
+	kr = IOConnectSetNotificationPort(_ioConnection, 0, notifyPort, 0);
+	if (kr != KERN_SUCCESS) {
+		return [NSString stringWithFormat:@"Failed to set notification port: %s", mach_error_string(kr)];
+	}
+
+	uint64_t asyncRef[1] = { 0x1337 };
+	kr = IOConnectCallAsyncScalarMethod(
+		_ioConnection,
+		PloytecDriverExternalMethod_RegisterForMIDINotification,
+		notifyPort, asyncRef, 1,
+		NULL, 0,
+		NULL, NULL
+	);
+	if (kr != KERN_SUCCESS) {
+		return [NSString stringWithFormat:@"Failed to register for async MIDI notifications: %s", mach_error_string(kr)];
+	}
+
+	dispatch_source_t source = dispatch_source_create(DISPATCH_SOURCE_TYPE_MACH_RECV, notifyPort, 0, dispatch_get_main_queue());
+	dispatch_source_set_event_handler(source, ^{
+		mach_msg_header_t msg;
+		kern_return_t r = mach_msg(&msg, MACH_RCV_MSG | MACH_RCV_TIMEOUT, 0, sizeof(msg), notifyPort, 0, MACH_PORT_NULL);
+		if (r == KERN_SUCCESS) {
+			uint64_t asyncRef[1] = { 0x1337 }; // not used in this dummy call
+			uint64_t inputScalar[1] = { 0 };   // optional
+			uint32_t inputScalarCnt = 0;
+
+			uint64_t outputScalar[1] = { 0 };
+			uint32_t outputScalarCnt = 0;
+
+			uint8_t outputStruct[1] = { 0 };
+			size_t outputStructCnt = sizeof(outputStruct);
+
+			IOConnectCallAsyncMethod(
+				_ioConnection,
+				0,                   // selector (use a valid one if needed)
+				MACH_PORT_NULL,      // async reply port (not needed here)
+				asyncRef, 1,         // async reference
+				inputScalar, inputScalarCnt,
+				NULL, 0,             // inputStruct, inputStructCnt
+				outputScalar, &outputScalarCnt,
+				outputStruct, &outputStructCnt
+			);
+		}
+	});
+	dispatch_resume(source);
+
+	return newlyConnected ? @"Connection to user client succeeded" : @"User client was already connected";
 }
+
 
 - (NSString*)getDeviceName
 {
@@ -129,18 +179,12 @@
 	return stats;
 }
 
-- (BOOL)getNextMIDIPacket:(uint64_t*)packet {
-	if (_ioConnection == IO_OBJECT_NULL) {
-		return NO;
+static void MIDIAsyncCallback(void* refcon, IOReturn result, void** args, uint32_t numArgs) {
+	if (result == kIOReturnSuccess && numArgs >= 1) {
+		uint64_t midiMessage = (uint64_t)args[0];
+		NSLog(@"Received async MIDI message: 0x%llx", midiMessage);
+		// Optionally: forward this to the main thread or SwiftUI via NotificationCenter, Combine, or delegate
 	}
-	
-	uint32_t outputCount = 1;
-	kern_return_t error = IOConnectCallScalarMethod(_ioConnection,
-		PloytecDriverExternalMethod_GetNextMIDIPacket,
-		NULL, 0, // no input
-		packet, &outputCount);
-
-	return (error == kIOReturnSuccess && outputCount == 1);
 }
 
 @end

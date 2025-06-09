@@ -17,7 +17,7 @@ enum PloytecDriverExternalMethod
 	PloytecDriverExternalMethod_GetDeviceName,
 	PloytecDriverExternalMethod_GetDeviceManufacturer,
 	PloytecDriverExternalMethod_GetPlaybackStats,
-	PloytecDriverExternalMethod_GetNextMIDIPacket,
+	PloytecDriverExternalMethod_RegisterForMIDINotification,
 };
 
 #endif /* PloytecDriverKeys_h */

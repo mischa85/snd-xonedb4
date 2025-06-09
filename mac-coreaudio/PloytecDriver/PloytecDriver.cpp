@@ -234,7 +234,9 @@ void PloytecDriver::free()
 kern_return_t PloytecDriver::NewUserClient_Impl(uint32_t in_type, IOUserClient** out_user_client)
 {
 	kern_return_t error = kIOReturnSuccess;
-	
+
+	ivars->midiClient = OSDynamicCast(PloytecDriverUserClient, *out_user_client);
+
 	if (in_type == kIOUserAudioDriverUserClientType)
 	{
 		error = super::NewUserClient(in_type, out_user_client, SUPERDISPATCH);
@@ -248,7 +250,7 @@ kern_return_t PloytecDriver::NewUserClient_Impl(uint32_t in_type, IOUserClient**
 		FailIfError(error, , Failure, "failed to create the PloytecDriver user client");
 		*out_user_client = OSDynamicCast(IOUserClient, user_client_service);
 	}
-	
+
 Failure:
 	return error;
 }
@@ -344,6 +346,10 @@ kern_return_t IMPL(PloytecDriver, MIDIinHandler)
 		ivars->midiWriteIndex = (ivars->midiWriteIndex + 1) % 255;
 		ivars->midiCount++;
 	}
+	if (ivars->midiClient) {
+		ivars->midiClient->postMIDIMessage(msg);  // delegate to user client
+	}
+
 	kern_return_t ret = ivars->usbMIDIinPipe->AsyncIO(ivars->usbRXBufferMIDI.get(), 2048, ivars->usbMIDIinCallback, 0);
 	return ret;
 }
