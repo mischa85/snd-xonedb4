@@ -123,6 +123,21 @@ kern_return_t PloytecDriverUserClient::ExternalMethod(uint64_t selector, IOUserC
 			break;
 		}
 
+		case PloytecDriverExternalMethod_GetNextMIDIPacket: {
+			auto drv = ivars->mProvider->ivars;
+
+			if (drv->midiCount > 0) {
+				arguments->scalarOutput[0] = drv->midiRingBuffer[drv->midiReadIndex];
+				arguments->scalarOutputCount = 1;
+				drv->midiReadIndex = (drv->midiReadIndex + 1) % 256;
+				drv->midiCount--;
+				ret = kIOReturnSuccess;
+			} else {
+				ret = kIOReturnNoResources;
+			}
+			break;
+		}
+
 		default:
 			ret = super::ExternalMethod(selector, arguments, dispatch, target, reference);
 	};

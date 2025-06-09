@@ -54,7 +54,7 @@ struct PloytecDevice_IVars
 	bool					startpcmout;
 };
 
-bool PloytecDevice::init(IOUserAudioDriver* in_driver, bool in_supports_prewarming, OSString* in_device_uid, OSString* in_model_uid, OSString* in_manufacturer_uid, uint32_t in_zero_timestamp_period, IOBufferMemoryDescriptor* usbRXBuffer, IOBufferMemoryDescriptor* usbTXBuffer, TransferMode transferMode)
+bool PloytecDevice::init(IOUserAudioDriver* in_driver, bool in_supports_prewarming, OSString* in_device_uid, OSString* in_model_uid, OSString* in_manufacturer_uid, uint32_t in_zero_timestamp_period, IOBufferMemoryDescriptor* receiveBuffer, IOBufferMemoryDescriptor* transmitBuffer, TransferMode transferMode)
 {
 	auto success = super::init(in_driver, in_supports_prewarming, in_device_uid, in_model_uid, in_manufacturer_uid, in_zero_timestamp_period);
 	if (!success) {
@@ -102,10 +102,10 @@ bool PloytecDevice::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 	};
 
 	// allocate the USB ring buffers
-	ret = usbTXBuffer->GetAddressRange(&range);
+	ret = transmitBuffer->GetAddressRange(&range);
 	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to get address of output ring buffer");
 	ivars->PloytecOutputBufferAddr = reinterpret_cast<uint8_t*>(range.address);
-	ret = usbRXBuffer->GetAddressRange(&range);
+	ret = receiveBuffer->GetAddressRange(&range);
 	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to get address of input ring buffer");
 	ivars->PloytecInputBufferAddr = reinterpret_cast<uint8_t*>(range.address);
 

@@ -19,40 +19,6 @@ constexpr uint32_t k_zero_time_stamp_period = 2560;
 static const char8_t sampleratebytes48[3] = { 0x80, 0xBB, 0x00 };
 static const char8_t sampleratebytes96[3] = { 0x00, 0x77, 0x01 };
 
-struct PloytecDriver_IVars
-{
-	OSSharedPtr<IODispatchQueue>		workQueue;
-	OSSharedPtr<PloytecDevice>		audioDevice;
-
-	IOUSBHostDevice				*usbDevice;
-	IOUSBHostInterface			*usbInterface0;
-	IOUSBHostInterface			*usbInterface1;
-	IOUSBHostPipe				*usbMIDIinPipe;
-	IOUSBHostPipe				*usbPCMoutPipe;
-	IOUSBHostPipe				*usbPCMinPipe;
-	OSAction				*usbPCMoutCallbackBulk;
-	OSAction				*usbPCMoutCallbackInterrupt;
-	OSAction				*usbPCMinCallback;
-
-	OSSharedPtr<IOBufferMemoryDescriptor>	usbRXBufferCONTROL;
-	OSSharedPtr<IOBufferMemoryDescriptor> 	usbTXBufferPCMandUART;
-	OSSharedPtr<IOMemoryDescriptor>		usbTXBufferPCMandUARTSegment[32768];
-	uint16_t				usbTXBufferPCMandUARTCurrentSegment;
-	OSSharedPtr<IOBufferMemoryDescriptor> 	usbRXBufferPCM;
-	OSSharedPtr<IOMemoryDescriptor>		usbRXBufferPCMSegment[32768];
-	uint16_t				usbRXBufferPCMCurrentSegment;
-	
-	char					*firmwarever;
-	IOBufferMemoryDescriptor		*sampleratebytes;
-	OSSharedPtr<OSString>			FirmwareVersionBytes;
-	OSSharedPtr<OSString>			manufacturer_uid;
-	OSSharedPtr<OSString>			device_name;
-	char 					*manufacturer_utf8;
-	char 					*device_name_utf8;
-
-	TransferMode				transferMode;
-};
-
 bool PloytecDriver::init()
 {
 	bool result = false;
@@ -118,6 +84,11 @@ kern_return_t IMPL(PloytecDriver, Start)
 		ret = IOMemoryDescriptor::CreateSubMemoryDescriptor(kIOMemoryDirectionInOut, i * 2048, 2048, ivars->usbRXBufferPCM.get(), ivars->usbRXBufferPCMSegment[i].attach());
 		FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create USB input SubMemoryDescriptor");
 	}
+	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, 32768, 0, ivars->usbRXBufferMIDI.attach());
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create input MIDI buffer");
+	ret = ivars->usbRXBufferMIDI->GetAddressRange(&range);
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to get firmware address bytes");
+	ivars->usbRXBufferMIDIAddr = reinterpret_cast<uint8_t *>(range.address);
 
 	// get firmware
 	ret = ivars->usbDevice->DeviceRequest(this, 0xc0, 0x56, 0x00, 0x00, 0x0f, ivars->usbRXBufferCONTROL.get(), &bytesTransferred, 0);
@@ -205,6 +176,9 @@ kern_return_t IMPL(PloytecDriver, Start)
 	else if (ivars->transferMode == INTERRUPT)
 		ret = OSAction::Create(this, PloytecDriver_PCMoutHandlerInterrupt_ID, IOUSBHostPipe_CompleteAsyncIO_ID, 0, &ivars->usbPCMoutCallbackInterrupt);
 	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create the PCM out USB handler");
+	
+	ret = OSAction::Create(this, PloytecDriver_MIDIinHandler_ID, IOUSBHostPipe_CompleteAsyncIO_ID, 0, &ivars->usbMIDIinCallback);
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create the MIDI in USB handler");
 
 	// send the empty urbs
 	for (i = 0; i < 8; i++) {
@@ -212,8 +186,9 @@ kern_return_t IMPL(PloytecDriver, Start)
 			ret = ivars->usbPCMoutPipe->AsyncIO(ivars->usbTXBufferPCMandUARTSegment[0].get(), 2048, ivars->usbPCMoutCallbackBulk, 0);
 		} else if (ivars->transferMode == INTERRUPT)
 			ret = ivars->usbPCMoutPipe->AsyncIO(ivars->usbTXBufferPCMandUARTSegment[0].get(), 1928, ivars->usbPCMoutCallbackInterrupt, 0);
+		ret = ivars->usbPCMinPipe->AsyncIO(ivars->usbRXBufferPCMSegment[0].get(), 2048, ivars->usbPCMinCallback, 0);
+		ret = ivars->usbMIDIinPipe->AsyncIO(ivars->usbRXBufferMIDI.get(), 2048, ivars->usbMIDIinCallback, 0);
 	}
-	ret = ivars->usbPCMinPipe->AsyncIO(ivars->usbRXBufferPCMSegment[0].get(), 2048, ivars->usbPCMinCallback, 0);
 
 	ivars->workQueue = GetWorkQueue();
 	FailIfNULL(ivars->workQueue.get(), ret = kIOReturnInvalid, Exit, "Invalid device");
@@ -356,5 +331,19 @@ kern_return_t IMPL(PloytecDriver, PCMoutHandlerInterrupt)
 {
 	ivars->audioDevice->Playback(ivars->usbTXBufferPCMandUARTCurrentSegment, completionTimestamp);
 	kern_return_t ret = ivars->usbPCMoutPipe->AsyncIO(ivars->usbTXBufferPCMandUARTSegment[ivars->usbTXBufferPCMandUARTCurrentSegment].get(), 1928, ivars->usbPCMoutCallbackInterrupt, 0);
+	return ret;
+}
+
+kern_return_t IMPL(PloytecDriver, MIDIinHandler)
+{
+	os_log(OS_LOG_DEFAULT, "MIDI in????");
+	uint64_t msg = ivars->usbRXBufferMIDIAddr[0] | ivars->usbRXBufferMIDIAddr[1] << 8 | ivars->usbRXBufferMIDIAddr[2] << 16;
+
+	if (ivars->midiCount < 255) {
+		ivars->midiRingBuffer[ivars->midiWriteIndex] = msg;
+		ivars->midiWriteIndex = (ivars->midiWriteIndex + 1) % 255;
+		ivars->midiCount++;
+	}
+	kern_return_t ret = ivars->usbMIDIinPipe->AsyncIO(ivars->usbRXBufferMIDI.get(), 2048, ivars->usbMIDIinCallback, 0);
 	return ret;
 }

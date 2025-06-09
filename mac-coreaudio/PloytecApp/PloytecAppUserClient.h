@@ -24,5 +24,6 @@ typedef struct {
 - (NSString*)getDeviceName;
 - (NSString*)getDeviceManufacturer;
 - (playbackstats)getPlaybackStats;
+- (BOOL)getNextMIDIPacket;
 
 @end

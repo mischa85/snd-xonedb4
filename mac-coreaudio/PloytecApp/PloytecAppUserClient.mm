@@ -129,4 +129,18 @@
 	return stats;
 }
 
+- (BOOL)getNextMIDIPacket:(uint64_t*)packet {
+	if (_ioConnection == IO_OBJECT_NULL) {
+		return NO;
+	}
+	
+	uint32_t outputCount = 1;
+	kern_return_t error = IOConnectCallScalarMethod(_ioConnection,
+		PloytecDriverExternalMethod_GetNextMIDIPacket,
+		NULL, 0, // no input
+		packet, &outputCount);
+
+	return (error == kIOReturnSuccess && outputCount == 1);
+}
+
 @end
