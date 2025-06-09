@@ -43,6 +43,13 @@ struct PloytecDriver_IVars
 	OSSharedPtr<OSString>			device_name;
 	char 							*manufacturer_utf8;
 	char 							*device_name_utf8;
+
+	OSSharedPtr<IOBufferMemoryDescriptor> 	usbTXBuffer;
+	OSSharedPtr<IOMemoryDescriptor>		usbTXBufferSegment[32768];
+	OSSharedPtr<IOBufferMemoryDescriptor> 	usbRXBuffer;
+	OSSharedPtr<IOMemoryDescriptor>		usbRXBufferSegment[32768];
+	
+	int32_t					currentsegment;
 };
 
 bool PloytecDriver::init()
@@ -97,6 +104,17 @@ kern_return_t IMPL(PloytecDriver, Start)
 
 	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, 0x0f, 0, &ivars->receivebuffer);
 	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to allocate USB receive buffer");
+	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, 32768 * 1928, 0, ivars->usbTXBuffer.attach());
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create output ring buffer");
+	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, 32768 * 2048, 0, ivars->usbRXBuffer.attach());
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create input ring buffer");
+	for (i = 0; i < 32768; i++)
+	{
+		ret = IOMemoryDescriptor::CreateSubMemoryDescriptor(kIOMemoryDirectionInOut, i * 1928, 1928, ivars->usbTXBuffer.get(), ivars->usbTXBufferSegment[i].attach());
+		FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create USB output SubMemoryDescriptor");
+		ret = IOMemoryDescriptor::CreateSubMemoryDescriptor(kIOMemoryDirectionInOut, i * 2048, 2048, ivars->usbRXBuffer.get(), ivars->usbRXBufferSegment[i].attach());
+		FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create USB input SubMemoryDescriptor");
+	}
 
 	// get firmware
 	ret = ivars->device->DeviceRequest(this, 0xc0, 0x56, 0x00, 0x00, 0x0f, ivars->receivebuffer, &bytesTransferred, 0);
@@ -179,7 +197,7 @@ kern_return_t IMPL(PloytecDriver, Start)
 	ivars->m_audio_device = OSSharedPtr(OSTypeAlloc(PloytecDevice), OSNoRetain);
 	FailIfNULL(ivars->m_audio_device.get(), ret = kIOReturnNoMemory, Exit, "Cannot allocate memory for audio device");
 
-	success = ivars->m_audio_device->init(this, false, device_uid.get(), model_uid.get(), ivars->manufacturer_uid.get(), k_zero_time_stamp_period, ivars->PCMinPipe, ivars->PCMinCallback, ivars->PCMoutPipe, ivars->PCMoutCallback, ivars->device);
+	success = ivars->m_audio_device->init(this, false, device_uid.get(), model_uid.get(), ivars->manufacturer_uid.get(), k_zero_time_stamp_period, ivars->PCMinPipe, ivars->PCMinCallback, ivars->PCMoutPipe, ivars->PCMoutCallback, ivars->device, ivars->usbRXBuffer.get(), ivars->usbTXBuffer.get());
 	FailIf(false == success, , Exit, "No memory");
 
 	ivars->m_audio_device->SetName(ivars->device_name.get());
@@ -315,6 +333,10 @@ kern_return_t IMPL(PloytecDriver, PCMoutHandler)
 	kern_return_t ret;
 	ret = ivars->m_audio_device->SendPCMToDevice(completionTimestamp);
 	FailIf(ret != kIOReturnSuccess, , Exit, "USB send error");
+	ret = ivars->PCMoutPipe->AsyncIO(ivars->usbTXBufferSegment[ivars->currentsegment].get(), 1928, ivars->PCMoutCallback, 0);
+	ivars->currentsegment++;
+	if (ivars->currentsegment == 64)
+		ivars->currentsegment = 0;
 
 Exit:
 	return ret;
