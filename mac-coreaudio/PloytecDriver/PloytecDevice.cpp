@@ -270,7 +270,6 @@ kern_return_t PloytecDevice::StartIO(IOUserAudioStartStopFlags in_flags)
 	__block kern_return_t ret = kIOReturnSuccess;
 	__block OSSharedPtr<IOMemoryDescriptor> output_iomd;
 	__block OSSharedPtr<IOMemoryDescriptor> input_iomd;
-	__block uint64_t length = 0;
 	
 	ivars->m_work_queue->DispatchSync(^(){
 		ret = super::StartIO(in_flags);
