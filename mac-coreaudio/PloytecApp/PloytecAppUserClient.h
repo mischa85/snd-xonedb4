@@ -20,5 +20,6 @@ typedef struct {
 - (NSString*)getDeviceName;
 - (NSString*)getDeviceManufacturer;
 - (playbackstats)getPlaybackStats;
+- (void)sendMIDIMessageToDriver:(uint64_t)message;
 
 @end

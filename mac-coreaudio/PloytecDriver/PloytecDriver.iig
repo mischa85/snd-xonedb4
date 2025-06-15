@@ -25,8 +25,15 @@ struct PloytecDriver_IVars
 	OSAction				*usbMIDIinCallback;
 
 	OSSharedPtr<IOBufferMemoryDescriptor>	usbRXBufferCONTROL;
+	OSSharedPtr<IOBufferMemoryDescriptor>	MIDIBuffer;
+	uint8_t					*MIDIBufferAddr;
+	uint32_t				midiRingSize;
+	uint32_t				midiRingHead;
+	uint32_t				midiRingTail;
 	OSSharedPtr<IOBufferMemoryDescriptor> 	usbTXBufferPCMandUART;
+	uint8_t					*usbTXBufferPCMandUARTAddr;
 	OSSharedPtr<IOMemoryDescriptor>		usbTXBufferPCMandUARTSegment[32768];
+	uint8_t					*usbTXBufferPCMandUARTSegmentAddr[32768];
 	uint16_t				usbTXBufferPCMandUARTCurrentSegment;
 	OSSharedPtr<IOBufferMemoryDescriptor> 	usbRXBufferPCM;
 	OSSharedPtr<IOMemoryDescriptor>		usbRXBufferPCMSegment[32768];
@@ -44,15 +51,11 @@ struct PloytecDriver_IVars
 
 	TransferMode				transferMode;
 	
-	//uint64_t				midiRingBuffer[256];
-	//uint8_t					midiReadIndex = 0;
-	//uint8_t					midiWriteIndex = 0;
-	//uint8_t					midiCount = 0;
-	IOUserClient* midiUserClient = nullptr;
-	PloytecDriverUserClient* midiClient = nullptr;
-	uint8_t midiParserRunningStatus = 0;
-	uint8_t midiParserBytes[3];
-	uint8_t midiParserIndex = 0;
+	IOUserClient*				midiUserClient = nullptr;
+	PloytecDriverUserClient*		midiClient = nullptr;
+	uint8_t					midiParserRunningStatus = 0;
+	uint8_t					midiParserBytes[3];
+	uint8_t					midiParserIndex = 0;
 };
 
 class PloytecDriver: public IOUserAudioDriver
@@ -69,6 +72,9 @@ public:
 	virtual OSData* GetDeviceName() LOCALONLY;
 	virtual OSData* GetDeviceManufacturer() LOCALONLY;
 	kern_return_t GetPlaybackStats(playbackstats *stats) LOCALONLY;
+	
+	virtual void WriteMIDIBytes(const uint8_t* data, uint32_t len) LOCALONLY;
+	virtual bool ReadMIDIByte(uint8_t &outByte) LOCALONLY;
 
 protected:
 	virtual kern_return_t PCMinHandler(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);

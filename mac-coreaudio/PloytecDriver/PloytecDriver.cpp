@@ -65,14 +65,23 @@ kern_return_t IMPL(PloytecDriver, Start)
 
 	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, 0x0f, 0, ivars->usbRXBufferCONTROL.attach());
 	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to allocate USB receive buffer");
+	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, 256, 0, ivars->MIDIBuffer.attach());
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to allocate MIDI buffer");
+	ret = ivars->MIDIBuffer->GetAddressRange(&range);
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to get address range for MIDI buffer");
+	ivars->MIDIBufferAddr = reinterpret_cast<uint8_t*>(range.address);
 	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, 32768 * 1928, 0, ivars->usbTXBufferPCMandUART.attach());
 	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create output ring buffer");
+	ret = ivars->usbTXBufferPCMandUART->GetAddressRange(&range);
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to get output ring buffer address bytes");
+	ivars->usbTXBufferPCMandUARTAddr = reinterpret_cast<uint8_t *>(range.address);
 	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, 32768 * 2048, 0, ivars->usbRXBufferPCM.attach());
 	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create input ring buffer");
 	for (i = 0; i < 32768; i++)
 	{
 		ret = IOMemoryDescriptor::CreateSubMemoryDescriptor(kIOMemoryDirectionInOut, i * 1928, 1928, ivars->usbTXBufferPCMandUART.get(), ivars->usbTXBufferPCMandUARTSegment[i].attach());
 		FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create USB output SubMemoryDescriptor");
+		ivars->usbTXBufferPCMandUARTSegmentAddr[i] = ivars->usbTXBufferPCMandUARTAddr + (i * 1928);
 		ret = IOMemoryDescriptor::CreateSubMemoryDescriptor(kIOMemoryDirectionInOut, i * 2048, 2048, ivars->usbRXBufferPCM.get(), ivars->usbRXBufferPCMSegment[i].attach());
 		FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create USB input SubMemoryDescriptor");
 	}
@@ -307,6 +316,22 @@ kern_return_t PloytecDriver::GetPlaybackStats(playbackstats *stats)
 	return ivars->audioDevice->GetPlaybackStats(stats);
 }
 
+void PloytecDriver::WriteMIDIBytes(const uint8_t* data, uint32_t len) {
+	for (uint32_t i = 0; i < len; ++i) {
+		uint32_t next = (ivars->midiRingHead + 1) % ivars->midiRingSize;
+		if (next == ivars->midiRingTail) break; // Buffer full
+		ivars->MIDIBufferAddr[ivars->midiRingHead] = data[i];
+		ivars->midiRingHead = next;
+	}
+}
+
+bool PloytecDriver::ReadMIDIByte(uint8_t &outByte) {
+	if (ivars->midiRingHead == ivars->midiRingTail) return false; // Buffer empty
+	outByte = ivars->MIDIBufferAddr[ivars->midiRingTail];
+	ivars->midiRingTail = (ivars->midiRingTail + 1) % ivars->midiRingSize;
+	return true;
+}
+
 kern_return_t IMPL(PloytecDriver, PCMinHandler)
 {
 	kern_return_t ret = ivars->usbPCMinPipe->AsyncIO(ivars->usbRXBufferPCMSegment[ivars->usbRXBufferPCMCurrentSegment].get(), 2048, ivars->usbPCMinCallback, 0);
@@ -317,6 +342,11 @@ kern_return_t IMPL(PloytecDriver, PCMinHandler)
 kern_return_t IMPL(PloytecDriver, PCMoutHandlerBulk)
 {
 	ivars->audioDevice->Playback(ivars->usbTXBufferPCMandUARTCurrentSegment, completionTimestamp);
+	uint8_t byte;
+	if (ReadMIDIByte(byte)) {
+		ivars->usbTXBufferPCMandUARTSegmentAddr[ivars->usbTXBufferPCMandUARTCurrentSegment][480] = byte;
+	}
+	
 	kern_return_t ret = ivars->usbPCMoutPipe->AsyncIO(ivars->usbTXBufferPCMandUARTSegment[ivars->usbTXBufferPCMandUARTCurrentSegment].get(), 2048, ivars->usbPCMoutCallbackBulk, 0);
 	return ret;
 }
@@ -324,6 +354,12 @@ kern_return_t IMPL(PloytecDriver, PCMoutHandlerBulk)
 kern_return_t IMPL(PloytecDriver, PCMoutHandlerInterrupt)
 {
 	ivars->audioDevice->Playback(ivars->usbTXBufferPCMandUARTCurrentSegment, completionTimestamp);
+	uint8_t byte;
+	if (ReadMIDIByte(byte)) {
+		os_log(OS_LOG_DEFAULT, "SENDING MIDI DEXT!!");
+		ivars->usbTXBufferPCMandUARTSegmentAddr[ivars->usbTXBufferPCMandUARTCurrentSegment][432] = byte;
+	}
+
 	kern_return_t ret = ivars->usbPCMoutPipe->AsyncIO(ivars->usbTXBufferPCMandUARTSegment[ivars->usbTXBufferPCMandUARTCurrentSegment].get(), 1928, ivars->usbPCMoutCallbackInterrupt, 0);
 	return ret;
 }

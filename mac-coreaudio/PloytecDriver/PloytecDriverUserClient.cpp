@@ -125,6 +125,9 @@ kern_return_t PloytecDriverUserClient::ExternalMethod(uint64_t selector, IOUserC
 			ret = RegisterForMIDINotification_Impl(arguments);
 			break;
 
+		case PloytecDriverExternalMethod_SendMIDI:
+			return SendMIDI(arguments);
+
 		default:
 			ret = super::ExternalMethod(selector, arguments, dispatch, target, reference);
 	};
@@ -159,6 +162,35 @@ PloytecDriverUserClient::postMIDIMessage(uint64_t msg)
 
 	uint64_t asyncArgs[1] = { msg };
 	AsyncCompletion(ivars->midiNotificationAction, kIOReturnSuccess, asyncArgs, 1);
+
+	return kIOReturnSuccess;
+}
+
+kern_return_t
+PloytecDriverUserClient::SendMIDI(IOUserClientMethodArguments *arguments)
+{
+	if (!ivars || !ivars->mProvider) {
+		return kIOReturnNotAttached;
+	}
+
+	if (!arguments || arguments->scalarInputCount < 1) {
+		os_log(OS_LOG_DEFAULT, "SendMIDI: Invalid input");
+		return kIOReturnBadArgument;
+	}
+
+	uint64_t message = arguments->scalarInput[0];
+
+	// Log it
+	os_log(OS_LOG_DEFAULT, "🔻 Received MIDI to send to driver: 0x%016llX", message);
+
+	// Optional unpacking
+	uint8_t len = message & 0xFF;
+	uint8_t b0 = (message >> 8) & 0xFF;
+	uint8_t b1 = (message >> 16) & 0xFF;
+	uint8_t b2 = (message >> 24) & 0xFF;
+
+	// Optional usage:
+	// ivars->mProvider->WriteMIDIBytes(&b0, len);
 
 	return kIOReturnSuccess;
 }
