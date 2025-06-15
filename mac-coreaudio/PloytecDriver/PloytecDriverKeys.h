@@ -1,11 +1,3 @@
-//
-//  PloytecDriverKeys.h
-//  PloytecDriver
-//
-//  Created by Marcel Bierling on 04/07/2024.
-//  Copyright © 2024 Hackerman. All rights reserved.
-//
-
 #ifndef PloytecDriverKeys_h
 #define PloytecDriverKeys_h
 

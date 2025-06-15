@@ -1,11 +1,3 @@
-//
-//  PloytecAppViewModel.swift
-//  PloytecApp
-//
-//  Created by Marcel Bierling on 04/07/2024.
-//  Copyright © 2024 Hackerman. All rights reserved.
-//
-
 import Foundation
 import Combine
 import os.log
@@ -192,6 +184,7 @@ class PloytecAppStateMachine {
 class PloytecAppViewModel: NSObject {
 	
 	private let dextIdentifier: String = "sc.hackerman.ploytecdriver"
+	private let midiBridge = PloytecAppUserClientSwift()
 	
 	// Check the initial state of the dext because it doesn't necessarily start in an unloaded state.
 	@Published private(set) var state: PloytecAppStateMachine.State = .deactivated

@@ -1,11 +1,3 @@
-//
-//  PloytecDevice.iig
-//  PloytecDriver
-//
-//  Created by Marcel Bierling on 20/05/2024.
-//  Copyright © 2024 Hackerman. All rights reserved.
-//
-
 #ifndef PloytecDevice_h
 #define PloytecDevice_h
 

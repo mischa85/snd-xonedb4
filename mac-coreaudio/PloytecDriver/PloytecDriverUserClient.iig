@@ -9,8 +9,7 @@ public:
 	virtual kern_return_t Stop(IOService* provider) override;
 	virtual kern_return_t ExternalMethod(uint64_t selector, IOUserClientMethodArguments* arguments, const IOUserClientMethodDispatch* dispatch, OSObject* target, void* reference) override;
 
-	virtual kern_return_t registerForMIDINotification(IOUserClientMethodArguments* arguments);
-	virtual kern_return_t GetNextMIDIMessage(OSData **msg_out);
+	virtual kern_return_t RegisterForMIDINotification(IOUserClientMethodArguments *arguments);
+
 	kern_return_t postMIDIMessage(uint64_t msg) LOCALONLY;
 };
-
