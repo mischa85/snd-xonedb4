@@ -184,23 +184,34 @@ class PloytecAppStateMachine {
 class PloytecAppViewModel: NSObject {
 	
 	private let dextIdentifier: String = "sc.hackerman.ploytecdriver"
-	private let midiBridge = PloytecAppUserClientSwift()
+	private(set) var midiBridge: PloytecAppUserClientSwift? = nil
 	
-	// Check the initial state of the dext because it doesn't necessarily start in an unloaded state.
 	@Published private(set) var state: PloytecAppStateMachine.State = .deactivated
 	@Published var isConnected = false
-	
+
 	private var cancellables = Set<AnyCancellable>()
-	
+
 	override init() {
 		super.init()
+
 		NotificationCenter.default.publisher(for: NSNotification.Name("UserClientConnectionOpened"))
 			.sink { [weak self] _ in
-				self?.isConnected = true
+				guard let self = self else { return }
+				if !self.isConnected {
+					self.isConnected = true
+					self.setupMIDIOnce()
+				}
 			}
 			.store(in: &cancellables)
 	}
-	
+
+	private func setupMIDIOnce() {
+		guard midiBridge == nil else { return }
+		let bridge = PloytecAppUserClientSwift()
+		bridge.midiManager.userClient = bridge
+		midiBridge = bridge
+	}
+
 	public var dextLoadingState: String {
 		switch state {
 		case .activating:

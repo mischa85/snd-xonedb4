@@ -85,7 +85,8 @@
 - (NSString*)getDeviceName
 {
 	if (_ioConnection == IO_OBJECT_NULL) {
-		return @"Can't toggle the data source because the user client isn't connected.";
+		NSLog(@"%s: No connection to driver", __FUNCTION__);
+		return;
 	}
 
 	char devicename[128] = {0};
@@ -103,7 +104,8 @@
 - (NSString*)getDeviceManufacturer
 {
 	if (_ioConnection == IO_OBJECT_NULL) {
-		return @"Can't toggle the data source because the user client isn't connected.";
+		NSLog(@"%s: No connection to driver", __FUNCTION__);
+		return;
 	}
 
 	char devicemanufacturer[128] = {0};
@@ -121,7 +123,8 @@
 - (NSString*)getFirmwareVersion
 {
 	if (_ioConnection == IO_OBJECT_NULL) {
-		return @"Can't toggle the data source because the user client isn't connected.";
+		NSLog(@"%s: No connection to driver", __FUNCTION__);
+		return;
 	}
 
 	char firmwarever[15] = {0};
@@ -140,6 +143,7 @@
 - (playbackstats)getPlaybackStats
 {
 	if (_ioConnection == IO_OBJECT_NULL) {
+		NSLog(@"%s: No connection to driver", __FUNCTION__);
 		return;
 	}
 
@@ -149,6 +153,22 @@
 	kern_return_t error = IOConnectCallMethod(_ioConnection, static_cast<uint64_t>(PloytecDriverExternalMethod_GetPlaybackStats), nullptr, 0, nullptr, 0, nullptr, nullptr, &stats, &playbackstatsSize);
 
 	return stats;
+}
+
+- (void)sendMIDIMessageToDriver:(uint64_t)message {
+	NSLog(@"🔻 Received MIDI to send to driver: 0x%016llX", message);
+	
+	if (_ioConnection == IO_OBJECT_NULL) {
+		NSLog(@"%s: No connection to driver", __FUNCTION__);
+		return;
+	}
+
+	kern_return_t result = IOConnectCallScalarMethod(_ioConnection, PloytecDriverExternalMethod_SendMIDI, &message, 1, NULL, NULL);
+	if (result != KERN_SUCCESS) {
+		NSLog(@"❌ Failed to send MIDI to driver: %s", mach_error_string(result));
+	} else {
+		NSLog(@"✅ MIDI sent to driver");
+	}
 }
 
 static void MIDIAsyncCallback(void* refcon, IOReturn result, void** args, UInt32 numArgs)

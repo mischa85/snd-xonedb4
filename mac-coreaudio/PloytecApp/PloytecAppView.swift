@@ -10,11 +10,11 @@ struct PloytecAppView: View {
 	@State private var playbackStatsText = ""
 	private let playbackStatsUpdateInterval = 1.0
 	@State private var timer: Timer?
+	@State private var retryTimer: Timer?
 
 	var body: some View {
 		ScrollView {
 			VStack {
-				// Driver Manager Section
 				VStack(alignment: .center) {
 					Text("Driver Manager")
 						.padding()
@@ -37,31 +37,11 @@ struct PloytecAppView: View {
 					.padding()
 				}
 				.frame(width: 500, alignment: .center)
-				
-				// Spacer to push content to top
 				Spacer()
-				
-				// User Client Manager Section
 				VStack(alignment: .center) {
-					Text("User Client Manager")
-						.padding()
-						.font(.title)
-					Text(userClientText)
-						.multilineTextAlignment(.center)
-					Button(action: {
-						userClientText = self.userClient.openConnection()
-						firmwareVersionText = self.userClient.getFirmwareVersion()
-						deviceNameText = self.userClient.getDeviceName()
-						deviceManufacturerText = self.userClient.getDeviceManufacturer()
-					}, label: {
-						Text("Open User Client")
-					})
-					.padding()
-
 					Text(deviceNameText)
 					Text(deviceManufacturerText)
 					Text(firmwareVersionText)
-					
 					Text(playbackStatsText)
 						.font(.system(.body, design: .monospaced))
 						.multilineTextAlignment(.leading)
@@ -77,12 +57,31 @@ struct PloytecAppView: View {
 				.foregroundColor(viewModel.isConnected ? .green : .red)
 			.onReceive(viewModel.$isConnected) { isConnected in
 				if isConnected {
+					stopRetryingUserClient()
+					firmwareVersionText = self.userClient.getFirmwareVersion()
+					deviceNameText = self.userClient.getDeviceName()
+					deviceManufacturerText = self.userClient.getDeviceManufacturer()
 					startTimer()
 				} else {
 					stopTimer()
+					startRetryingUserClient()
 				}
 			}
 		}
+	}
+	
+	private func startRetryingUserClient() {
+		stopRetryingUserClient()
+		userClientText = userClient.openConnection()
+		retryTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { _ in
+			print("Retrying user client connection...")
+			userClientText = userClient.openConnection()
+		}
+	}
+	
+	private func stopRetryingUserClient() {
+		retryTimer?.invalidate()
+		retryTimer = nil
 	}
 
 	private func startTimer() {
