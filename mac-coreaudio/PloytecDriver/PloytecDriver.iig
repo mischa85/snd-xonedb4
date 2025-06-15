@@ -1,11 +1,3 @@
-//
-//  PloytecDriver.iig
-//  PloytecDriver
-//
-//  Created by Marcel Bierling on 20/05/2024.
-//  Copyright © 2024 Hackerman. All rights reserved.
-//
-
 #ifndef PloytecDriver_h
 #define PloytecDriver_h
 
@@ -52,12 +44,15 @@ struct PloytecDriver_IVars
 
 	TransferMode				transferMode;
 	
-	uint64_t				midiRingBuffer[256];
-	uint8_t					midiReadIndex = 0;
-	uint8_t					midiWriteIndex = 0;
-	uint8_t					midiCount = 0;
+	//uint64_t				midiRingBuffer[256];
+	//uint8_t					midiReadIndex = 0;
+	//uint8_t					midiWriteIndex = 0;
+	//uint8_t					midiCount = 0;
 	IOUserClient* midiUserClient = nullptr;
 	PloytecDriverUserClient* midiClient = nullptr;
+	uint8_t midiParserRunningStatus = 0;
+	uint8_t midiParserBytes[3];
+	uint8_t midiParserIndex = 0;
 };
 
 class PloytecDriver: public IOUserAudioDriver

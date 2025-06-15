@@ -1,11 +1,3 @@
-//
-//  PloytecDevice.cpp
-//  PloytecDriver
-//
-//  Created by Marcel Bierling on 20/05/2024.
-//  Copyright © 2024 Hackerman. All rights reserved.
-//
-
 #include <AudioDriverKit/AudioDriverKit.h>
 #include "PloytecDevice.h"
 

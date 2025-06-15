@@ -1,13 +1,3 @@
-//
-//  PloytecDriverUserClient.cpp
-//  PloytecDriver
-//
-//  Created by Marcel Bierling on 04/07/2024.
-//  Copyright © 2024 Hackerman. All rights reserved.
-//
-
-// The local includes.
-//#include "PloytecDriverUserClient.h"
 #include "PloytecDriver.h"
 #include "PloytecDevice.h"
 #include "PloytecDriverKeys.h"
@@ -69,6 +59,8 @@ kern_return_t PloytecDriverUserClient::Start_Impl(IOService* provider)
 	}
 
 	ivars->mProvider = OSSharedPtr(OSDynamicCast(PloytecDriver, provider), OSRetain);
+	
+	ivars->mProvider->ivars->midiClient = this;
 
 	return kIOReturnSuccess;
 
@@ -129,6 +121,10 @@ kern_return_t PloytecDriverUserClient::ExternalMethod(uint64_t selector, IOUserC
 			break;
 		}
 
+		case PloytecDriverExternalMethod_RegisterForMIDINotification:
+			ret = RegisterForMIDINotification_Impl(arguments);
+			break;
+
 		default:
 			ret = super::ExternalMethod(selector, arguments, dispatch, target, reference);
 	};
@@ -137,47 +133,32 @@ kern_return_t PloytecDriverUserClient::ExternalMethod(uint64_t selector, IOUserC
 }
 
 kern_return_t
-PloytecDriverUserClient::registerForMIDINotification_Impl(IOUserClientMethodArguments* arguments)
+PloytecDriverUserClient::RegisterForMIDINotification_Impl(IOUserClientMethodArguments *arguments)
 {
-	if (!arguments || !arguments->completion)
+	if (!arguments || !arguments->completion) {
+		os_log(OS_LOG_DEFAULT, "Missing completion in async registration");
 		return kIOReturnBadArgument;
+	}
 
-	// Retain the OSAction, we will complete it later
-	arguments->completion->retain();
+	if (ivars->midiNotificationAction)
+		ivars->midiNotificationAction->release();
+
 	ivars->midiNotificationAction = arguments->completion;
+	ivars->midiNotificationAction->retain();
 
 	return kIOReturnSuccess;
-}
-
-kern_return_t
-PloytecDriverUserClient::GetNextMIDIMessage_Impl(OSData **msg_out)
-{
-	if (ivars->mProvider->ivars->midiCount == 0)
-		return kIOReturnNoResources;
-
-	uint64_t msg = ivars->mProvider->ivars->midiRingBuffer[ivars->mProvider->ivars->midiReadIndex];
-	ivars->mProvider->ivars->midiReadIndex = (ivars->mProvider->ivars->midiReadIndex + 1) % 255;
-	ivars->mProvider->ivars->midiCount--;
-
-	*msg_out = OSData::withBytes(&msg, sizeof(msg));
-	return (*msg_out) ? kIOReturnSuccess : kIOReturnNoMemory;
 }
 
 kern_return_t
 PloytecDriverUserClient::postMIDIMessage(uint64_t msg)
 {
 	if (!ivars || !ivars->midiNotificationAction)
+	{
 		return kIOReturnNoResources;
+	}
 
 	uint64_t asyncArgs[1] = { msg };
-
-	// Send async result
 	AsyncCompletion(ivars->midiNotificationAction, kIOReturnSuccess, asyncArgs, 1);
-
-	// Release the OSAction, we are done using it
-	ivars->midiNotificationAction->release();
-	ivars->midiNotificationAction = nullptr;
 
 	return kIOReturnSuccess;
 }
-

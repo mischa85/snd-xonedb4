@@ -1,11 +1,3 @@
-//
-//  PloytecDriver.cpp
-//  PloytecDriver
-//
-//  Created by Marcel Bierling on 20/05/2024.
-//  Copyright © 2024 Hackerman. All rights reserved.
-//
-
 #include <AudioDriverKit/AudioDriverKit.h>
 #include "PloytecDriver.h"
 #include "PloytecSharedTypes.iig"
@@ -338,18 +330,46 @@ kern_return_t IMPL(PloytecDriver, PCMoutHandlerInterrupt)
 
 kern_return_t IMPL(PloytecDriver, MIDIinHandler)
 {
-	os_log(OS_LOG_DEFAULT, "MIDI in????");
-	uint64_t msg = ivars->usbRXBufferMIDIAddr[0] | ivars->usbRXBufferMIDIAddr[1] << 8 | ivars->usbRXBufferMIDIAddr[2] << 16;
+	uint8_t expectedLen = 0;
+	uint8_t byte = ivars->usbRXBufferMIDIAddr[1];
 
-	if (ivars->midiCount < 255) {
-		ivars->midiRingBuffer[ivars->midiWriteIndex] = msg;
-		ivars->midiWriteIndex = (ivars->midiWriteIndex + 1) % 255;
-		ivars->midiCount++;
-	}
-	if (ivars->midiClient) {
-		ivars->midiClient->postMIDIMessage(msg);  // delegate to user client
+	if (byte >= 0xF8) {
+		uint64_t msg = 0x01 | ((uint64_t)byte << 8);
+		if (ivars->midiClient)
+			ivars->midiClient->postMIDIMessage(msg);
+		goto rearm;
 	}
 
-	kern_return_t ret = ivars->usbMIDIinPipe->AsyncIO(ivars->usbRXBufferMIDI.get(), 2048, ivars->usbMIDIinCallback, 0);
-	return ret;
+	if (byte & 0x80) {
+		ivars->midiParserRunningStatus = byte;
+		ivars->midiParserBytes[0] = byte;
+		ivars->midiParserIndex = 1;
+	} else if (ivars->midiParserRunningStatus) {
+		ivars->midiParserBytes[ivars->midiParserIndex++] = byte;
+	}
+
+	switch (ivars->midiParserRunningStatus & 0xF0) {
+		case 0xC0:
+		case 0xD0: expectedLen = 2; break;
+		case 0x80:
+		case 0x90:
+		case 0xA0:
+		case 0xB0:
+		case 0xE0: expectedLen = 3; break;
+		default: expectedLen = 3; break;
+	}
+
+	if (ivars->midiParserIndex == expectedLen) {
+		uint64_t msg = expectedLen |
+		((uint64_t)ivars->midiParserBytes[0] << 8) |
+		((uint64_t)ivars->midiParserBytes[1] << 16) |
+		((uint64_t)ivars->midiParserBytes[2] << 24);
+		if (ivars->midiClient)
+			ivars->midiClient->postMIDIMessage(msg);
+
+	ivars->midiParserIndex = 1;
+	}
+
+rearm:
+	return ivars->usbMIDIinPipe->AsyncIO(ivars->usbRXBufferMIDI.get(), 2048, ivars->usbMIDIinCallback, 0);
 }

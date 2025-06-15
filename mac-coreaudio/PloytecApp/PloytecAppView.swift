@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct PloytecAppView: View {
-	@ObservedObject var viewModel = PloytecAppViewModel()
+	@StateObject var viewModel = PloytecAppViewModel()
 	var userClient = PloytecAppUserClient()
 	@State private var userClientText = ""
 	@State private var firmwareVersionText = ""

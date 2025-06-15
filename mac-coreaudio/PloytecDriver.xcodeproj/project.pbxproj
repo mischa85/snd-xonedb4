@@ -8,6 +8,8 @@
 
 /* Begin PBXBuildFile section */
 		1F6D5CD02DF70DBE00FF47D8 /* PloytecSharedTypes.iig in Sources */ = {isa = PBXBuildFile; fileRef = 1F6D5CCF2DF70DB500FF47D8 /* PloytecSharedTypes.iig */; };
+		1F6DECC82DFE34A300552F49 /* PloytecAppMIDIManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F6DECC72DFE349600552F49 /* PloytecAppMIDIManager.swift */; };
+		1F6DECCA2DFE35C700552F49 /* PloytecAppUserClientSwift.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1F6DECC92DFE35C400552F49 /* PloytecAppUserClientSwift.swift */; };
 		1F9FA7792BFB8267000F6942 /* PloytecDevice.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 1F9FA7782BFB8267000F6942 /* PloytecDevice.cpp */; };
 		1F9FA77B2BFB829E000F6942 /* PloytecDevice.iig in Sources */ = {isa = PBXBuildFile; fileRef = 1F9FA77A2BFB8284000F6942 /* PloytecDevice.iig */; };
 		1F9FA7812BFB9C8A000F6942 /* AudioDriverKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1F9FA77C2BFB9BD9000F6942 /* AudioDriverKit.framework */; };
@@ -64,6 +66,8 @@
 
 /* Begin PBXFileReference section */
 		1F6D5CCF2DF70DB500FF47D8 /* PloytecSharedTypes.iig */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.iig; path = PloytecSharedTypes.iig; sourceTree = "<group>"; };
+		1F6DECC72DFE349600552F49 /* PloytecAppMIDIManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PloytecAppMIDIManager.swift; sourceTree = "<group>"; };
+		1F6DECC92DFE35C400552F49 /* PloytecAppUserClientSwift.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PloytecAppUserClientSwift.swift; sourceTree = "<group>"; };
 		1F9FA7782BFB8267000F6942 /* PloytecDevice.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = PloytecDevice.cpp; sourceTree = "<group>"; };
 		1F9FA77A2BFB8284000F6942 /* PloytecDevice.iig */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.iig; path = PloytecDevice.iig; sourceTree = "<group>"; };
 		1F9FA77C2BFB9BD9000F6942 /* AudioDriverKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AudioDriverKit.framework; path = Platforms/DriverKit.platform/Developer/SDKs/DriverKit23.4.sdk/System/DriverKit/System/Library/Frameworks/AudioDriverKit.framework; sourceTree = DEVELOPER_DIR; };
@@ -137,6 +141,8 @@
 				6F55575522B2C4D900139F6B /* PloytecApp.swift */,
 				6F55575722B2C4D900139F6B /* PloytecAppView.swift */,
 				1FCE8FD52C37368200313EB4 /* PloytecAppViewModel.swift */,
+				1F6DECC72DFE349600552F49 /* PloytecAppMIDIManager.swift */,
+				1F6DECC92DFE35C400552F49 /* PloytecAppUserClientSwift.swift */,
 				1FCE8FD32C3735E200313EB4 /* PloytecAppUserClient.mm */,
 				1FCE8FD22C3735E200313EB4 /* PloytecAppUserClient.h */,
 				1FCE8FD72C3738C400313EB4 /* PloytecDriverKeys.h */,
@@ -299,10 +305,12 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				1F6DECCA2DFE35C700552F49 /* PloytecAppUserClientSwift.swift in Sources */,
 				1FCE8FD42C3735E200313EB4 /* PloytecAppUserClient.mm in Sources */,
 				6F55575822B2C4D900139F6B /* PloytecAppView.swift in Sources */,
 				1FCE8FD62C37368200313EB4 /* PloytecAppViewModel.swift in Sources */,
 				6F55575622B2C4D900139F6B /* PloytecApp.swift in Sources */,
+				1F6DECC82DFE34A300552F49 /* PloytecAppMIDIManager.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
