@@ -127,6 +127,7 @@ kern_return_t PloytecDriverUserClient::ExternalMethod(uint64_t selector, IOUserC
 
 		case PloytecDriverExternalMethod_SendMIDI:
 			return SendMIDI(arguments);
+			break;
 
 		default:
 			ret = super::ExternalMethod(selector, arguments, dispatch, target, reference);
@@ -178,19 +179,7 @@ PloytecDriverUserClient::SendMIDI(IOUserClientMethodArguments *arguments)
 		return kIOReturnBadArgument;
 	}
 
-	uint64_t message = arguments->scalarInput[0];
-
-	// Log it
-	os_log(OS_LOG_DEFAULT, "🔻 Received MIDI to send to driver: 0x%016llX", message);
-
-	// Optional unpacking
-	uint8_t len = message & 0xFF;
-	uint8_t b0 = (message >> 8) & 0xFF;
-	uint8_t b1 = (message >> 16) & 0xFF;
-	uint8_t b2 = (message >> 24) & 0xFF;
-
-	// Optional usage:
-	// ivars->mProvider->WriteMIDIBytes(&b0, len);
+	ivars->mProvider->WriteMIDIBytes(arguments->scalarInput[0]);
 
 	return kIOReturnSuccess;
 }

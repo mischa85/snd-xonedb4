@@ -27,9 +27,8 @@ struct PloytecDriver_IVars
 	OSSharedPtr<IOBufferMemoryDescriptor>	usbRXBufferCONTROL;
 	OSSharedPtr<IOBufferMemoryDescriptor>	MIDIBuffer;
 	uint8_t					*MIDIBufferAddr;
-	uint32_t				midiRingSize;
-	uint32_t				midiRingHead;
-	uint32_t				midiRingTail;
+	uint8_t					midiRingHead;
+	uint8_t					midiRingTail;
 	OSSharedPtr<IOBufferMemoryDescriptor> 	usbTXBufferPCMandUART;
 	uint8_t					*usbTXBufferPCMandUARTAddr;
 	OSSharedPtr<IOMemoryDescriptor>		usbTXBufferPCMandUARTSegment[32768];
@@ -73,7 +72,7 @@ public:
 	virtual OSData* GetDeviceManufacturer() LOCALONLY;
 	kern_return_t GetPlaybackStats(playbackstats *stats) LOCALONLY;
 	
-	virtual void WriteMIDIBytes(const uint8_t* data, uint32_t len) LOCALONLY;
+	virtual void WriteMIDIBytes(const uint64_t msg) LOCALONLY;
 	virtual bool ReadMIDIByte(uint8_t &outByte) LOCALONLY;
 
 protected:

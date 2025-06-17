@@ -62,8 +62,12 @@ bool PloytecDevice::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 	IOAddressSegment range;
 	IOOperationHandler ioOperationBulk = nullptr;
 	IOOperationHandler ioOperationInterrupt = nullptr;
-	OSSharedPtr<OSString> output_stream_name = OSSharedPtr(OSString::withCString("PLOYTEC PCM OUT"), OSNoRetain);
-	OSSharedPtr<OSString> input_stream_name = OSSharedPtr(OSString::withCString("PLOYTEC PCM IN"), OSNoRetain);
+	char outputName[128];
+	char inputName[128];
+	snprintf(outputName, sizeof(outputName), "%s PCM OUT", in_device_uid->getCStringNoCopy());
+	snprintf(inputName, sizeof(inputName), "%s PCM IN", in_device_uid->getCStringNoCopy());
+	OSSharedPtr<OSString> output_stream_name = OSSharedPtr(OSString::withCString(outputName), OSNoRetain);
+	OSSharedPtr<OSString> input_stream_name = OSSharedPtr(OSString::withCString(inputName), OSNoRetain);
 	ivars->m_driver = OSSharedPtr(in_driver, OSRetain);
 	ivars->m_work_queue = GetWorkQueue();
 	ivars->startpcmin = false;
