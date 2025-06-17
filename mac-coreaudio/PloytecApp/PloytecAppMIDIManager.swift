@@ -8,14 +8,19 @@ class MIDIManager {
 
 	weak var userClient: PloytecAppUserClientSwift?
 
-	init() {
-		let status1 = MIDIClientCreate("PloytecClient" as CFString, nil, nil, &client)
+	init(deviceName: String) {
+		let name = deviceName.isEmpty ? "Ploytec" : deviceName
+		let midiClientName = "\(name) MIDI Client" as CFString
+		let midiInName = "\(name) MIDI IN" as CFString
+		let midiOutName = "\(name) MIDI OUT" as CFString
+
+		let status1 = MIDIClientCreate(midiClientName, nil, nil, &client)
 		guard status1 == noErr else { return }
 
-		let status2 = MIDISourceCreate(client, "Ploytec Virtual Input" as CFString, &source)
+		let status2 = MIDISourceCreate(client, midiInName, &source)
 		guard status2 == noErr else { return }
 
-		let status3 = MIDIDestinationCreate(client, "Ploytec Virtual Output" as CFString, midiReadCallback,
+		let status3 = MIDIDestinationCreate(client, midiOutName, midiReadCallback,
 			UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()), &destination)
 		if status3 != noErr { return }
 	}
@@ -39,9 +44,8 @@ class MIDIManager {
 			}
 
 			if data.count == 0 || data.count > 3 {
-				print("⚠️ Dropped oversized MIDI message (\(data.count) bytes): \(data.map { String(format: "0x%02X", $0) })")
+				print("Dropped oversized MIDI message (\(data.count) bytes)")
 			} else {
-				print("🎵 MIDI: \(data.map { String(format: "0x%02X", $0) })")
 				var packed = UInt64(UInt8(data.count))
 				for (i, byte) in data.enumerated() {
 					packed |= UInt64(byte) << (8 * (i + 1))

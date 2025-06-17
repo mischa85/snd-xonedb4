@@ -98,7 +98,7 @@
 		return [NSString stringWithFormat:@"Failed to get device name, error: %s.", mach_error_string(error)];
 	}
 
-	return [NSString stringWithFormat:@"Device: %s", devicename];
+	return [NSString stringWithUTF8String:devicename];
 }
 
 - (NSString*)getDeviceManufacturer
@@ -117,7 +117,7 @@
 		return [NSString stringWithFormat:@"Failed to get device manufacturer, error: %s.", mach_error_string(error)];
 	}
 	
-	return [NSString stringWithFormat:@"Manufacturer: %s", devicemanufacturer];
+	return [NSString stringWithUTF8String:devicemanufacturer];
 }
 
 - (NSString*)getFirmwareVersion
@@ -156,8 +156,6 @@
 }
 
 - (void)sendMIDIMessageToDriver:(uint64_t)message {
-	NSLog(@"🔻 Received MIDI to send to driver: 0x%016llX", message);
-	
 	if (_ioConnection == IO_OBJECT_NULL) {
 		NSLog(@"%s: No connection to driver", __FUNCTION__);
 		return;
@@ -165,9 +163,7 @@
 
 	kern_return_t result = IOConnectCallScalarMethod(_ioConnection, PloytecDriverExternalMethod_SendMIDI, &message, 1, NULL, NULL);
 	if (result != KERN_SUCCESS) {
-		NSLog(@"❌ Failed to send MIDI to driver: %s", mach_error_string(result));
-	} else {
-		NSLog(@"✅ MIDI sent to driver");
+		NSLog(@"Failed to send MIDI to driver: %s", mach_error_string(result));
 	}
 }
 

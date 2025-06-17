@@ -70,21 +70,6 @@ kern_return_t IMPL(PloytecDriver, Start)
 	ret = ivars->MIDIBuffer->GetAddressRange(&range);
 	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to get address range for MIDI buffer");
 	ivars->MIDIBufferAddr = reinterpret_cast<uint8_t*>(range.address);
-	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, 32768 * 1928, 0, ivars->usbTXBufferPCMandUART.attach());
-	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create output ring buffer");
-	ret = ivars->usbTXBufferPCMandUART->GetAddressRange(&range);
-	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to get output ring buffer address bytes");
-	ivars->usbTXBufferPCMandUARTAddr = reinterpret_cast<uint8_t *>(range.address);
-	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, 32768 * 2048, 0, ivars->usbRXBufferPCM.attach());
-	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create input ring buffer");
-	for (i = 0; i < 32768; i++)
-	{
-		ret = IOMemoryDescriptor::CreateSubMemoryDescriptor(kIOMemoryDirectionInOut, i * 1928, 1928, ivars->usbTXBufferPCMandUART.get(), ivars->usbTXBufferPCMandUARTSegment[i].attach());
-		FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create USB output SubMemoryDescriptor");
-		ivars->usbTXBufferPCMandUARTSegmentAddr[i] = ivars->usbTXBufferPCMandUARTAddr + (i * 1928);
-		ret = IOMemoryDescriptor::CreateSubMemoryDescriptor(kIOMemoryDirectionInOut, i * 2048, 2048, ivars->usbRXBufferPCM.get(), ivars->usbRXBufferPCMSegment[i].attach());
-		FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create USB input SubMemoryDescriptor");
-	}
 	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, 32768, 0, ivars->usbRXBufferMIDI.attach());
 	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create input MIDI buffer");
 	ret = ivars->usbRXBufferMIDI->GetAddressRange(&range);
@@ -168,6 +153,54 @@ kern_return_t IMPL(PloytecDriver, Start)
 		ivars->transferMode = BULK;
 	else if (outdescriptor.descriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeInterrupt)
 		ivars->transferMode = INTERRUPT;
+
+	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, 32768 * 1928, 0, ivars->usbTXBufferPCMandUART.attach());
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create output ring buffer");
+	ret = ivars->usbTXBufferPCMandUART->GetAddressRange(&range);
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to get output ring buffer address bytes");
+	ivars->usbTXBufferPCMandUARTAddr = reinterpret_cast<uint8_t *>(range.address);
+	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, 32768 * 2048, 0, ivars->usbRXBufferPCM.attach());
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create input ring buffer");
+
+	if (ivars->transferMode == BULK)
+	{
+		for (i = 0; i < 32768; i++)
+		{
+			ret = IOMemoryDescriptor::CreateSubMemoryDescriptor(kIOMemoryDirectionInOut, i * 2048, 2048, ivars->usbTXBufferPCMandUART.get(), 	ivars->usbTXBufferPCMandUARTSegment[i].attach());
+			FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create USB output SubMemoryDescriptor");
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i] = ivars->usbTXBufferPCMandUARTAddr + (i * 2048);
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i][480] = 0xFD;
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i][481] = 0xFD;
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i][992] = 0xFD;
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i][993] = 0xFD;
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i][1504] = 0xFD;
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i][1505] = 0xFD;
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i][2016] = 0xFD;
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i][2017] = 0xFD;
+		}
+	}
+	else if (ivars->transferMode == INTERRUPT)
+	{
+		for (i = 0; i < 32768; i++)
+		{
+			ret = IOMemoryDescriptor::CreateSubMemoryDescriptor(kIOMemoryDirectionInOut, i * 1928, 1928, ivars->usbTXBufferPCMandUART.get(), 	ivars->usbTXBufferPCMandUARTSegment[i].attach());
+			FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create USB output SubMemoryDescriptor");
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i] = ivars->usbTXBufferPCMandUARTAddr + (i * 1928);
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i][432] = 0xFD;
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i][433] = 0xFD;
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i][914] = 0xFD;
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i][915] = 0xFD;
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i][1396] = 0xFD;
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i][1397] = 0xFD;
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i][1878] = 0xFD;
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i][1879] = 0xFD;
+		}
+	}
+	for (i = 0; i < 32768; i++)
+	{
+		ret = IOMemoryDescriptor::CreateSubMemoryDescriptor(kIOMemoryDirectionInOut, i * 2048, 2048, ivars->usbRXBufferPCM.get(), ivars->usbRXBufferPCMSegment[i].attach());
+		FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create USB input SubMemoryDescriptor");
+	}
 
 	ret = OSAction::Create(this, PloytecDriver_PCMinHandler_ID, IOUSBHostPipe_CompleteAsyncIO_ID, 0, &ivars->usbPCMinCallback);
 	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create the PCM in USB handler");
@@ -316,11 +349,23 @@ kern_return_t PloytecDriver::GetPlaybackStats(playbackstats *stats)
 	return ivars->audioDevice->GetPlaybackStats(stats);
 }
 
-void PloytecDriver::WriteMIDIBytes(const uint8_t* data, uint32_t len) {
-	for (uint32_t i = 0; i < len; ++i) {
-		uint32_t next = (ivars->midiRingHead + 1) % ivars->midiRingSize;
-		if (next == ivars->midiRingTail) break; // Buffer full
-		ivars->MIDIBufferAddr[ivars->midiRingHead] = data[i];
+void PloytecDriver::WriteMIDIBytes(const uint64_t msg) {
+	uint8_t length = msg & 0xFF;
+	if (length == 0 || length > 6) {
+		os_log(OS_LOG_DEFAULT, "WriteMIDIBytes: Invalid length: %u", length);
+		return;
+	}
+
+	for (uint8_t i = 0; i < length; ++i) {
+		uint8_t byte = static_cast<uint8_t>((msg >> (8 * (i + 1))) & 0xFF);
+
+		uint32_t next = (ivars->midiRingHead + 1) % 256;
+		if (next == ivars->midiRingTail) {
+			os_log(OS_LOG_DEFAULT, "WriteMIDIBytes: MIDI ring buffer overflow");
+			break;
+		}
+
+		ivars->MIDIBufferAddr[ivars->midiRingHead] = byte;
 		ivars->midiRingHead = next;
 	}
 }
@@ -328,7 +373,7 @@ void PloytecDriver::WriteMIDIBytes(const uint8_t* data, uint32_t len) {
 bool PloytecDriver::ReadMIDIByte(uint8_t &outByte) {
 	if (ivars->midiRingHead == ivars->midiRingTail) return false; // Buffer empty
 	outByte = ivars->MIDIBufferAddr[ivars->midiRingTail];
-	ivars->midiRingTail = (ivars->midiRingTail + 1) % ivars->midiRingSize;
+	ivars->midiRingTail = (ivars->midiRingTail + 1) % 256;
 	return true;
 }
 
@@ -342,25 +387,30 @@ kern_return_t IMPL(PloytecDriver, PCMinHandler)
 kern_return_t IMPL(PloytecDriver, PCMoutHandlerBulk)
 {
 	ivars->audioDevice->Playback(ivars->usbTXBufferPCMandUARTCurrentSegment, completionTimestamp);
+
 	uint8_t byte;
-	if (ReadMIDIByte(byte)) {
+	if (ReadMIDIByte(byte))
 		ivars->usbTXBufferPCMandUARTSegmentAddr[ivars->usbTXBufferPCMandUARTCurrentSegment][480] = byte;
-	}
-	
+	else
+		ivars->usbTXBufferPCMandUARTSegmentAddr[ivars->usbTXBufferPCMandUARTCurrentSegment][480] = 0xFD;
+
 	kern_return_t ret = ivars->usbPCMoutPipe->AsyncIO(ivars->usbTXBufferPCMandUARTSegment[ivars->usbTXBufferPCMandUARTCurrentSegment].get(), 2048, ivars->usbPCMoutCallbackBulk, 0);
+
 	return ret;
 }
 
 kern_return_t IMPL(PloytecDriver, PCMoutHandlerInterrupt)
 {
 	ivars->audioDevice->Playback(ivars->usbTXBufferPCMandUARTCurrentSegment, completionTimestamp);
+
 	uint8_t byte;
-	if (ReadMIDIByte(byte)) {
-		os_log(OS_LOG_DEFAULT, "SENDING MIDI DEXT!!");
+	if (ReadMIDIByte(byte))
 		ivars->usbTXBufferPCMandUARTSegmentAddr[ivars->usbTXBufferPCMandUARTCurrentSegment][432] = byte;
-	}
+	else
+		ivars->usbTXBufferPCMandUARTSegmentAddr[ivars->usbTXBufferPCMandUARTCurrentSegment][432] = 0xFD;
 
 	kern_return_t ret = ivars->usbPCMoutPipe->AsyncIO(ivars->usbTXBufferPCMandUARTSegment[ivars->usbTXBufferPCMandUARTCurrentSegment].get(), 1928, ivars->usbPCMoutCallbackInterrupt, 0);
+
 	return ret;
 }
 

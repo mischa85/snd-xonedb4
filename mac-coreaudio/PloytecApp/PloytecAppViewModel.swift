@@ -194,6 +194,10 @@ class PloytecAppViewModel: NSObject {
 	override init() {
 		super.init()
 
+#if os(macOS)
+		detectInitialState()
+#endif
+
 		NotificationCenter.default.publisher(for: NSNotification.Name("UserClientConnectionOpened"))
 			.sink { [weak self] _ in
 				guard let self = self else { return }
@@ -210,6 +214,21 @@ class PloytecAppViewModel: NSObject {
 		let bridge = PloytecAppUserClientSwift()
 		bridge.midiManager.userClient = bridge
 		midiBridge = bridge
+	}
+
+	func detectInitialState() {
+#if os(macOS)
+		let matchDict = IOServiceNameMatching("PloytecDriver")
+		let service = IOServiceGetMatchingService(kIOMainPortDefault, matchDict)
+		if service != 0 {
+			IOObjectRelease(service)
+			self.state = .activated
+			os_log("Initial detection: driver appears loaded, setting state to .activated")
+		} else {
+			self.state = .deactivated
+			os_log("Initial detection: driver not found, setting state to .deactivated")
+		}
+#endif
 	}
 
 	public var dextLoadingState: String {
