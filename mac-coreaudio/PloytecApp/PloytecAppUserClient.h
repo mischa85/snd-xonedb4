@@ -1,7 +1,3 @@
-//
-//  Use this file to import your target's public headers that you would like to expose to Swift.
-//
-
 #import <IOKit/IOKitLib.h>
 #import <Foundation/Foundation.h>
 
@@ -23,7 +19,7 @@ typedef struct {
 - (NSString*)getFirmwareVersion;
 - (NSString*)getDeviceName;
 - (NSString*)getDeviceManufacturer;
-- (NSString*)changeBufferSize:(uint32_t)buffersize;
 - (playbackstats)getPlaybackStats;
+- (void)sendMIDIMessageToDriver:(uint64_t)message;
 
 @end

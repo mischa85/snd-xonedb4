@@ -1,13 +1,3 @@
-//
-//  PloytecDriverUserClient.cpp
-//  PloytecDriver
-//
-//  Created by Marcel Bierling on 04/07/2024.
-//  Copyright © 2024 Hackerman. All rights reserved.
-//
-
-// The local includes.
-#include "PloytecDriverUserClient.h"
 #include "PloytecDriver.h"
 #include "PloytecDevice.h"
 #include "PloytecDriverKeys.h"
@@ -16,12 +6,14 @@
 #include <DriverKit/DriverKit.h>
 #include <DriverKit/OSSharedPtr.h>
 #include <AudioDriverKit/AudioDriverKit.h>
+#include <DriverKit/IODispatchSource.h>
 
 #define	DebugMsg(inFormat, args...)	os_log(OS_LOG_DEFAULT, "%s: " inFormat "\n", __FUNCTION__, ##args)
 
 struct PloytecDriverUserClient_IVars
 {
 	OSSharedPtr<PloytecDriver> mProvider = nullptr;
+	OSAction* midiNotificationAction = nullptr;
 };
 
 bool PloytecDriverUserClient::init()
@@ -41,6 +33,10 @@ bool PloytecDriverUserClient::init()
 void PloytecDriverUserClient::free()
 {
 	if (ivars != nullptr) {
+		if (ivars->midiNotificationAction) {
+			ivars->midiNotificationAction->release();
+			ivars->midiNotificationAction = nullptr;
+		}
 		ivars->mProvider.reset();
 	}
 	IOSafeDeleteNULL(ivars, PloytecDriverUserClient_IVars, 1);
@@ -63,6 +59,8 @@ kern_return_t PloytecDriverUserClient::Start_Impl(IOService* provider)
 	}
 
 	ivars->mProvider = OSSharedPtr(OSDynamicCast(PloytecDriver, provider), OSRetain);
+	
+	ivars->mProvider->ivars->midiClient = this;
 
 	return kIOReturnSuccess;
 
@@ -116,13 +114,6 @@ kern_return_t PloytecDriverUserClient::ExternalMethod(uint64_t selector, IOUserC
 			break;
 		}
 
-		case PloytecDriverExternalMethod_ChangeBufferSize: {
-			ret = kIOReturnSuccess;
-			OSNumber* buffersize = OSNumber::withNumber(*static_cast<const uint64_t*>(arguments->scalarInput), sizeof(arguments->scalarInput));
-			ivars->mProvider->ChangeBufferSize(buffersize);
-			break;
-		}
-
 		case PloytecDriverExternalMethod_GetPlaybackStats: {
 			playbackstats stats;
 			ret = ivars->mProvider->GetPlaybackStats(&stats);
@@ -130,9 +121,65 @@ kern_return_t PloytecDriverUserClient::ExternalMethod(uint64_t selector, IOUserC
 			break;
 		}
 
+		case PloytecDriverExternalMethod_RegisterForMIDINotification:
+			ret = RegisterForMIDINotification_Impl(arguments);
+			break;
+
+		case PloytecDriverExternalMethod_SendMIDI:
+			return SendMIDI(arguments);
+			break;
+
 		default:
 			ret = super::ExternalMethod(selector, arguments, dispatch, target, reference);
 	};
 
 	return ret;
+}
+
+kern_return_t
+PloytecDriverUserClient::RegisterForMIDINotification_Impl(IOUserClientMethodArguments *arguments)
+{
+	if (!arguments || !arguments->completion) {
+		os_log(OS_LOG_DEFAULT, "Missing completion in async registration");
+		return kIOReturnBadArgument;
+	}
+
+	if (ivars->midiNotificationAction)
+		ivars->midiNotificationAction->release();
+
+	ivars->midiNotificationAction = arguments->completion;
+	ivars->midiNotificationAction->retain();
+
+	return kIOReturnSuccess;
+}
+
+kern_return_t
+PloytecDriverUserClient::postMIDIMessage(uint64_t msg)
+{
+	if (!ivars || !ivars->midiNotificationAction)
+	{
+		return kIOReturnNoResources;
+	}
+
+	uint64_t asyncArgs[1] = { msg };
+	AsyncCompletion(ivars->midiNotificationAction, kIOReturnSuccess, asyncArgs, 1);
+
+	return kIOReturnSuccess;
+}
+
+kern_return_t
+PloytecDriverUserClient::SendMIDI(IOUserClientMethodArguments *arguments)
+{
+	if (!ivars || !ivars->mProvider) {
+		return kIOReturnNotAttached;
+	}
+
+	if (!arguments || arguments->scalarInputCount < 1) {
+		os_log(OS_LOG_DEFAULT, "SendMIDI: Invalid input");
+		return kIOReturnBadArgument;
+	}
+
+	ivars->mProvider->WriteMIDIBytes(arguments->scalarInput[0]);
+
+	return kIOReturnSuccess;
 }

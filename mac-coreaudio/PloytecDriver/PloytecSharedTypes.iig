@@ -1,0 +1,24 @@
+#ifndef PloytecSharedTypes_h
+#define PloytecSharedTypes_h
+
+#include <DriverKit/DriverKit.iig>
+
+enum TransferMode
+{
+	BULK = 0,
+	INTERRUPT = 1,
+};
+
+typedef struct {
+	bool playing;
+	bool recording;
+	uint64_t out_sample_time;
+	uint64_t out_sample_time_usb;
+	int64_t out_sample_time_diff;
+	uint64_t in_sample_time;
+	uint64_t in_sample_time_usb;
+	int64_t in_sample_time_diff;
+	uint64_t xruns;
+} playbackstats;
+
+#endif /* PloytecSharedTypes_h */

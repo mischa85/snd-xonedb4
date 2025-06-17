@@ -1,11 +1,3 @@
-//
-//  PloytecAppViewModel.swift
-//  PloytecApp
-//
-//  Created by Marcel Bierling on 04/07/2024.
-//  Copyright © 2024 Hackerman. All rights reserved.
-//
-
 import Foundation
 import Combine
 import os.log
@@ -192,22 +184,53 @@ class PloytecAppStateMachine {
 class PloytecAppViewModel: NSObject {
 	
 	private let dextIdentifier: String = "sc.hackerman.ploytecdriver"
+	private(set) var midiBridge: PloytecAppUserClientSwift? = nil
 	
-	// Check the initial state of the dext because it doesn't necessarily start in an unloaded state.
 	@Published private(set) var state: PloytecAppStateMachine.State = .deactivated
 	@Published var isConnected = false
-	
+
 	private var cancellables = Set<AnyCancellable>()
-	
+
 	override init() {
 		super.init()
+
+#if os(macOS)
+		detectInitialState()
+#endif
+
 		NotificationCenter.default.publisher(for: NSNotification.Name("UserClientConnectionOpened"))
 			.sink { [weak self] _ in
-				self?.isConnected = true
+				guard let self = self else { return }
+				if !self.isConnected {
+					self.isConnected = true
+					self.setupMIDIOnce()
+				}
 			}
 			.store(in: &cancellables)
 	}
-	
+
+	private func setupMIDIOnce() {
+		guard midiBridge == nil else { return }
+		let bridge = PloytecAppUserClientSwift()
+		bridge.midiManager.userClient = bridge
+		midiBridge = bridge
+	}
+
+	func detectInitialState() {
+#if os(macOS)
+		let matchDict = IOServiceNameMatching("PloytecDriver")
+		let service = IOServiceGetMatchingService(kIOMainPortDefault, matchDict)
+		if service != 0 {
+			IOObjectRelease(service)
+			self.state = .activated
+			os_log("Initial detection: driver appears loaded, setting state to .activated")
+		} else {
+			self.state = .deactivated
+			os_log("Initial detection: driver not found, setting state to .deactivated")
+		}
+#endif
+	}
+
 	public var dextLoadingState: String {
 		switch state {
 		case .activating:

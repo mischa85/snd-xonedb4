@@ -1,19 +1,61 @@
-//
-//  PloytecDriver.iig
-//  PloytecDriver
-//
-//  Created by Marcel Bierling on 20/05/2024.
-//  Copyright © 2024 Hackerman. All rights reserved.
-//
-
 #ifndef PloytecDriver_h
 #define PloytecDriver_h
 
 #include <DriverKit/IOService.iig>
 #include <AudioDriverKit/IOUserAudioDriver.iig>
 #include "PloytecDevice.iig"
+#include "PloytecDriverUserClient.iig"
 
 using namespace AudioDriverKit;
+
+struct PloytecDriver_IVars
+{
+	OSSharedPtr<IODispatchQueue>		workQueue;
+	OSSharedPtr<PloytecDevice>		audioDevice;
+
+	IOUSBHostDevice				*usbDevice;
+	IOUSBHostInterface			*usbInterface0;
+	IOUSBHostInterface			*usbInterface1;
+	IOUSBHostPipe				*usbMIDIinPipe;
+	IOUSBHostPipe				*usbPCMoutPipe;
+	IOUSBHostPipe				*usbPCMinPipe;
+	OSAction				*usbPCMoutCallbackBulk;
+	OSAction				*usbPCMoutCallbackInterrupt;
+	OSAction				*usbPCMinCallback;
+	OSAction				*usbMIDIinCallback;
+
+	OSSharedPtr<IOBufferMemoryDescriptor>	usbRXBufferCONTROL;
+	OSSharedPtr<IOBufferMemoryDescriptor>	MIDIBuffer;
+	uint8_t					*MIDIBufferAddr;
+	uint8_t					midiRingHead;
+	uint8_t					midiRingTail;
+	OSSharedPtr<IOBufferMemoryDescriptor> 	usbTXBufferPCMandUART;
+	uint8_t					*usbTXBufferPCMandUARTAddr;
+	OSSharedPtr<IOMemoryDescriptor>		usbTXBufferPCMandUARTSegment[32768];
+	uint8_t					*usbTXBufferPCMandUARTSegmentAddr[32768];
+	uint16_t				usbTXBufferPCMandUARTCurrentSegment;
+	OSSharedPtr<IOBufferMemoryDescriptor> 	usbRXBufferPCM;
+	OSSharedPtr<IOMemoryDescriptor>		usbRXBufferPCMSegment[32768];
+	uint16_t				usbRXBufferPCMCurrentSegment;
+	OSSharedPtr<IOBufferMemoryDescriptor> 	usbRXBufferMIDI;
+	uint8_t					*usbRXBufferMIDIAddr;
+
+	char					*firmwarever;
+	IOBufferMemoryDescriptor		*sampleratebytes;
+	OSSharedPtr<OSString>			FirmwareVersionBytes;
+	OSSharedPtr<OSString>			manufacturer_uid;
+	OSSharedPtr<OSString>			device_name;
+	char 					*manufacturer_utf8;
+	char 					*device_name_utf8;
+
+	TransferMode				transferMode;
+	
+	IOUserClient*				midiUserClient = nullptr;
+	PloytecDriverUserClient*		midiClient = nullptr;
+	uint8_t					midiParserRunningStatus = 0;
+	uint8_t					midiParserBytes[3];
+	uint8_t					midiParserIndex = 0;
+};
 
 class PloytecDriver: public IOUserAudioDriver
 {	
@@ -29,11 +71,15 @@ public:
 	virtual OSData* GetDeviceName() LOCALONLY;
 	virtual OSData* GetDeviceManufacturer() LOCALONLY;
 	kern_return_t GetPlaybackStats(playbackstats *stats) LOCALONLY;
-	kern_return_t ChangeBufferSize(OSNumber *buffersize) LOCALONLY;
+	
+	virtual void WriteMIDIBytes(const uint64_t msg) LOCALONLY;
+	virtual bool ReadMIDIByte(uint8_t &outByte) LOCALONLY;
 
 protected:
 	virtual kern_return_t PCMinHandler(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);
-	virtual kern_return_t PCMoutHandler(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);
+	virtual kern_return_t PCMoutHandlerBulk(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);
+	virtual kern_return_t PCMoutHandlerInterrupt(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);
+	virtual kern_return_t MIDIinHandler(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);
 };
 
 #endif /* PloytecDriver_h */

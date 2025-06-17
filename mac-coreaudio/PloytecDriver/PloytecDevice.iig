@@ -1,11 +1,3 @@
-//
-//  PloytecDevice.iig
-//  PloytecDriver
-//
-//  Created by Marcel Bierling on 20/05/2024.
-//  Copyright © 2024 Hackerman. All rights reserved.
-//
-
 #ifndef PloytecDevice_h
 #define PloytecDevice_h
 
@@ -13,37 +5,24 @@
 #include <AudioDriverKit/IOUserAudioDevice.iig>
 #include <USBDriverKit/IOUSBHostPipe.iig>
 #include <USBDriverKit/IOUSBHostInterface.iig>
+#include "PloytecSharedTypes.iig"
 
 using namespace AudioDriverKit;
-
-typedef struct {
-	bool playing;
-	bool recording;
-	uint64_t out_sample_time;
-	uint64_t out_sample_time_usb;
-	int64_t out_sample_time_diff;
-	uint64_t in_sample_time;
-	uint64_t in_sample_time_usb;
-	int64_t in_sample_time_diff;
-	uint64_t xruns;
-} playbackstats;
-
-constexpr uint64_t k_change_buffer_size_action = 1234;
 
 class IOUserAudioDriver;
 
 class PloytecDevice: public IOUserAudioDevice
 {
 public:
-	virtual bool init(IOUserAudioDriver* in_driver, bool in_supports_prewarming, OSString* in_device_uid, OSString* in_model_uid, OSString* in_manufacturer_uid, uint32_t in_zero_timestamp_period, IOUSBHostPipe* PCMinPipe, OSAction* PCMinCallback, IOUSBHostPipe* PCMoutPipe, OSAction* PCMoutCallback, IOUSBHostDevice* device) LOCALONLY;
+	virtual bool init(IOUserAudioDriver* in_driver, bool in_supports_prewarming, OSString* in_device_uid, OSString* in_model_uid, OSString* in_manufacturer_uid, uint32_t in_zero_timestamp_period, IOBufferMemoryDescriptor* receiveBuffer, IOBufferMemoryDescriptor* transmitBuffer, TransferMode transferMode) LOCALONLY;
 	virtual kern_return_t StartIO(IOUserAudioStartStopFlags in_flags) final LOCALONLY;
 	virtual kern_return_t StopIO(IOUserAudioStartStopFlags in_flags) final LOCALONLY;
 	virtual kern_return_t PerformDeviceConfigurationChange(uint64_t change_action, OSObject* in_change_info) final LOCALONLY;
 	virtual kern_return_t AbortDeviceConfigurationChange(uint64_t change_action, OSObject* in_change_info) final LOCALONLY;
 	virtual void free() override LOCALONLY;
 	virtual kern_return_t GetPlaybackStats(playbackstats *stats) LOCALONLY;
-	virtual kern_return_t SendPCMToDevice(uint64_t completionTimestamp) LOCALONLY;
-	virtual kern_return_t ReceivePCMfromDevice(uint64_t completionTimestamp) LOCALONLY;
+	virtual bool Playback(uint16_t &currentpos, uint64_t completionTimestamp) LOCALONLY;
+	virtual bool Capture(uint16_t &currentpos, uint64_t completionTimestamp) LOCALONLY;
 
 private:
 	void ploytec_convert_from_s24_3le(uint8_t *dest, uint8_t *src) LOCALONLY;
