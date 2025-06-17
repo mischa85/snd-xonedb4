@@ -1,4 +1,4 @@
-# snd-xonedb4
+# Ploytec Driver
 
 This is a driver for several Ploytec audio/MIDI interfaces. It supports both BULK and INTERRUPT streaming modes.
 
@@ -28,8 +28,8 @@ The development of the macOS driverkit driver has been an unpleasant experience 
 - [x] PCM in 8 channels
 - [ ] Driver config in UI
 - [ ] Sample Rate Switching
-- [ ] MIDI out
-- [ ] MIDI in
+- [x] MIDI out
+- [x] MIDI in
 
 How to install:
 
@@ -55,7 +55,14 @@ How to install:
 - Change the directory to the cloned repo: ```cd snd-xonedb4```
 - Get a (free) Apple developer account via Xcode.
 - ```make mac``` to compile the driver.
+- If you installed an earlier version, uninstall it first! ```systemextensionsctl list``` to list, ```systemextensionsctl uninstall <teamID> <bundleID>``` to uninstall.
 - ```make mac-install``` to move it to the ```/Applications``` directory.
-- Start ```XoneXB4App``` from Applications.
+- Start ```Ploytec Driver Extension``` from Applications.
+
+Random comments:
+- On macOS MIDI in/out is implemented in userspace. The Ploytec Driver Extension application needs to run for MIDI to work.
+- On Linux MIDI out is still sent too fast. Small fix, will do soon.
+- On macOS there can be rare instances where the audio gets distorted. This could happen when an application changes the audio buffer size. There's probably better ways to sync up the audio again.
+- You might need to manually uninstall older versions of the driver on macOS. You can list them using ```systemextensionsctl list``` and uninstall using ```systemextensionsctl uninstall <teamID> <bundleID>```.
 
 <a href="https://www.buymeacoffee.com/mischa85" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174"></a>
