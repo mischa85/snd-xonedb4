@@ -19,6 +19,8 @@ typedef struct {
 - (NSString*)getFirmwareVersion;
 - (NSString*)getDeviceName;
 - (NSString*)getDeviceManufacturer;
+- (void)changeUrbCount:(uint8_t)urbCount;
+- (uint8_t)getCurrentUrbCount;
 - (playbackstats)getPlaybackStats;
 - (void)sendMIDIMessageToDriver:(uint64_t)message;
 

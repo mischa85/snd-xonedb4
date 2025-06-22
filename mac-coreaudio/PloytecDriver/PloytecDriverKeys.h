@@ -9,6 +9,8 @@ enum PloytecDriverExternalMethod
 	PloytecDriverExternalMethod_GetDeviceName,
 	PloytecDriverExternalMethod_GetDeviceManufacturer,
 	PloytecDriverExternalMethod_GetPlaybackStats,
+	PloytecDriverExternalMethod_ChangeURBs,
+	PloytecDriverExternalMethod_GetCurrentUrbCount,
 	PloytecDriverExternalMethod_RegisterForMIDINotification,
 	PloytecDriverExternalMethod_SendMIDI,
 };

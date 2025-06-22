@@ -140,6 +140,33 @@
 	return [NSString stringWithFormat:@"Firmware: 1.%d.%d", (firmwarever[2]/10), (firmwarever[2]%10)];
 }
 
+- (void)changeUrbCount:(uint8_t)urbCount
+{
+	if (_ioConnection == IO_OBJECT_NULL) {
+		NSLog(@"%s: No connection to driver", __FUNCTION__);
+		return;
+	}
+
+	IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_ChangeURBs, reinterpret_cast<const uint64_t*>(&urbCount), 1, nullptr, 0, nullptr, nullptr, nullptr, 0);
+}
+
+- (uint8_t)getCurrentUrbCount
+{
+	if (_ioConnection == IO_OBJECT_NULL) {
+		NSLog(@"%s: No connection to driver", __FUNCTION__);
+		return;
+	}
+
+	uint8_t num;
+	uint32_t outputCount = 1;
+	kern_return_t ret = IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_GetCurrentUrbCount, nullptr, 0, nullptr, 0, reinterpret_cast<uint64_t*>(&num), &outputCount, nullptr, 0);
+	if (ret != KERN_SUCCESS) {
+		NSLog(@"getCurrentUrbCount failed: %s", mach_error_string(ret));
+		return 0;
+	}
+	return num;
+}
+
 - (playbackstats)getPlaybackStats
 {
 	if (_ioConnection == IO_OBJECT_NULL) {

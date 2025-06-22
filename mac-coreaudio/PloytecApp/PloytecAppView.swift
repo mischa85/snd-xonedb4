@@ -3,14 +3,31 @@ import SwiftUI
 struct PloytecAppView: View {
 	@StateObject var viewModel = PloytecAppViewModel()
 	var userClient = PloytecAppUserClient()
+
 	@State private var userClientText = ""
 	@State private var firmwareVersionText = ""
 	@State private var deviceNameText = ""
 	@State private var deviceManufacturerText = ""
 	@State private var playbackStatsText = ""
+
 	private let playbackStatsUpdateInterval = 1.0
+	private let urbCount = [1, 2, 3, 4, 5, 6, 7, 8]
+
+	@State private var selectedUrbCount = 4
 	@State private var timer: Timer?
 	@State private var retryTimer: Timer?
+
+	private var urbBinding: Binding<Int> {
+		Binding(
+			get: { selectedUrbCount },
+			set: { newValue in
+				if selectedUrbCount != newValue {
+					selectedUrbCount = newValue
+					userClient.changeUrbCount(UInt8(newValue))
+				}
+			}
+		)
+	}
 
 	var body: some View {
 		ScrollView {
@@ -42,6 +59,16 @@ struct PloytecAppView: View {
 					Text(deviceNameText)
 					Text(deviceManufacturerText)
 					Text(firmwareVersionText)
+					if viewModel.isConnected {
+						Picker("URB Count", selection: urbBinding) {
+							ForEach(urbCount, id: \.self) { size in
+								Text("\(size)")
+							}
+						}
+						.padding()
+						.frame(width: 150)
+						.pickerStyle(MenuPickerStyle())
+					}
 					Text(playbackStatsText)
 						.font(.system(.body, design: .monospaced))
 						.multilineTextAlignment(.leading)
@@ -61,6 +88,7 @@ struct PloytecAppView: View {
 					firmwareVersionText = self.userClient.getFirmwareVersion()
 					deviceNameText = self.userClient.getDeviceName()
 					deviceManufacturerText = self.userClient.getDeviceManufacturer()
+					selectedUrbCount = Int(userClient.getCurrentUrbCount())
 					startTimer()
 				} else {
 					stopTimer()

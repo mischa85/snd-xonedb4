@@ -39,6 +39,7 @@ struct PloytecDriver_IVars
 	uint16_t				usbRXBufferPCMCurrentSegment;
 	OSSharedPtr<IOBufferMemoryDescriptor> 	usbRXBufferMIDI;
 	uint8_t					*usbRXBufferMIDIAddr;
+	uint8_t					usbCurrentUrbCount;
 
 	char					*firmwarever;
 	IOBufferMemoryDescriptor		*sampleratebytes;
@@ -71,9 +72,12 @@ public:
 	virtual OSData* GetDeviceName() LOCALONLY;
 	virtual OSData* GetDeviceManufacturer() LOCALONLY;
 	kern_return_t GetPlaybackStats(playbackstats *stats) LOCALONLY;
-	
+
 	virtual void WriteMIDIBytes(const uint64_t msg) LOCALONLY;
 	virtual bool ReadMIDIByte(uint8_t &outByte) LOCALONLY;
+
+	virtual kern_return_t SendUSBUrbs(uint8_t num) LOCALONLY;
+	virtual uint8_t GetCurrentUrbCount() LOCALONLY;
 
 protected:
 	virtual kern_return_t PCMinHandler(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);

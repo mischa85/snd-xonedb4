@@ -121,6 +121,21 @@ kern_return_t PloytecDriverUserClient::ExternalMethod(uint64_t selector, IOUserC
 			break;
 		}
 
+		case PloytecDriverExternalMethod_ChangeURBs: {
+			ret = ivars->mProvider->SendUSBUrbs(*reinterpret_cast<const uint8_t*>(arguments->scalarInput));
+			break;
+		}
+
+		case PloytecDriverExternalMethod_GetCurrentUrbCount: {
+			if (arguments->scalarOutputCount < 1) {
+				ret = kIOReturnBadArgument;
+				break;
+			}
+			arguments->scalarOutput[0] = static_cast<uint64_t>(ivars->mProvider->GetCurrentUrbCount());
+			ret = kIOReturnSuccess;
+			break;
+		}
+
 		case PloytecDriverExternalMethod_RegisterForMIDINotification:
 			ret = RegisterForMIDINotification_Impl(arguments);
 			break;
