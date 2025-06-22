@@ -25,8 +25,8 @@ public:
 	virtual bool Capture(uint16_t &currentpos, uint64_t completionTimestamp) LOCALONLY;
 
 private:
-	void ploytec_convert_from_s24_3le(uint8_t *dest, uint8_t *src) LOCALONLY;
-	void ploytec_convert_to_s24_3le(uint8_t *dest, uint8_t *src) LOCALONLY;
+	void EncodePloytecPCM(uint8_t *dst, uint8_t *src) LOCALONLY;
+	void DecodePloytecPCM(uint8_t *dst, uint8_t *src) LOCALONLY;
 };
 
 #endif /* PloytecDevice_h */
