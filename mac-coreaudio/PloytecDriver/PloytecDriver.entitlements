@@ -24,12 +24,18 @@
 			<key>idProduct</key>
 			<integer>65499</integer>
 		</dict>
-                <dict>
-                        <key>idVendor</key>
-                        <integer>2634</integer>
-                        <key>idProduct</key>
-                        <integer>65357</integer>
-                </dict>
+		<dict>
+			<key>idVendor</key>
+			<integer>2634</integer>
+			<key>idProduct</key>
+			<integer>65357</integer>
+		</dict>
+		<dict>
+			<key>idVendor</key>
+			<integer>2634</integer>
+			<key>idProduct</key>
+			<integer>65281</integer>
+		</dict>
 	</array>
 	<key>com.apple.developer.driverkit.family.audio</key>
 	<true/>

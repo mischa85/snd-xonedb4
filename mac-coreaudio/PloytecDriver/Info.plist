@@ -168,6 +168,43 @@
 			<key>idVendor</key>
 			<integer>2634</integer>
 		</dict>
+		<key>Allen&amp;Heath Xone:2D</key>
+		<dict>
+			<key>CFBundleIdentifier</key>
+			<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+			<key>IOClass</key>
+			<string>IOUserService</string>
+			<key>IOMatchCategory</key>
+			<string>PloytecDriver</string>
+			<key>IOProviderClass</key>
+			<string>IOUSBHostDevice</string>
+			<key>IOUserAudioDriverUserClientProperties</key>
+			<dict>
+				<key>IOClass</key>
+				<string>IOUserUserClient</string>
+				<key>IOUserClass</key>
+				<string>IOUserAudioDriverUserClient</string>
+			</dict>
+			<key>IOUserClass</key>
+			<string>PloytecDriver</string>
+			<key>IOUserServerName</key>
+			<string>sc.hackerman.ploytecdriver</string>
+			<key>PloytecDriverUserClientProperties</key>
+			<dict>
+				<key>IOClass</key>
+				<string>IOUserUserClient</string>
+				<key>IOUserClass</key>
+				<string>PloytecDriverUserClient</string>
+			</dict>
+			<key>bConfigurationValue</key>
+			<integer>1</integer>
+			<key>bInterfaceNumber</key>
+			<integer>0</integer>
+			<key>idProduct</key>
+			<integer>65281</integer>
+			<key>idVendor</key>
+			<integer>2634</integer>
+		</dict>
 	</dict>
 	<key>OSBundleUsageDescription</key>
 	<string>Ploytec Driver</string>
