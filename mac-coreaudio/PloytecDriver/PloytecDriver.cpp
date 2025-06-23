@@ -28,6 +28,8 @@ Exit:
 
 kern_return_t IMPL(PloytecDriver, Start)
 {
+	os_log(OS_LOG_DEFAULT, "Starting PloytecDriver...");
+
 	kern_return_t ret;
 	uintptr_t interfaceIterator;
 	IOAddressSegment range;
@@ -64,6 +66,11 @@ kern_return_t IMPL(PloytecDriver, Start)
 	ivars->manufacturer_uid = OSSharedPtr(OSString::withCString(ivars->manufacturer_utf8), OSNoRetain);
 	ivars->device_name = OSSharedPtr(OSString::withCString(ivars->device_name_utf8), OSNoRetain);
 
+	os_log(OS_LOG_DEFAULT, "Manufacturer: %s", ivars->manufacturer_utf8);
+	os_log(OS_LOG_DEFAULT, "Device Name: %s", ivars->device_name_utf8);
+
+	os_log(OS_LOG_DEFAULT, "Allocating buffers...");
+
 	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, 0x0f, 0, ivars->usbRXBufferCONTROL.attach());
 	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to allocate USB receive buffer");
 	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, 256, 0, ivars->MIDIBuffer.attach());
@@ -77,6 +84,8 @@ kern_return_t IMPL(PloytecDriver, Start)
 	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to get firmware address bytes");
 	ivars->usbRXBufferMIDIAddr = reinterpret_cast<uint8_t *>(range.address);
 
+	os_log(OS_LOG_DEFAULT, "Fetching firmware version...");
+
 	// get firmware
 	ret = ivars->usbDevice->DeviceRequest(this, 0xc0, 0x56, 0x00, 0x00, 0x0f, ivars->usbRXBufferCONTROL.get(), &bytesTransferred, 0);
 	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to get firmware version from device");
@@ -85,15 +94,21 @@ kern_return_t IMPL(PloytecDriver, Start)
 	ivars->firmwarever = new char[range.length];
 	memcpy(ivars->firmwarever, reinterpret_cast<const uint8_t *>(range.address), range.length);
 
+	os_log(OS_LOG_DEFAULT, "Getting device status...");
+
 	// get status
 	ret = ivars->usbDevice->DeviceRequest(this, 0xC0, 0x49, 0x0000, 0x0000, 0x01, ivars->usbRXBufferCONTROL.get(), &bytesTransferred, 0);
 	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to get status from device");
+
+	os_log(OS_LOG_DEFAULT, "Getting samplerate...");
 
 	// get samplerate
 	ret = ivars->sampleratebytes->Create(kIOMemoryDirectionInOut, 0x03, 0, &ivars->sampleratebytes);
 	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to allocate samplerate receive buffer");
 	ret = ivars->usbDevice->DeviceRequest(this, 0xA2, 0x81, 0x0100, 0, 0x03, ivars->sampleratebytes, &bytesTransferred, 0);
 	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to get current samplerate from device");
+
+	os_log(OS_LOG_DEFAULT, "Setting samplerate to 96 kHz...");
 
 	// set 96 khz
 	ret = ivars->sampleratebytes->GetAddressRange(&range);
@@ -110,17 +125,25 @@ kern_return_t IMPL(PloytecDriver, Start)
 	ret = ivars->usbDevice->DeviceRequest(this, 0x22, 0x01, 0x0100, 0x0086, 0x03, ivars->sampleratebytes, &bytesTransferred, 0);
 	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to set samplerate on device");
 
+	os_log(OS_LOG_DEFAULT, "Getting current samplerate...");
+
 	// get samplerate
 	ret = ivars->usbDevice->DeviceRequest(this, 0xA2, 0x81, 0x0100, 0, 0x03, ivars->sampleratebytes, &bytesTransferred, 0);
 	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to get current samplerate from device");
+
+	os_log(OS_LOG_DEFAULT, "Getting device status...");
 
 	// get status
 	ret = ivars->usbDevice->DeviceRequest(this, 0xC0, 0x49, 0x0000, 0x0000, 0x01, ivars->sampleratebytes, &bytesTransferred, 0);
 	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to get status from device");
 
+	os_log(OS_LOG_DEFAULT, "Sending allgood...");
+
 	// allgood
 	ret = ivars->usbDevice->DeviceRequest(this, 0x40, 0x49, 0xFFB2, 0x0000, 0x00, ivars->sampleratebytes, &bytesTransferred, 0);
 	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to get allgood from device");
+
+	os_log(OS_LOG_DEFAULT, "Get USB pipes...");
 
 	// get the USB pipes
 	ret = ivars->usbDevice->SetConfiguration(1, false);
@@ -146,6 +169,8 @@ kern_return_t IMPL(PloytecDriver, Start)
 	ret = ivars->usbInterface0->CopyPipe(PCM_OUT_EP, &ivars->usbPCMoutPipe);
 	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to copy the PCM out pipe");
 
+	os_log(OS_LOG_DEFAULT, "Getting USB descriptors...");
+
 	ret = ivars->usbPCMinPipe->GetDescriptors(&indescriptor, kIOUSBGetEndpointDescriptorOriginal);
 	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to GetDescriptors from PCM in!");
 	ret = ivars->usbPCMoutPipe->GetDescriptors(&outdescriptor, kIOUSBGetEndpointDescriptorOriginal);
@@ -154,6 +179,10 @@ kern_return_t IMPL(PloytecDriver, Start)
 		ivars->transferMode = BULK;
 	else if (outdescriptor.descriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeInterrupt)
 		ivars->transferMode = INTERRUPT;
+
+	os_log(OS_LOG_DEFAULT, "Transfer mode: %s", ivars->transferMode == BULK ? "BULK" : "INTERRUPT");
+
+	os_log(OS_LOG_DEFAULT, "Allocating ring buffers...");
 
 	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, 32768 * 2048, 0, ivars->usbRXBufferPCM.attach());
 	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create input ring buffer");
@@ -208,6 +237,8 @@ kern_return_t IMPL(PloytecDriver, Start)
 		FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create USB input SubMemoryDescriptor");
 	}
 
+	os_log(OS_LOG_DEFAULT, "Creating USB handlers...");
+
 	ret = OSAction::Create(this, PloytecDriver_PCMinHandler_ID, IOUSBHostPipe_CompleteAsyncIO_ID, 0, &ivars->usbPCMinCallback);
 	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create the PCM in USB handler");
 
@@ -230,8 +261,12 @@ kern_return_t IMPL(PloytecDriver, Start)
 	ivars->workQueue = GetWorkQueue();
 	FailIfNULL(ivars->workQueue.get(), ret = kIOReturnInvalid, Exit, "Invalid device");
 
+	os_log(OS_LOG_DEFAULT, "Creating audio device...");
+
 	ivars->audioDevice = OSSharedPtr(OSTypeAlloc(PloytecDevice), OSNoRetain);
 	FailIfNULL(ivars->audioDevice.get(), ret = kIOReturnNoMemory, Exit, "Cannot allocate memory for audio device");
+
+	os_log(OS_LOG_DEFAULT, "Initializing audio device...");
 
 	success = ivars->audioDevice->init(this, false, device_uid.get(), model_uid.get(), ivars->manufacturer_uid.get(), k_zero_time_stamp_period, ivars->usbRXBufferPCM.get(), ivars->usbTXBufferPCMandUART.get(), ivars->transferMode);
 	FailIf(false == success, , Exit, "No memory");
