@@ -183,58 +183,20 @@ kern_return_t IMPL(PloytecDriver, Start)
 	os_log(OS_LOG_DEFAULT, "Transfer mode: %s", ivars->transferMode == BULK ? "BULK" : "INTERRUPT");
 
 	os_log(OS_LOG_DEFAULT, "Allocating ring buffers...");
-
-	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, 32768 * 2048, 0, ivars->usbRXBufferPCM.attach());
+	
+	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, 1048576, 0, ivars->usbRXBufferPCM.attach());
 	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create input ring buffer");
+	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, 1048576, 0, ivars->usbTXBufferPCMandUART.attach());
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create output ring buffer");
+	ret = ivars->usbTXBufferPCMandUART->GetAddressRange(&range);
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to get output ring buffer address bytes");
+	ivars->usbTXBufferPCMandUARTAddr = reinterpret_cast<uint8_t *>(range.address);
 
-	if (ivars->transferMode == BULK)
+	ret = CreateUSBBuffers(40, 32);
+	if (ret != kIOReturnSuccess)
 	{
-		ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, 32768 * 2048, 0, ivars->usbTXBufferPCMandUART.attach());
-		FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create output ring buffer");
-		ret = ivars->usbTXBufferPCMandUART->GetAddressRange(&range);
-		FailIf(ret != kIOReturnSuccess, , Exit, "Failed to get output ring buffer address bytes");
-		ivars->usbTXBufferPCMandUARTAddr = reinterpret_cast<uint8_t *>(range.address);
-		for (i = 0; i < 32768; i++)
-		{
-			ret = IOMemoryDescriptor::CreateSubMemoryDescriptor(kIOMemoryDirectionInOut, i * 2048, 2048, ivars->usbTXBufferPCMandUART.get(), ivars->usbTXBufferPCMandUARTSegment[i].attach());
-			FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create USB output SubMemoryDescriptor");
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i] = ivars->usbTXBufferPCMandUARTAddr + (i * 2048);
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i][480] = 0xFD;
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i][481] = 0xFD;
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i][992] = 0xFD;
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i][993] = 0xFD;
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i][1504] = 0xFD;
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i][1505] = 0xFD;
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i][2016] = 0xFD;
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i][2017] = 0xFD;
-		}
-	}
-	else if (ivars->transferMode == INTERRUPT)
-	{
-		ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, 32768 * 1928, 0, ivars->usbTXBufferPCMandUART.attach());
-		FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create output ring buffer");
-		ret = ivars->usbTXBufferPCMandUART->GetAddressRange(&range);
-		FailIf(ret != kIOReturnSuccess, , Exit, "Failed to get output ring buffer address bytes");
-		ivars->usbTXBufferPCMandUARTAddr = reinterpret_cast<uint8_t *>(range.address);
-		for (i = 0; i < 32768; i++)
-		{
-			ret = IOMemoryDescriptor::CreateSubMemoryDescriptor(kIOMemoryDirectionInOut, i * 1928, 1928, ivars->usbTXBufferPCMandUART.get(), ivars->usbTXBufferPCMandUARTSegment[i].attach());
-			FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create USB output SubMemoryDescriptor");
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i] = ivars->usbTXBufferPCMandUARTAddr + (i * 1928);
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i][432] = 0xFD;
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i][433] = 0xFD;
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i][914] = 0xFD;
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i][915] = 0xFD;
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i][1396] = 0xFD;
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i][1397] = 0xFD;
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i][1878] = 0xFD;
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i][1879] = 0xFD;
-		}
-	}
-	for (i = 0; i < 32768; i++)
-	{
-		ret = IOMemoryDescriptor::CreateSubMemoryDescriptor(kIOMemoryDirectionInOut, i * 2048, 2048, ivars->usbRXBufferPCM.get(), ivars->usbRXBufferPCMSegment[i].attach());
-		FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create USB input SubMemoryDescriptor");
+		os_log(OS_LOG_DEFAULT, "Failed to create USB buffers: %s", strerror(ret));
+		return ret;
 	}
 
 	os_log(OS_LOG_DEFAULT, "Creating USB handlers...");
@@ -448,6 +410,55 @@ kern_return_t PloytecDriver::SendUSBUrbs(uint8_t num)
 		if (ret != kIOReturnSuccess)
 			return ret;
 	}
+	return ret;
+}
+
+kern_return_t PloytecDriver::CreateUSBBuffers(uint32_t outputFramesPerPacket, uint32_t inputFramesPerPacket)
+{
+	kern_return_t ret = kIOReturnSuccess;
+	int i = 0;
+
+	if (ivars->transferMode == BULK)
+	{
+		for (i = 0; i < 32768; i++)
+		{
+			ret = IOMemoryDescriptor::CreateSubMemoryDescriptor(kIOMemoryDirectionInOut, i * 2048, 2048, ivars->usbTXBufferPCMandUART.get(), ivars->usbTXBufferPCMandUARTSegment[i].attach());
+			FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create USB output SubMemoryDescriptor");
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i] = ivars->usbTXBufferPCMandUARTAddr + (i * 2048);
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i][480] = 0xFD;
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i][481] = 0xFD;
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i][992] = 0xFD;
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i][993] = 0xFD;
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i][1504] = 0xFD;
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i][1505] = 0xFD;
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i][2016] = 0xFD;
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i][2017] = 0xFD;
+		}
+	}
+	else if (ivars->transferMode == INTERRUPT)
+	{
+		uint32_t outputPacketSize = (outputFramesPerPacket / 20) * 964;
+		for (i = 0; i < 32768; i++)
+		{
+			ret = IOMemoryDescriptor::CreateSubMemoryDescriptor(kIOMemoryDirectionInOut, i * outputPacketSize, outputPacketSize, ivars->usbTXBufferPCMandUART.get(), ivars->usbTXBufferPCMandUARTSegment[i].attach());
+			FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create USB output SubMemoryDescriptor");
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i] = ivars->usbTXBufferPCMandUARTAddr + (i * outputPacketSize);
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i][432] = 0xFD;
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i][433] = 0xFD;
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i][914] = 0xFD;
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i][915] = 0xFD;
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i][1396] = 0xFD;
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i][1397] = 0xFD;
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i][1878] = 0xFD;
+			ivars->usbTXBufferPCMandUARTSegmentAddr[i][1879] = 0xFD;
+		}
+	}
+	for (i = 0; i < 32768; i++)
+	{
+		ret = IOMemoryDescriptor::CreateSubMemoryDescriptor(kIOMemoryDirectionInOut, i * 2048, 2048, ivars->usbRXBufferPCM.get(), ivars->usbRXBufferPCMSegment[i].attach());
+		FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create USB input SubMemoryDescriptor");
+	}
+Exit:
 	return ret;
 }
 
