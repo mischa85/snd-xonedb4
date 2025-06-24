@@ -11,6 +11,10 @@ enum PloytecDriverExternalMethod
 	PloytecDriverExternalMethod_GetPlaybackStats,
 	PloytecDriverExternalMethod_ChangeURBs,
 	PloytecDriverExternalMethod_GetCurrentUrbCount,
+	PloytecDriverExternalMethod_ChangeInputFramesCount,
+	PloytecDriverExternalMethod_GetCurrentInputFramesCount,
+	PloytecDriverExternalMethod_ChangeOutputFramesCount,
+	PloytecDriverExternalMethod_GetCurrentOutputFramesCount,
 	PloytecDriverExternalMethod_RegisterForMIDINotification,
 	PloytecDriverExternalMethod_SendMIDI,
 };

@@ -7,10 +7,7 @@
 #define PCM_N_PLAYBACK_CHANNELS			8
 #define PCM_N_CAPTURE_CHANNELS			8
 
-#define XDB4_PCM_OUT_FRAMES_PER_PACKET		40
 #define XDB4_PCM_OUT_FRAME_SIZE			48
-
-#define XDB4_PCM_IN_FRAMES_PER_PACKET		32
 #define XDB4_PCM_IN_FRAME_SIZE			64
 
 #define COREAUDIO_BYTES_PER_SAMPLE		3 // S24_3LE
@@ -372,29 +369,29 @@ kern_return_t PloytecDevice::GetPlaybackStats(playbackstats *stats)
 	return kIOReturnSuccess;
 }
 
-bool PloytecDevice::Playback(uint16_t &currentpos, uint64_t completionTimestamp)
+bool PloytecDevice::Playback(uint16_t &currentpos, uint16_t frameCount, uint64_t completionTimestamp)
 {
 	if(ivars->startpcmout == true) {
-		currentpos = (ivars->HWSampleTimeOut % GetZeroTimestampPeriod()) / XDB4_PCM_OUT_FRAMES_PER_PACKET;
+		currentpos = (ivars->HWSampleTimeOut % GetZeroTimestampPeriod()) / frameCount;
 		if(ivars->out_current_buffer_pos_usb == GetZeroTimestampPeriod()) {
 			ivars->out_current_buffer_pos_usb = 0;
 			GetCurrentZeroTimestamp(&ivars->out_hw_sample_time_usb, nullptr);
 			ivars->out_hw_sample_time_usb += GetZeroTimestampPeriod();
 			UpdateCurrentZeroTimestamp(ivars->out_hw_sample_time_usb, completionTimestamp);
 		}
-		ivars->HWSampleTimeOut += XDB4_PCM_OUT_FRAMES_PER_PACKET;
-		ivars->out_current_buffer_pos_usb += XDB4_PCM_OUT_FRAMES_PER_PACKET;
+		ivars->HWSampleTimeOut += frameCount;
+		ivars->out_current_buffer_pos_usb += frameCount;
 		return true;
 	} else {
 		return false;
 	}
 }
 
-bool PloytecDevice::Capture(uint16_t &currentpos, uint64_t completionTimestamp)
+bool PloytecDevice::Capture(uint16_t &currentpos, uint16_t frameCount, uint64_t completionTimestamp)
 {
 	if(ivars->startpcmin == true) {
-		currentpos = (ivars->HWSampleTimeIn % GetZeroTimestampPeriod()) / XDB4_PCM_IN_FRAMES_PER_PACKET;
-		ivars->HWSampleTimeIn += XDB4_PCM_IN_FRAMES_PER_PACKET;
+		currentpos = (ivars->HWSampleTimeIn % GetZeroTimestampPeriod()) / frameCount;
+		ivars->HWSampleTimeIn += frameCount;
 		return true;
 	} else {
 		return false;

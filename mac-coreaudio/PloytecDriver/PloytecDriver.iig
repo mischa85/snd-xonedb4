@@ -40,6 +40,10 @@ struct PloytecDriver_IVars
 	OSSharedPtr<IOBufferMemoryDescriptor> 	usbRXBufferMIDI;
 	uint8_t					*usbRXBufferMIDIAddr;
 	uint8_t					usbCurrentUrbCount;
+	uint32_t				usbOutputPacketSize;
+	uint16_t				usbCurrentOutputFramesCount;
+	uint32_t				usbInputPacketSize;
+	uint16_t				usbCurrentInputFramesCount;
 
 	char					*firmwarever;
 	IOBufferMemoryDescriptor		*sampleratebytes;
@@ -76,9 +80,16 @@ public:
 	virtual void WriteMIDIBytes(const uint64_t msg) LOCALONLY;
 	virtual bool ReadMIDIByte(uint8_t &outByte) LOCALONLY;
 
-	virtual kern_return_t SendUSBUrbs(uint8_t num) LOCALONLY;
+	virtual kern_return_t AbortUSBUrbs() LOCALONLY;
+	virtual kern_return_t SendUSBUrbs() LOCALONLY;
 	virtual uint8_t GetCurrentUrbCount() LOCALONLY;
-	virtual kern_return_t CreateUSBBuffers(uint32_t outputFramesPerPacket, uint32_t inputFramesPerPacket) LOCALONLY;
+	virtual void SetCurrentUrbCount(uint8_t num) LOCALONLY;
+	virtual uint16_t GetCurrentInputFramesCount() LOCALONLY;
+	virtual void SetCurrentInputFramesCount(uint16_t num) LOCALONLY;
+	virtual uint16_t GetCurrentOutputFramesCount() LOCALONLY;
+	virtual void SetCurrentOutputFramesCount(uint16_t num) LOCALONLY;
+	virtual kern_return_t CreateUSBTXBuffersPCMandUART() LOCALONLY;
+	virtual kern_return_t CreateUSBRXBuffersPCM() LOCALONLY;
 
 protected:
 	virtual kern_return_t PCMinHandler(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);

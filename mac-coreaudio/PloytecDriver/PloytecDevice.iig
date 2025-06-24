@@ -21,8 +21,8 @@ public:
 	virtual kern_return_t AbortDeviceConfigurationChange(uint64_t change_action, OSObject* in_change_info) final LOCALONLY;
 	virtual void free() override LOCALONLY;
 	virtual kern_return_t GetPlaybackStats(playbackstats *stats) LOCALONLY;
-	virtual bool Playback(uint16_t &currentpos, uint64_t completionTimestamp) LOCALONLY;
-	virtual bool Capture(uint16_t &currentpos, uint64_t completionTimestamp) LOCALONLY;
+	virtual bool Playback(uint16_t &currentpos, uint16_t frameCount, uint64_t completionTimestamp) LOCALONLY;
+	virtual bool Capture(uint16_t &currentpos, uint16_t frameCount, uint64_t completionTimestamp) LOCALONLY;
 
 private:
 	void EncodePloytecPCM(uint8_t *dst, uint8_t *src) LOCALONLY;

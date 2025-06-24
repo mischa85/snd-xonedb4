@@ -150,6 +150,26 @@
 	IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_ChangeURBs, reinterpret_cast<const uint64_t*>(&urbCount), 1, nullptr, 0, nullptr, nullptr, nullptr, 0);
 }
 
+- (void)changeInputFrameCount:(uint16_t)frameCount
+{
+	if (_ioConnection == IO_OBJECT_NULL) {
+		NSLog(@"%s: No connection to driver", __FUNCTION__);
+		return;
+	}
+
+	IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_ChangeInputFramesCount, reinterpret_cast<const uint64_t*>(&frameCount), 1, nullptr, 0, nullptr, nullptr, nullptr, 0);
+}
+
+- (void)changeOutputFrameCount:(uint16_t)frameCount
+{
+	if (_ioConnection == IO_OBJECT_NULL) {
+		NSLog(@"%s: No connection to driver", __FUNCTION__);
+		return;
+	}
+
+	IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_ChangeOutputFramesCount, reinterpret_cast<const uint64_t*>(&frameCount), 1, nullptr, 0, nullptr, nullptr, nullptr, 0);
+}
+
 - (uint8_t)getCurrentUrbCount
 {
 	if (_ioConnection == IO_OBJECT_NULL) {
@@ -162,6 +182,40 @@
 	kern_return_t ret = IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_GetCurrentUrbCount, nullptr, 0, nullptr, 0, reinterpret_cast<uint64_t*>(&num), &outputCount, nullptr, 0);
 	if (ret != KERN_SUCCESS) {
 		NSLog(@"getCurrentUrbCount failed: %s", mach_error_string(ret));
+		return 0;
+	}
+	return num;
+}
+
+- (uint16_t)getCurrentInputFramesCount
+{
+	if (_ioConnection == IO_OBJECT_NULL) {
+		NSLog(@"%s: No connection to driver", __FUNCTION__);
+		return;
+	}
+
+	uint16_t num;
+	uint32_t outputCount = 1;
+	kern_return_t ret = IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_GetCurrentInputFramesCount, nullptr, 0, nullptr, 0, reinterpret_cast<uint64_t*>(&num), &outputCount, nullptr, 0);
+	if (ret != KERN_SUCCESS) {
+		NSLog(@"getCurrentInputFramesCount failed: %s", mach_error_string(ret));
+		return 0;
+	}
+	return num;
+}
+
+- (uint16_t)getCurrentOutputFramesCount
+{
+	if (_ioConnection == IO_OBJECT_NULL) {
+		NSLog(@"%s: No connection to driver", __FUNCTION__);
+		return;
+	}
+
+	uint16_t num;
+	uint32_t outputCount = 1;
+	kern_return_t ret = IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_GetCurrentOutputFramesCount, nullptr, 0, nullptr, 0, reinterpret_cast<uint64_t*>(&num), &outputCount, nullptr, 0);
+	if (ret != KERN_SUCCESS) {
+		NSLog(@"getCurrentOutputFramesCount failed: %s", mach_error_string(ret));
 		return 0;
 	}
 	return num;

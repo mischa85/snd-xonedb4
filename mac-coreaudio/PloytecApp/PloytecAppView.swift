@@ -11,9 +11,16 @@ struct PloytecAppView: View {
 	@State private var playbackStatsText = ""
 
 	private let playbackStatsUpdateInterval = 1.0
-	private let urbCount = [1, 2, 3, 4, 5, 6, 7, 8]
 
 	@State private var selectedUrbCount = 4
+	private let urbCount = [1, 2, 3, 4, 5, 6, 7, 8]
+
+	@State private var selectedInputFramesCount = 32
+	private let inputFramesCount = [16, 32, 48, 64, 80, 96, 112, 128]
+
+	@State private var selectedOutputFramesCount = 40
+	private let outputFramesCount = [10, 20, 30, 40, 50, 60, 70, 80]
+
 	@State private var timer: Timer?
 	@State private var retryTimer: Timer?
 
@@ -24,6 +31,28 @@ struct PloytecAppView: View {
 				if selectedUrbCount != newValue {
 					selectedUrbCount = newValue
 					userClient.changeUrbCount(UInt8(newValue))
+				}
+			}
+		)
+	}
+	private var inputFramesBinding: Binding<Int> {
+		Binding(
+			get: { selectedInputFramesCount },
+			set: { newValue in
+				if selectedInputFramesCount != newValue {
+					selectedInputFramesCount = newValue
+					userClient.changeInputFramesCount(UInt16(newValue))
+				}
+			}
+		)
+	}
+	private var outputFramesBinding: Binding<Int> {
+		Binding(
+			get: { selectedOutputFramesCount },
+			set: { newValue in
+				if selectedOutputFramesCount != newValue {
+					selectedOutputFramesCount = newValue
+					userClient.changeOutputFramesCount(UInt16(newValue))
 				}
 			}
 		)
@@ -56,18 +85,38 @@ struct PloytecAppView: View {
 				.frame(width: 500, alignment: .center)
 				Spacer()
 				VStack(alignment: .center) {
-					Text(deviceNameText)
-					Text(deviceManufacturerText)
-					Text(firmwareVersionText)
 					if viewModel.isConnected {
-						Picker("URB Count", selection: urbBinding) {
-							ForEach(urbCount, id: \.self) { size in
-								Text("\(size)")
+						Text(deviceNameText)
+						Text(deviceManufacturerText)
+						Text(firmwareVersionText)
+						Text("USB Settings")
+							.padding()
+						HStack {
+							Picker("URB Count", selection: urbBinding) {
+								ForEach(urbCount, id: \.self) { size in
+									Text("\(size)")
+								}
 							}
+							.padding()
+							.frame(width: 150)
+							.pickerStyle(MenuPickerStyle())
+							Picker("Input Frames Per Packet", selection: inputFramesBinding) {
+								ForEach(inputFramesCount, id: \.self) { size in
+									Text("\(size)")
+								}
+							}
+							.padding()
+							.frame(width: 150)
+							.pickerStyle(MenuPickerStyle())
+							Picker("Output Frames Per Packet", selection: outputFramesBinding) {
+								ForEach(outputFramesCount, id: \.self) { size in
+									Text("\(size)")
+								}
+							}
+							.padding()
+							.frame(width: 150)
+							.pickerStyle(MenuPickerStyle())
 						}
-						.padding()
-						.frame(width: 150)
-						.pickerStyle(MenuPickerStyle())
 					}
 					Text(playbackStatsText)
 						.font(.system(.body, design: .monospaced))
@@ -89,6 +138,8 @@ struct PloytecAppView: View {
 					deviceNameText = self.userClient.getDeviceName()
 					deviceManufacturerText = self.userClient.getDeviceManufacturer()
 					selectedUrbCount = Int(userClient.getCurrentUrbCount())
+					selectedInputFramesCount = Int(userClient.getCurrentInputFramesCount())
+					selectedOutputFramesCount = Int(userClient.getCurrentOutputFramesCount())
 					startTimer()
 				} else {
 					stopTimer()
