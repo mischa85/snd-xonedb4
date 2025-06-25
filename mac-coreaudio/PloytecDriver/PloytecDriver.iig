@@ -44,6 +44,10 @@ struct PloytecDriver_IVars
 	uint16_t				usbCurrentOutputFramesCount;
 	uint32_t				usbInputPacketSize;
 	uint16_t				usbCurrentInputFramesCount;
+	bool					usbShutdownInProgress = false;
+	bool					usbPCMinBusy;
+	bool					usbPCMoutBusy;
+	bool					usbMIDIinBusy;
 
 	char					*firmwarever;
 	IOBufferMemoryDescriptor		*sampleratebytes;

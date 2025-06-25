@@ -123,8 +123,8 @@ kern_return_t PloytecDriverUserClient::ExternalMethod(uint64_t selector, IOUserC
 
 		case PloytecDriverExternalMethod_SetCurrentUrbCount: {
 			ret = ivars->mProvider->AbortUSBUrbs();
-			ivars->mProvider->SetCurrentUrbCount(*reinterpret_cast<const uint8_t*>(arguments->scalarInput));
-			ret = ivars->mProvider->SendUSBUrbs();
+			//ivars->mProvider->SetCurrentUrbCount(*reinterpret_cast<const uint8_t*>(arguments->scalarInput));
+			//ret = ivars->mProvider->SendUSBUrbs();
 			break;
 		}
 

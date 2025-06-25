@@ -169,11 +169,13 @@
 
 	uint64_t value = frameCount;
 
+	/*
 	kern_return_t ret = IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_SetCurrentInputFramesCount, &value, 1, nullptr, 0, nullptr, nullptr, nullptr, 0);
 	if (ret != KERN_SUCCESS) {
 		NSLog(@"setCurrentInputFramesCount failed: %s", mach_error_string(ret));
 		return;
 	}
+	*/
 }
 
 - (void)setCurrentOutputFramesCount:(uint16_t)frameCount
@@ -187,11 +189,13 @@
 	
 	uint64_t value = frameCount;
 
+	/*
 	kern_return_t ret = IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_SetCurrentOutputFramesCount, &value, 1, nullptr, 0, nullptr, nullptr, nullptr, 0);
 	if (ret != KERN_SUCCESS) {
 		NSLog(@"setCurrentOutputFramesCount failed: %s", mach_error_string(ret));
 		return;
 	}
+	*/
 }
 
 - (uint8_t)getCurrentUrbCount
