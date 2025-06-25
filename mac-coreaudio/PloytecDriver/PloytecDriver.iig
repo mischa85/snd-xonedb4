@@ -90,6 +90,8 @@ public:
 	virtual void SetCurrentOutputFramesCount(uint16_t num) LOCALONLY;
 	virtual kern_return_t CreateUSBTXBuffersPCMandUART() LOCALONLY;
 	virtual kern_return_t CreateUSBRXBuffersPCM() LOCALONLY;
+	virtual kern_return_t CreateUSBHandlers() LOCALONLY;
+	virtual kern_return_t ResetUSB() LOCALONLY;
 
 protected:
 	virtual kern_return_t PCMinHandler(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);

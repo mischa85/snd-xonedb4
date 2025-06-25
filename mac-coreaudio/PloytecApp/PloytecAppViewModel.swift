@@ -203,7 +203,7 @@ class PloytecAppViewModel: NSObject {
 				guard let self = self else { return }
 				if !self.isConnected {
 					self.isConnected = true
-					self.setupMIDIOnce()
+					//self.setupMIDIOnce()
 				}
 			}
 			.store(in: &cancellables)

@@ -121,7 +121,7 @@ kern_return_t PloytecDriverUserClient::ExternalMethod(uint64_t selector, IOUserC
 			break;
 		}
 
-		case PloytecDriverExternalMethod_ChangeURBs: {
+		case PloytecDriverExternalMethod_SetCurrentUrbCount: {
 			ret = ivars->mProvider->AbortUSBUrbs();
 			ivars->mProvider->SetCurrentUrbCount(*reinterpret_cast<const uint8_t*>(arguments->scalarInput));
 			ret = ivars->mProvider->SendUSBUrbs();
@@ -138,11 +138,13 @@ kern_return_t PloytecDriverUserClient::ExternalMethod(uint64_t selector, IOUserC
 			break;
 		}
 
-		case PloytecDriverExternalMethod_ChangeInputFramesCount: {
-			ret = ivars->mProvider->AbortUSBUrbs();
+		case PloytecDriverExternalMethod_SetCurrentInputFramesCount: {
+			/*
+			ret = ivars->mProvider->ResetUSB();
 			ivars->mProvider->SetCurrentInputFramesCount(*reinterpret_cast<const uint8_t*>(arguments->scalarInput));
 			ret = ivars->mProvider->CreateUSBRXBuffersPCM();
 			ret = ivars->mProvider->SendUSBUrbs();
+			*/
 		}
 
 		case PloytecDriverExternalMethod_GetCurrentInputFramesCount: {
@@ -155,11 +157,13 @@ kern_return_t PloytecDriverUserClient::ExternalMethod(uint64_t selector, IOUserC
 			break;
 		}
 
-		case PloytecDriverExternalMethod_ChangeOutputFramesCount: {
-			ret = ivars->mProvider->AbortUSBUrbs();
+		case PloytecDriverExternalMethod_SetCurrentOutputFramesCount: {
+			/*
+			ret = ivars->mProvider->ResetUSB();
 			ivars->mProvider->SetCurrentOutputFramesCount(*reinterpret_cast<const uint8_t*>(arguments->scalarInput));
 			ret = ivars->mProvider->CreateUSBTXBuffersPCMandUART();
 			ret = ivars->mProvider->SendUSBUrbs();
+			*/
 		}
 
 		case PloytecDriverExternalMethod_GetCurrentOutputFramesCount: {

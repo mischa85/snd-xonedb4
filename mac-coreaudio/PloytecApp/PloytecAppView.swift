@@ -30,7 +30,7 @@ struct PloytecAppView: View {
 			set: { newValue in
 				if selectedUrbCount != newValue {
 					selectedUrbCount = newValue
-					userClient.changeUrbCount(UInt8(newValue))
+					userClient.setCurrentUrbCount(UInt8(newValue))
 				}
 			}
 		)
@@ -41,7 +41,7 @@ struct PloytecAppView: View {
 			set: { newValue in
 				if selectedInputFramesCount != newValue {
 					selectedInputFramesCount = newValue
-					userClient.changeInputFramesCount(UInt16(newValue))
+					userClient.setCurrentInputFramesCount(UInt16(newValue))
 				}
 			}
 		)
@@ -52,7 +52,7 @@ struct PloytecAppView: View {
 			set: { newValue in
 				if selectedOutputFramesCount != newValue {
 					selectedOutputFramesCount = newValue
-					userClient.changeOutputFramesCount(UInt16(newValue))
+					userClient.setCurrentOutputFramesCount(UInt16(newValue))
 				}
 			}
 		)
@@ -91,32 +91,27 @@ struct PloytecAppView: View {
 						Text(firmwareVersionText)
 						Text("USB Settings")
 							.padding()
-						HStack {
-							Picker("URB Count", selection: urbBinding) {
-								ForEach(urbCount, id: \.self) { size in
-									Text("\(size)")
-								}
+						Picker("URB Count", selection: urbBinding) {
+							ForEach(urbCount, id: \.self) { size in
+								Text("\(size)")
 							}
-							.padding()
-							.frame(width: 150)
-							.pickerStyle(MenuPickerStyle())
-							Picker("Input Frames Per Packet", selection: inputFramesBinding) {
-								ForEach(inputFramesCount, id: \.self) { size in
-									Text("\(size)")
-								}
-							}
-							.padding()
-							.frame(width: 150)
-							.pickerStyle(MenuPickerStyle())
-							Picker("Output Frames Per Packet", selection: outputFramesBinding) {
-								ForEach(outputFramesCount, id: \.self) { size in
-									Text("\(size)")
-								}
-							}
-							.padding()
-							.frame(width: 150)
-							.pickerStyle(MenuPickerStyle())
 						}
+						//.frame(width: 200)
+						.pickerStyle(MenuPickerStyle())
+						Picker("Input Frames Per Packet", selection: inputFramesBinding) {
+							ForEach(inputFramesCount, id: \.self) { size in
+								Text("\(size)")
+							}
+						}
+						//.frame(width: 200)
+						.pickerStyle(MenuPickerStyle())
+						Picker("Output Frames Per Packet", selection: outputFramesBinding) {
+							ForEach(outputFramesCount, id: \.self) { size in
+								Text("\(size)")
+							}
+						}
+						//.frame(width: 200)
+						.pickerStyle(MenuPickerStyle())
 					}
 					Text(playbackStatsText)
 						.font(.system(.body, design: .monospaced))
