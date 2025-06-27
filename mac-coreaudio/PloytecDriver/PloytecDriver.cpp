@@ -251,7 +251,7 @@ kern_return_t IMPL(PloytecDriver, Start)
 	ret = OSAction::Create(this, PloytecDriver_MIDIinHandler_ID, IOUSBHostPipe_CompleteAsyncIO_ID, 0, &ivars->usbMIDIinCallback);
 	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create the MIDI in USB handler");
 
-	ret = SendUSBUrbs(4);
+	ret = SendUSBUrbs(1);
 	if (ret != kIOReturnSuccess)
 	{
 		os_log(OS_LOG_DEFAULT, "Failed to send URBs: %s", strerror(ret));

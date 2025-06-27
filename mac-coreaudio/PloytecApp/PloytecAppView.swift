@@ -60,6 +60,7 @@ struct PloytecAppView: View {
 					Text(deviceManufacturerText)
 					Text(firmwareVersionText)
 					if viewModel.isConnected {
+						/*
 						Picker("URB Count", selection: urbBinding) {
 							ForEach(urbCount, id: \.self) { size in
 								Text("\(size)")
@@ -68,6 +69,7 @@ struct PloytecAppView: View {
 						.padding()
 						.frame(width: 150)
 						.pickerStyle(MenuPickerStyle())
+						*/
 					}
 					Text(playbackStatsText)
 						.font(.system(.body, design: .monospaced))
