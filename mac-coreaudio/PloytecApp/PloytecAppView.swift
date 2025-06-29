@@ -14,12 +14,27 @@ struct PloytecAppView: View {
 
 	@State private var selectedUrbCount = 4
 	private let urbCount = [1, 2, 3, 4, 5, 6, 7, 8]
+	
+	struct FrameCount: Hashable {
+		let output: Int
+		let input: Int
 
-	@State private var selectedInputFramesCount = 32
-	private let inputFramesCount = [16, 32, 48, 64, 80, 96, 112, 128]
+		var label: String { "\(output)/\(input)" }
+	}
+	
+	@State private var selectedFramesCount = FrameCount(output: 20, input: 16)
 
-	@State private var selectedOutputFramesCount = 40
-	private let outputFramesCount = [10, 20, 30, 40, 50, 60, 70, 80]
+	private let framesCount: [FrameCount] = [
+		//.init(output: 20, input: 16),
+		.init(output: 40, input: 32),
+		.init(output: 80, input: 64),
+		.init(output: 160, input: 128),
+		.init(output: 320, input: 256),
+		.init(output: 640, input: 512),
+		.init(output: 1280, input: 1024),
+		.init(output: 2560, input: 2048),
+	]
+	
 
 	@State private var timer: Timer?
 	@State private var retryTimer: Timer?
@@ -35,25 +50,12 @@ struct PloytecAppView: View {
 			}
 		)
 	}
-	private var inputFramesBinding: Binding<Int> {
+	private var framesBinding: Binding<FrameCount> {
 		Binding(
-			get: { selectedInputFramesCount },
+			get: { selectedFramesCount },
 			set: { newValue in
-				if selectedInputFramesCount != newValue {
-					selectedInputFramesCount = newValue
-					userClient.setCurrentInputFramesCount(UInt16(newValue))
-				}
-			}
-		)
-	}
-	private var outputFramesBinding: Binding<Int> {
-		Binding(
-			get: { selectedOutputFramesCount },
-			set: { newValue in
-				if selectedOutputFramesCount != newValue {
-					selectedOutputFramesCount = newValue
-					userClient.setCurrentOutputFramesCount(UInt16(newValue))
-				}
+				selectedFramesCount = newValue
+				userClient.setFrameCount(UInt16(newValue.input), output: UInt16(newValue.output))
 			}
 		)
 	}
@@ -97,21 +99,13 @@ struct PloytecAppView: View {
 							}
 						}
 						//.frame(width: 200)
-						.pickerStyle(MenuPickerStyle())
-						Picker("Input Frames Per Packet", selection: inputFramesBinding) {
-							ForEach(inputFramesCount, id: \.self) { size in
-								Text("\(size)")
+						Picker("Frames (Output/Input)", selection: framesBinding) {
+							ForEach(framesCount, id: \.self) { pair in
+								Text(pair.label)
 							}
 						}
-						//.frame(width: 200)
 						.pickerStyle(MenuPickerStyle())
-						Picker("Output Frames Per Packet", selection: outputFramesBinding) {
-							ForEach(outputFramesCount, id: \.self) { size in
-								Text("\(size)")
-							}
-						}
 						//.frame(width: 200)
-						.pickerStyle(MenuPickerStyle())
 					}
 					Text(playbackStatsText)
 						.font(.system(.body, design: .monospaced))
@@ -133,8 +127,9 @@ struct PloytecAppView: View {
 					deviceNameText = self.userClient.getDeviceName()
 					deviceManufacturerText = self.userClient.getDeviceManufacturer()
 					selectedUrbCount = Int(userClient.getCurrentUrbCount())
-					selectedInputFramesCount = Int(userClient.getCurrentInputFramesCount())
-					selectedOutputFramesCount = Int(userClient.getCurrentOutputFramesCount())
+					let input = Int(userClient.getCurrentInputFramesCount())
+					let output = Int(userClient.getCurrentOutputFramesCount())
+					selectedFramesCount = FrameCount(output: output, input: input)
 					startTimer()
 				} else {
 					stopTimer()

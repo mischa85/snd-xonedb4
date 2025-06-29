@@ -20,8 +20,7 @@ typedef struct {
 - (NSString*)getDeviceName;
 - (NSString*)getDeviceManufacturer;
 - (void)setCurrentUrbCount:(uint8_t)urbCount;
-- (void)setCurrentInputFramesCount:(uint16_t)framesCount;
-- (void)setCurrentOutputFramesCount:(uint16_t)framesCount;
+- (void)setFrameCount:(uint16_t)inputFrameCount output:(uint16_t)outputFrameCount;
 - (uint8_t)getCurrentUrbCount;
 - (uint16_t)getCurrentInputFramesCount;
 - (uint16_t)getCurrentOutputFramesCount;
