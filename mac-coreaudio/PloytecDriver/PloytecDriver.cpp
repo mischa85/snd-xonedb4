@@ -444,7 +444,7 @@ kern_return_t PloytecDriver::SendUSBUrbs(uint8_t num)
 		ret = ivars->usbPCMinPipe->AsyncIO(ivars->usbRXBufferPCMSegment[0].get(), 2048, ivars->usbPCMinCallback, 0);
 		if (ret != kIOReturnSuccess)
 			return ret;
-		ret = ivars->usbMIDIinPipe->AsyncIO(ivars->usbRXBufferMIDI.get(), 2048, ivars->usbMIDIinCallback, 0);
+		ret = ivars->usbMIDIinPipe->AsyncIO(ivars->usbRXBufferMIDI.get(), 512, ivars->usbMIDIinCallback, 0);
 		if (ret != kIOReturnSuccess)
 			return ret;
 	}
@@ -496,45 +496,58 @@ kern_return_t IMPL(PloytecDriver, PCMoutHandlerInterrupt)
 kern_return_t IMPL(PloytecDriver, MIDIinHandler)
 {
 	uint8_t expectedLen = 0;
-	uint8_t byte = ivars->usbRXBufferMIDIAddr[1];
 
-	if (byte >= 0xF8) {
-		uint64_t msg = 0x01 | ((uint64_t)byte << 8);
-		if (ivars->midiClient)
-			ivars->midiClient->postMIDIMessage(msg);
-		goto rearm;
+	for (int i = 0; i < 2; ++i) {
+		uint8_t byte = ivars->usbRXBufferMIDIAddr[i];
+
+		// Ignore padding bytes
+		if (byte == 0xFD)
+			continue;
+
+		// Real-time single-byte messages (except undefined 0xFD)
+		if (byte >= 0xF8) {
+			uint64_t msg = 0x01 | ((uint64_t)byte << 8);
+			if (ivars->midiClient)
+				ivars->midiClient->postMIDIMessage(msg);
+			continue;
+		}
+
+		// Status byte received → reset parser
+		if (byte & 0x80) {
+			ivars->midiParserRunningStatus = byte;
+			ivars->midiParserBytes[0] = byte;
+			ivars->midiParserIndex = 1;
+		}
+		// Data byte with existing running status
+		else if (ivars->midiParserRunningStatus) {
+			ivars->midiParserBytes[ivars->midiParserIndex++] = byte;
+		}
+
+		// Determine expected message length from status
+		switch (ivars->midiParserRunningStatus & 0xF0) {
+			case 0xC0:
+			case 0xD0: expectedLen = 2; break;
+			case 0x80:
+			case 0x90:
+			case 0xA0:
+			case 0xB0:
+			case 0xE0: expectedLen = 3; break;
+			default: expectedLen = 3; break; // fallback
+		}
+
+		// Full message received
+		if (ivars->midiParserIndex == expectedLen) {
+			uint64_t msg = expectedLen |
+				((uint64_t)ivars->midiParserBytes[0] << 8) |
+				((uint64_t)ivars->midiParserBytes[1] << 16) |
+				((uint64_t)ivars->midiParserBytes[2] << 24);
+			if (ivars->midiClient)
+				ivars->midiClient->postMIDIMessage(msg);
+
+			// Keep running status; reset to expect next data byte
+			ivars->midiParserIndex = 1;
+		}
 	}
 
-	if (byte & 0x80) {
-		ivars->midiParserRunningStatus = byte;
-		ivars->midiParserBytes[0] = byte;
-		ivars->midiParserIndex = 1;
-	} else if (ivars->midiParserRunningStatus) {
-		ivars->midiParserBytes[ivars->midiParserIndex++] = byte;
-	}
-
-	switch (ivars->midiParserRunningStatus & 0xF0) {
-		case 0xC0:
-		case 0xD0: expectedLen = 2; break;
-		case 0x80:
-		case 0x90:
-		case 0xA0:
-		case 0xB0:
-		case 0xE0: expectedLen = 3; break;
-		default: expectedLen = 3; break;
-	}
-
-	if (ivars->midiParserIndex == expectedLen) {
-		uint64_t msg = expectedLen |
-		((uint64_t)ivars->midiParserBytes[0] << 8) |
-		((uint64_t)ivars->midiParserBytes[1] << 16) |
-		((uint64_t)ivars->midiParserBytes[2] << 24);
-		if (ivars->midiClient)
-			ivars->midiClient->postMIDIMessage(msg);
-
-	ivars->midiParserIndex = 1;
-	}
-
-rearm:
-	return ivars->usbMIDIinPipe->AsyncIO(ivars->usbRXBufferMIDI.get(), 2048, ivars->usbMIDIinCallback, 0);
+	return ivars->usbMIDIinPipe->AsyncIO(ivars->usbRXBufferMIDI.get(), 512, ivars->usbMIDIinCallback, 0);
 }
