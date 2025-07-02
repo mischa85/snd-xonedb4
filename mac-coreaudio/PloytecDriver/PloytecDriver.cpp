@@ -497,34 +497,35 @@ kern_return_t IMPL(PloytecDriver, MIDIinHandler)
 {
 	uint8_t expectedLen = 0;
 
-	for (int i = 0; i < 2; ++i) {
+	for (uint32_t i = 0; i < actualByteCount; ++i)
+	{
 		uint8_t byte = ivars->usbRXBufferMIDIAddr[i];
 
-		// Ignore padding bytes
-		if (byte == 0xFD)
+		if (byte == 0xFD || byte == 0xFF)
 			continue;
 
-		// Real-time single-byte messages (except undefined 0xFD)
-		if (byte >= 0xF8) {
+		if (byte >= 0xF8)
+		{
 			uint64_t msg = 0x01 | ((uint64_t)byte << 8);
 			if (ivars->midiClient)
 				ivars->midiClient->postMIDIMessage(msg);
 			continue;
 		}
 
-		// Status byte received → reset parser
-		if (byte & 0x80) {
+		if (byte & 0x80)
+		{
 			ivars->midiParserRunningStatus = byte;
 			ivars->midiParserBytes[0] = byte;
 			ivars->midiParserIndex = 1;
 		}
-		// Data byte with existing running status
-		else if (ivars->midiParserRunningStatus) {
-			ivars->midiParserBytes[ivars->midiParserIndex++] = byte;
+		else if (ivars->midiParserRunningStatus)
+		{
+			if (ivars->midiParserIndex < 3)
+				ivars->midiParserBytes[ivars->midiParserIndex++] = byte;
 		}
 
-		// Determine expected message length from status
-		switch (ivars->midiParserRunningStatus & 0xF0) {
+		switch (ivars->midiParserRunningStatus & 0xF0)
+		{
 			case 0xC0:
 			case 0xD0: expectedLen = 2; break;
 			case 0x80:
@@ -532,22 +533,17 @@ kern_return_t IMPL(PloytecDriver, MIDIinHandler)
 			case 0xA0:
 			case 0xB0:
 			case 0xE0: expectedLen = 3; break;
-			default: expectedLen = 3; break; // fallback
+			default: expectedLen = 3; break;
 		}
 
-		// Full message received
-		if (ivars->midiParserIndex == expectedLen) {
-			uint64_t msg = expectedLen |
-				((uint64_t)ivars->midiParserBytes[0] << 8) |
-				((uint64_t)ivars->midiParserBytes[1] << 16) |
-				((uint64_t)ivars->midiParserBytes[2] << 24);
+		if (ivars->midiParserIndex == expectedLen)
+		{
+			uint64_t msg = expectedLen | ((uint64_t)ivars->midiParserBytes[0] << 8) | ((uint64_t)ivars->midiParserBytes[1] << 16) | ((uint64_t)ivars->midiParserBytes[2] << 24);
 			if (ivars->midiClient)
 				ivars->midiClient->postMIDIMessage(msg);
 
-			// Keep running status; reset to expect next data byte
 			ivars->midiParserIndex = 1;
 		}
 	}
-
 	return ivars->usbMIDIinPipe->AsyncIO(ivars->usbRXBufferMIDI.get(), 512, ivars->usbMIDIinCallback, 0);
 }
