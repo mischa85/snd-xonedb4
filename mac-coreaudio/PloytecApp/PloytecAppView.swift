@@ -22,10 +22,11 @@ struct PloytecAppView: View {
 		var label: String { "\(output)/\(input)" }
 	}
 	
-	@State private var selectedFramesCount = FrameCount(output: 20, input: 16)
+	@State private var selectedFramesCount = FrameCount(output: 80, input: 80)
 
+	/*
 	private let framesCount: [FrameCount] = [
-		//.init(output: 20, input: 16),
+		.init(output: 20, input: 16),
 		.init(output: 40, input: 32),
 		.init(output: 80, input: 64),
 		.init(output: 160, input: 128),
@@ -34,7 +35,16 @@ struct PloytecAppView: View {
 		.init(output: 1280, input: 1024),
 		.init(output: 2560, input: 2048),
 	]
-	
+	*/
+
+	private let framesCount: [FrameCount] = [
+		.init(output: 80, input: 80),
+		.init(output: 160, input: 160),
+		.init(output: 320, input: 320),
+		.init(output: 640, input: 640),
+		.init(output: 1280, input: 1280),
+		.init(output: 2560, input: 2560),
+	]
 
 	@State private var timer: Timer?
 	@State private var retryTimer: Timer?

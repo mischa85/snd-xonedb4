@@ -158,7 +158,7 @@ bool PloytecDevice::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 		__block int i = 0;
 		
 		if (in_io_operation == IOUserAudioIOOperationWriteEnd) {
-			if(ivars->HWSampleTimeOut < (in_sample_time - (GetZeroTimestampPeriod() - in_io_buffer_frame_size)) || ivars->HWSampleTimeOut > in_sample_time)
+			if(ivars->HWSampleTimeOut < (in_sample_time - (GetZeroTimestampPeriod() + in_io_buffer_frame_size)) || ivars->HWSampleTimeOut > in_sample_time)
 			{
 				ivars->xruns++;
 				os_log(OS_LOG_DEFAULT, "RESYNC OUT");

@@ -19,8 +19,7 @@ struct PloytecDriver_IVars
 	IOUSBHostPipe				*usbMIDIinPipe;
 	IOUSBHostPipe				*usbPCMoutPipe;
 	IOUSBHostPipe				*usbPCMinPipe;
-	OSAction				*usbPCMoutCallbackBulk;
-	OSAction				*usbPCMoutCallbackInterrupt;
+	OSAction				*usbPCMoutCallback;
 	OSAction				*usbPCMinCallback;
 	OSAction				*usbMIDIinCallback;
 
@@ -45,12 +44,10 @@ struct PloytecDriver_IVars
 	uint32_t				usbInputPacketSize;
 	uint16_t				usbCurrentInputFramesCount;
 	bool					usbShutdownInProgress = false;
-	bool					usbPCMinBusy;
-	bool					usbPCMoutBusy;
-	bool					usbMIDIinBusy;
 	uint8_t					usbPCMoutAbortedCount;
 	uint8_t					usbPCMinAbortedCount;
 	uint8_t					usbMIDIinAbortedCount;
+	uint16_t				usbMIDIbyteNo;
 
 	char					*firmwarever;
 	IOBufferMemoryDescriptor		*sampleratebytes;
@@ -101,8 +98,7 @@ public:
 
 protected:
 	virtual kern_return_t PCMinHandler(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);
-	virtual kern_return_t PCMoutHandlerBulk(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);
-	virtual kern_return_t PCMoutHandlerInterrupt(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);
+	virtual kern_return_t PCMoutHandler(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);
 	virtual kern_return_t MIDIinHandler(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);
 };
 
