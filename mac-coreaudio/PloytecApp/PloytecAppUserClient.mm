@@ -111,7 +111,7 @@
 	char devicemanufacturer[128] = {0};
 	size_t devicemanufacturerSize = sizeof(devicemanufacturer);
 
-	kern_return_t error = IOConnectCallMethod(_ioConnection, static_cast<uint64_t>(PloytecDriverExternalMethod_GetDeviceManufacturer), nullptr, 0, nullptr, 0, nullptr, nullptr, devicemanufacturer, &devicemanufacturerSize);
+	kern_return_t error = IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_GetDeviceManufacturer, nullptr, 0, nullptr, 0, nullptr, nullptr, devicemanufacturer, &devicemanufacturerSize);
 
 	if (error != kIOReturnSuccess) {
 		return [NSString stringWithFormat:@"Failed to get device manufacturer, error: %s.", mach_error_string(error)];
@@ -131,7 +131,7 @@
 	size_t firmwareverSize = sizeof(firmwarever);
 	
 	kern_return_t error =
-		IOConnectCallMethod(_ioConnection, static_cast<uint64_t>(PloytecDriverExternalMethod_GetFirmwareVer), nullptr, 0, nullptr, 0, nullptr, nullptr, firmwarever, &firmwareverSize);
+		IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_GetFirmwareVer, nullptr, 0, nullptr, 0, nullptr, nullptr, firmwarever, &firmwareverSize);
 
 	if (error != kIOReturnSuccess) {
 		return [NSString stringWithFormat:@"Failed to get firmware, error: %s.", mach_error_string(error)];
@@ -243,7 +243,7 @@
 	playbackstats stats;
 	size_t playbackstatsSize = sizeof(stats);
 	
-	kern_return_t error = IOConnectCallMethod(_ioConnection, static_cast<uint64_t>(PloytecDriverExternalMethod_GetPlaybackStats), nullptr, 0, nullptr, 0, nullptr, nullptr, &stats, &playbackstatsSize);
+	kern_return_t error = IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_GetPlaybackStats, nullptr, 0, nullptr, 0, nullptr, nullptr, &stats, &playbackstatsSize);
 
 	return stats;
 }

@@ -5,11 +5,11 @@ typedef struct {
 	bool playing;
 	bool recording;
 	uint64_t out_sample_time;
-	uint64_t out_sample_time_usb;
-	int64_t out_sample_time_diff;
 	uint64_t in_sample_time;
-	uint64_t in_sample_time_usb;
-	int64_t in_sample_time_diff;
+	uint64_t usbPCMoutFramesCount;
+	uint64_t usbPCMinFramesCount;
+	uint64_t usbMIDIoutBytesCount;
+	uint64_t usbMIDIinBytesCount;
 	uint64_t xruns;
 } playbackstats;
 
