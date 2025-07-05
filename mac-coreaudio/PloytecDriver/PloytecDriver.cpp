@@ -511,8 +511,7 @@ kern_return_t PloytecDriver::CreateUSBRXBuffersPCM(uint32_t inputPacketSize)
 	for (int i = 0; i < (buffersize / ivars->usbInputPacketSize); i++)
 	{
 		ret = IOMemoryDescriptor::CreateSubMemoryDescriptor(kIOMemoryDirectionInOut, i * ivars->usbInputPacketSize, ivars->usbInputPacketSize, ivars->usbRXBufferPCM.get(), ivars->usbRXBufferPCMSegment[i].attach());
-		FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create USB input SubMemoryDescriptor");+
-      .+6
+		FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create USB input SubMemoryDescriptor");
 	}
 Exit:
 	return ret;
@@ -726,12 +725,6 @@ kern_return_t IMPL(PloytecDriver, MIDIinHandler)
 				ivars->midiClient->postMIDIMessage(msg);
 			continue;
 		}
-
-		if (byte & 0x80) {
-			ivars->midiParserRunningStatus = byte;
-			ivars->midiParserBytes[0] = byte;
-			ivars->midiParserIndex = 1;
-		} else if (ivars->midiParserRunningStatus) {
 
 		if (byte & 0x80)
 		{
