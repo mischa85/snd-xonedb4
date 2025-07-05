@@ -12,6 +12,8 @@ constexpr uint32_t k_zero_time_stamp_period = 2560;
 static const char8_t sampleratebytes48[3] = { 0x80, 0xBB, 0x00 };
 static const char8_t sampleratebytes96[3] = { 0x00, 0x77, 0x01 };
 
+constexpr uint32_t buffersize = 1048576;
+
 bool PloytecDriver::init()
 {
 	bool result = false;
@@ -31,7 +33,6 @@ kern_return_t IMPL(PloytecDriver, Start)
 	os_log(OS_LOG_DEFAULT, "Starting PloytecDriver...");
 
 	kern_return_t ret;
-	uintptr_t interfaceIterator;
 	IOAddressSegment range;
 	uint16_t bytesTransferred;
 	IOUSBStandardEndpointDescriptors indescriptor;
@@ -146,28 +147,12 @@ kern_return_t IMPL(PloytecDriver, Start)
 	os_log(OS_LOG_DEFAULT, "Get USB pipes...");
 
 	// get the USB pipes
-	ret = ivars->usbDevice->SetConfiguration(1, false);
-	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to set config 1 on USB device");
-	ret = ivars->usbDevice->CreateInterfaceIterator(&interfaceIterator);
-	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create the interface iterator");
-	ret = ivars->usbDevice->CopyInterface(interfaceIterator, &ivars->usbInterface0);
-	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to copy interface 0 from iterator");
-	ret = ivars->usbInterface0->Open(this, NULL, NULL);
-	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to open interface 0");
-	ret = ivars->usbInterface0->SelectAlternateSetting(1);
-	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to select alternate setting on interface 0");
-	ret = ivars->usbDevice->CopyInterface(interfaceIterator, &ivars->usbInterface1);
-	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to copy interface 1 from iterator");
-	ret = ivars->usbInterface1->Open(this, NULL, NULL);
-	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to open interface 1");
-	ret = ivars->usbInterface1->SelectAlternateSetting(1);
-	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to select alternate setting on interface 1");
-	ret = ivars->usbInterface0->CopyPipe(MIDI_IN_EP, &ivars->usbMIDIinPipe);
-	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to copy the MIDI in pipe");
-	ret = ivars->usbInterface1->CopyPipe(PCM_IN_EP, &ivars->usbPCMinPipe);
-	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to copy the PCM in pipe");
-	ret = ivars->usbInterface0->CopyPipe(PCM_OUT_EP, &ivars->usbPCMoutPipe);
-	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to copy the PCM out pipe");
+	ret = CreateUSBPipes();
+	if (ret != kIOReturnSuccess)
+	{
+		os_log(OS_LOG_DEFAULT, "CreateUSBPipes Fail: %s", strerror(ret));
+		return ret;
+	}
 
 	os_log(OS_LOG_DEFAULT, "Getting USB descriptors...");
 
@@ -179,82 +164,80 @@ kern_return_t IMPL(PloytecDriver, Start)
 		ivars->transferMode = BULK;
 	else if (outdescriptor.descriptor.bmAttributes == kIOUSBEndpointDescriptorTransferTypeInterrupt)
 		ivars->transferMode = INTERRUPT;
+	
+	if (ivars->transferMode == BULK)
+		ivars->usbMIDIbyteNo = 480;
+	else if (ivars->transferMode == INTERRUPT)
+		ivars->usbMIDIbyteNo = 432;
 
 	os_log(OS_LOG_DEFAULT, "Transfer mode: %s", ivars->transferMode == BULK ? "BULK" : "INTERRUPT");
 
 	os_log(OS_LOG_DEFAULT, "Allocating ring buffers...");
-
-	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, 32768 * 2048, 0, ivars->usbRXBufferPCM.attach());
+	
+	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, buffersize, 0, ivars->usbRXBufferPCM.attach());
 	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create input ring buffer");
-
+	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, buffersize, 0, ivars->usbTXBufferPCMandUART.attach());
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create output ring buffer");
+	ret = ivars->usbTXBufferPCMandUART->GetAddressRange(&range);
+	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to get output ring buffer address bytes");
+	ivars->usbTXBufferPCMandUARTAddr = reinterpret_cast<uint8_t *>(range.address);
 	if (ivars->transferMode == BULK)
 	{
-		ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, 32768 * 2048, 0, ivars->usbTXBufferPCMandUART.attach());
-		FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create output ring buffer");
-		ret = ivars->usbTXBufferPCMandUART->GetAddressRange(&range);
-		FailIf(ret != kIOReturnSuccess, , Exit, "Failed to get output ring buffer address bytes");
-		ivars->usbTXBufferPCMandUARTAddr = reinterpret_cast<uint8_t *>(range.address);
-		for (i = 0; i < 32768; i++)
+		for (size_t i = 480; i + 1 < buffersize; i += 512)
 		{
-			ret = IOMemoryDescriptor::CreateSubMemoryDescriptor(kIOMemoryDirectionInOut, i * 2048, 2048, ivars->usbTXBufferPCMandUART.get(), ivars->usbTXBufferPCMandUARTSegment[i].attach());
-			FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create USB output SubMemoryDescriptor");
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i] = ivars->usbTXBufferPCMandUARTAddr + (i * 2048);
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i][480] = 0xFD;
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i][481] = 0xFD;
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i][992] = 0xFD;
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i][993] = 0xFD;
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i][1504] = 0xFD;
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i][1505] = 0xFD;
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i][2016] = 0xFD;
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i][2017] = 0xFD;
+			ivars->usbTXBufferPCMandUARTAddr[i] = 0xFD;
+			ivars->usbTXBufferPCMandUARTAddr[i + 1] = 0xFD;
 		}
 	}
 	else if (ivars->transferMode == INTERRUPT)
 	{
-		ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, 32768 * 1928, 0, ivars->usbTXBufferPCMandUART.attach());
-		FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create output ring buffer");
-		ret = ivars->usbTXBufferPCMandUART->GetAddressRange(&range);
-		FailIf(ret != kIOReturnSuccess, , Exit, "Failed to get output ring buffer address bytes");
-		ivars->usbTXBufferPCMandUARTAddr = reinterpret_cast<uint8_t *>(range.address);
-		for (i = 0; i < 32768; i++)
+		for (size_t i = 432; i + 1 < buffersize; i += 482)
 		{
-			ret = IOMemoryDescriptor::CreateSubMemoryDescriptor(kIOMemoryDirectionInOut, i * 1928, 1928, ivars->usbTXBufferPCMandUART.get(), ivars->usbTXBufferPCMandUARTSegment[i].attach());
-			FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create USB output SubMemoryDescriptor");
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i] = ivars->usbTXBufferPCMandUARTAddr + (i * 1928);
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i][432] = 0xFD;
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i][433] = 0xFD;
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i][914] = 0xFD;
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i][915] = 0xFD;
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i][1396] = 0xFD;
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i][1397] = 0xFD;
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i][1878] = 0xFD;
-			ivars->usbTXBufferPCMandUARTSegmentAddr[i][1879] = 0xFD;
+			ivars->usbTXBufferPCMandUARTAddr[i] = 0xFD;
+			ivars->usbTXBufferPCMandUARTAddr[i + 1] = 0xFD;
 		}
 	}
-	for (i = 0; i < 32768; i++)
+	ivars->usbCurrentOutputFramesCount = 80;
+	if (ivars->transferMode == BULK)
+		ivars->usbOutputPacketSize = (ivars->usbCurrentOutputFramesCount / 10) * 512;
+	else if (ivars->transferMode == INTERRUPT)
+		ivars->usbOutputPacketSize = (ivars->usbCurrentOutputFramesCount / 10) * 482;
+	ret = CreateUSBTXBuffersPCMandUART(ivars->usbOutputPacketSize);
+	if (ret != kIOReturnSuccess)
 	{
-		ret = IOMemoryDescriptor::CreateSubMemoryDescriptor(kIOMemoryDirectionInOut, i * 2048, 2048, ivars->usbRXBufferPCM.get(), ivars->usbRXBufferPCMSegment[i].attach());
-		FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create USB input SubMemoryDescriptor");
+		os_log(OS_LOG_DEFAULT, "Failed to create USB buffers: %s", strerror(ret));
+		return ret;
+	}
+	ivars->usbCurrentInputFramesCount = 80;
+	ivars->usbInputPacketSize = (ivars->usbCurrentInputFramesCount / 8) * 512;
+	ret = CreateUSBRXBuffersPCM(ivars->usbInputPacketSize);
+	if (ret != kIOReturnSuccess)
+	{
+		os_log(OS_LOG_DEFAULT, "Failed to create USB buffers: %s", strerror(ret));
+		return ret;
 	}
 
 	os_log(OS_LOG_DEFAULT, "Creating USB handlers...");
 
-	ret = OSAction::Create(this, PloytecDriver_PCMinHandler_ID, IOUSBHostPipe_CompleteAsyncIO_ID, 0, &ivars->usbPCMinCallback);
-	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create the PCM in USB handler");
-
-	if (ivars->transferMode == BULK)
-		ret = OSAction::Create(this, PloytecDriver_PCMoutHandlerBulk_ID, IOUSBHostPipe_CompleteAsyncIO_ID, 0, &ivars->usbPCMoutCallbackBulk);
-	else if (ivars->transferMode == INTERRUPT)
-		ret = OSAction::Create(this, PloytecDriver_PCMoutHandlerInterrupt_ID, IOUSBHostPipe_CompleteAsyncIO_ID, 0, &ivars->usbPCMoutCallbackInterrupt);
-	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create the PCM out USB handler");
-	
-	ret = OSAction::Create(this, PloytecDriver_MIDIinHandler_ID, IOUSBHostPipe_CompleteAsyncIO_ID, 0, &ivars->usbMIDIinCallback);
-	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create the MIDI in USB handler");
-
-	ret = SendUSBUrbs(1);
+	ret = CreateUSBHandlers();
 	if (ret != kIOReturnSuccess)
 	{
-		os_log(OS_LOG_DEFAULT, "Failed to send URBs: %s", strerror(ret));
+		os_log(OS_LOG_DEFAULT, "Failed to create USB handlers: %s", strerror(ret));
+		return ret;
+	}
+	
+	ivars->usbCurrentUrbCount = 2;
+	//SetCurrentUrbCount(4);
+	ret = SendPCMUrbs(ivars->usbCurrentUrbCount);
+	if (ret != kIOReturnSuccess)
+	{
+		os_log(OS_LOG_DEFAULT, "Failed to send PCM URBs: %s", strerror(ret));
+		return ret;
+	}
+	ret = SendMIDIUrbs(1);
+	if (ret != kIOReturnSuccess)
+	{
+		os_log(OS_LOG_DEFAULT, "Failed to send MIDI URBs: %s", strerror(ret));
 		return ret;
 	}
 
@@ -270,6 +253,8 @@ kern_return_t IMPL(PloytecDriver, Start)
 
 	success = ivars->audioDevice->init(this, false, device_uid.get(), model_uid.get(), ivars->manufacturer_uid.get(), k_zero_time_stamp_period, ivars->usbRXBufferPCM.get(), ivars->usbTXBufferPCMandUART.get(), ivars->transferMode);
 	FailIf(false == success, , Exit, "No memory");
+	
+	ivars->audioDevice->SetDispatchQueue(ivars->workQueue.get());
 
 	ivars->audioDevice->SetName(ivars->device_name.get());
 	FailIf(ret != kIOReturnSuccess, , Exit, "Failed to set name to audio device");
@@ -384,6 +369,10 @@ OSData* PloytecDriver::GetDeviceManufacturer()
 
 kern_return_t PloytecDriver::GetPlaybackStats(playbackstats *stats)
 {
+	stats->usbPCMoutFramesCount = ivars->usbPCMoutFramesCount;
+	stats->usbPCMinFramesCount = ivars->usbPCMinFramesCount;
+	stats->usbMIDIoutBytesCount = ivars->usbMIDIoutBytesCount;
+	stats->usbMIDIinBytesCount = ivars->usbMIDIinBytesCount;
 	return ivars->audioDevice->GetPlaybackStats(stats);
 }
 
@@ -415,82 +404,308 @@ bool PloytecDriver::ReadMIDIByte(uint8_t &outByte) {
 	return true;
 }
 
-kern_return_t PloytecDriver::SendUSBUrbs(uint8_t num)
+kern_return_t PloytecDriver::SendPCMUrbs(uint8_t num)
 {
-	ivars->usbCurrentUrbCount = num;
+	os_log(OS_LOG_DEFAULT, "DRIVER: %s", __func__);
 
 	kern_return_t ret = kIOReturnSuccess;
-	int i = 0;
+	
+	ivars->usbCurrentUrbCount = num;
 
-	ret = ivars->usbPCMoutPipe->Abort(kIOUSBAbortSynchronous, kIOReturnAborted, NULL);
-	if (ret != kIOReturnSuccess)
-		return ret;
-	ret = ivars->usbPCMinPipe->Abort(kIOUSBAbortSynchronous, kIOReturnAborted, NULL);
-	if (ret != kIOReturnSuccess)
-		return ret;
-	ret = ivars->usbMIDIinPipe->Abort(kIOUSBAbortSynchronous, kIOReturnAborted, NULL);
-	if (ret != kIOReturnSuccess)
-		return ret;
+	ivars->usbShutdownInProgress = false;
 
-	for (i = 0; i < num; i++) {
-		if (ivars->transferMode == BULK) {
-			ret = ivars->usbPCMoutPipe->AsyncIO(ivars->usbTXBufferPCMandUARTSegment[0].get(), 2048, ivars->usbPCMoutCallbackBulk, 0);
-			if (ret != kIOReturnSuccess)
-				return ret;
-		} else if (ivars->transferMode == INTERRUPT)
-			ret = ivars->usbPCMoutPipe->AsyncIO(ivars->usbTXBufferPCMandUARTSegment[0].get(), 1928, ivars->usbPCMoutCallbackInterrupt, 0);
-			if (ret != kIOReturnSuccess)
-				return ret;
-		ret = ivars->usbPCMinPipe->AsyncIO(ivars->usbRXBufferPCMSegment[0].get(), 2048, ivars->usbPCMinCallback, 0);
+	for (int i = 0; i < num; i++) {
+		ret = ivars->usbPCMinPipe->AsyncIO(ivars->usbRXBufferPCMSegment[0].get(), ivars->usbInputPacketSize, ivars->usbPCMinCallback, 0);
 		if (ret != kIOReturnSuccess)
 			return ret;
-		ret = ivars->usbMIDIinPipe->AsyncIO(ivars->usbRXBufferMIDI.get(), 512, ivars->usbMIDIinCallback, 0);
+		ret = ivars->usbPCMoutPipe->AsyncIO(ivars->usbTXBufferPCMandUARTSegment[0].get(), ivars->usbOutputPacketSize, ivars->usbPCMoutCallback, 0);
 		if (ret != kIOReturnSuccess)
 			return ret;
 	}
 	return ret;
 }
 
+kern_return_t PloytecDriver::SendMIDIUrbs(uint8_t num)
+{
+	os_log(OS_LOG_DEFAULT, "DRIVER: %s", __func__);
+
+	kern_return_t ret = kIOReturnSuccess;
+
+	ivars->usbShutdownInProgress = false;
+
+	ret = ivars->usbMIDIinPipe->AsyncIO(ivars->usbRXBufferMIDI.get(), 512, ivars->usbMIDIinCallback, 0);
+	if (ret != kIOReturnSuccess)
+	{
+		os_log(OS_LOG_DEFAULT, "Failed to send MIDI URB: %s", strerror(ret));
+		return ret;
+	}
+	return ret;
+}
+
+/* This needs to be called in async context! */
+void PloytecDriver::AbortUSBUrbs(uint8_t num)
+{
+	os_log(OS_LOG_DEFAULT, "AbortUSBUrbs: start");
+	
+	kern_return_t ret = kIOReturnSuccess;
+
+	ivars->usbShutdownInProgress = true;
+
+	for (int timeout = 0; timeout < 1000; ++timeout)
+	{
+		if ((ivars->usbPCMoutAbortedCount >= num) && (ivars->usbPCMinAbortedCount >= num))
+			break;
+		IOSleep(1);
+	}
+
+	ret = ivars->usbDevice->SetConfiguration(0, true);
+	if (ret != kIOReturnSuccess)
+		os_log(OS_LOG_DEFAULT, "SetConfiguration failed: %s", strerror(ret));
+
+	IOSleep(10);
+
+	ret = CreateUSBPipes();
+	if (ret != kIOReturnSuccess)
+		os_log(OS_LOG_DEFAULT, "CreateUSBPipes failed: %s", strerror(ret));
+	
+	ret = ivars->usbDevice->DeviceRequest(this, 0x40, 0x49, 0xFFB2, 0x0000, 0x00, nullptr, nullptr, 0);
+	if (ret != kIOReturnSuccess)
+		os_log(OS_LOG_DEFAULT, "Failed to flush: %s", strerror(ret));
+	
+	ret = SendMIDIUrbs(1);
+	if (ret != kIOReturnSuccess)
+	{
+		os_log(OS_LOG_DEFAULT, "Failed to send MIDI URBs: %s", strerror(ret));
+		return ret;
+	}
+
+	ivars->usbPCMoutAbortedCount = 0;
+	ivars->usbPCMinAbortedCount = 0;
+	ivars->usbShutdownInProgress = false;
+
+	os_log(OS_LOG_DEFAULT, "AbortUSBUrbs: done");
+}
+
+kern_return_t PloytecDriver::CreateUSBTXBuffersPCMandUART(uint32_t outputPacketSize)
+{
+	kern_return_t ret = kIOReturnSuccess;
+	
+	ivars->usbOutputPacketSize = outputPacketSize;
+
+	for (int i = 0; i < (buffersize / outputPacketSize); i++)
+	{
+		ret = IOMemoryDescriptor::CreateSubMemoryDescriptor(kIOMemoryDirectionInOut, i * outputPacketSize, outputPacketSize, ivars->usbTXBufferPCMandUART.get(), ivars->usbTXBufferPCMandUARTSegment[i].attach());
+		FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create USB output SubMemoryDescriptor");
+		ivars->usbTXBufferPCMandUARTSegmentAddr[i] = ivars->usbTXBufferPCMandUARTAddr + (i * outputPacketSize);
+	}
+Exit:
+	return ret;
+}
+
+kern_return_t PloytecDriver::CreateUSBRXBuffersPCM(uint32_t inputPacketSize)
+{
+	kern_return_t ret = kIOReturnSuccess;
+
+	ivars->usbInputPacketSize = inputPacketSize;
+
+	for (int i = 0; i < (buffersize / ivars->usbInputPacketSize); i++)
+	{
+		ret = IOMemoryDescriptor::CreateSubMemoryDescriptor(kIOMemoryDirectionInOut, i * ivars->usbInputPacketSize, ivars->usbInputPacketSize, ivars->usbRXBufferPCM.get(), ivars->usbRXBufferPCMSegment[i].attach());
+		FailIf(ret != kIOReturnSuccess, , Exit, "Failed to create USB input SubMemoryDescriptor");+
+      .+6
+	}
+Exit:
+	return ret;
+}
+
+kern_return_t PloytecDriver::CreateUSBHandlers()
+{
+	os_log(OS_LOG_DEFAULT, "DRIVER: %s", __func__);
+	
+	kern_return_t ret = kIOReturnSuccess;
+
+	ret = OSAction::Create(this, PloytecDriver_PCMinHandler_ID, IOUSBHostPipe_CompleteAsyncIO_ID, 0, &ivars->usbPCMinCallback);
+	if (ret != kIOReturnSuccess)
+		return ret;
+	ret = OSAction::Create(this, PloytecDriver_PCMoutHandler_ID, IOUSBHostPipe_CompleteAsyncIO_ID, 0, &ivars->usbPCMoutCallback);
+	if (ret != kIOReturnSuccess)
+		return ret;
+	ret = OSAction::Create(this, PloytecDriver_MIDIinHandler_ID, IOUSBHostPipe_CompleteAsyncIO_ID, 0, &ivars->usbMIDIinCallback);
+	if (ret != kIOReturnSuccess)
+		return ret;
+
+	return ret;
+}
+
+kern_return_t PloytecDriver::CreateUSBPipes()
+{
+	os_log(OS_LOG_DEFAULT, "DRIVER: %s", __func__);
+	
+	kern_return_t ret = kIOReturnSuccess;
+	
+	uintptr_t interfaceIterator;
+	
+	ret = ivars->usbDevice->SetConfiguration(1, false);
+	if (ret != kIOReturnSuccess)
+		return ret;
+	ret = ivars->usbDevice->CreateInterfaceIterator(&interfaceIterator);
+	if (ret != kIOReturnSuccess)
+		return ret;
+	ret = ivars->usbDevice->CopyInterface(interfaceIterator, &ivars->usbInterface0);
+	if (ret != kIOReturnSuccess)
+		return ret;
+	ret = ivars->usbDevice->CopyInterface(interfaceIterator, &ivars->usbInterface1);
+	if (ret != kIOReturnSuccess)
+		return ret;
+	ret = ivars->usbDevice->DestroyInterfaceIterator(interfaceIterator);
+	if (ret != kIOReturnSuccess)
+		return ret;
+	ret = ivars->usbInterface0->Open(this, NULL, NULL);
+	if (ret != kIOReturnSuccess)
+		return ret;
+	ret = ivars->usbInterface0->SelectAlternateSetting(1);
+	if (ret != kIOReturnSuccess)
+		return ret;
+	ret = ivars->usbInterface0->CopyPipe(MIDI_IN_EP, &ivars->usbMIDIinPipe);
+	if (ret != kIOReturnSuccess)
+		return ret;
+	ret = ivars->usbInterface0->CopyPipe(PCM_OUT_EP, &ivars->usbPCMoutPipe);
+	if (ret != kIOReturnSuccess)
+		return ret;
+	ret = ivars->usbInterface1->Open(this, NULL, NULL);
+	if (ret != kIOReturnSuccess)
+		return ret;
+	ret = ivars->usbInterface1->SelectAlternateSetting(1);
+	if (ret != kIOReturnSuccess)
+		return ret;
+	ret = ivars->usbInterface1->CopyPipe(PCM_IN_EP, &ivars->usbPCMinPipe);
+	if (ret != kIOReturnSuccess)
+		return ret;
+
+	return ret;
+}
+
 uint8_t PloytecDriver::GetCurrentUrbCount()
 {
+	os_log(OS_LOG_DEFAULT, "DRIVER: %s", __func__);
+
 	return ivars->usbCurrentUrbCount;
+}
+
+void PloytecDriver::SetCurrentUrbCount(uint8_t num)
+{
+	os_log(OS_LOG_DEFAULT, "DRIVER: %s", __func__);
+	
+	__block kern_return_t ret = kIOReturnSuccess;
+	
+	ivars->workQueue->DispatchAsync(^(){
+		AbortUSBUrbs(ivars->usbCurrentUrbCount);
+		ret = SendPCMUrbs(num);
+		if (ret != kIOReturnSuccess)
+		{
+			os_log(OS_LOG_DEFAULT, "HELP: %s", __func__);
+			return;
+		}
+	});
+}
+
+uint16_t PloytecDriver::GetCurrentInputFramesCount()
+{
+	os_log(OS_LOG_DEFAULT, "DRIVER: %s", __func__);
+
+	return ivars->usbCurrentInputFramesCount;
+}
+
+void PloytecDriver::SetFrameCount(uint16_t inputCount, uint16_t outputCount)
+{
+	os_log(OS_LOG_DEFAULT, "DRIVER: %s", __func__);
+	os_log(OS_LOG_DEFAULT, "%s: CHANGING FRAMECOUNT TO: INPUT %d OUTPUT %d", __func__, inputCount, outputCount);
+
+	__block kern_return_t ret = kIOReturnSuccess;
+
+	ivars->workQueue->DispatchAsync(^(){
+		AbortUSBUrbs(ivars->usbCurrentUrbCount);
+		ivars->usbCurrentOutputFramesCount = outputCount;
+		ivars->usbCurrentInputFramesCount = inputCount;
+		if (ivars->transferMode == BULK)
+			ivars->usbOutputPacketSize = (outputCount / 10) * 512;
+		else if (ivars->transferMode == INTERRUPT)
+			ivars->usbOutputPacketSize = (outputCount / 10) * 482;
+		ivars->usbInputPacketSize = (inputCount / 8) * 512;
+		ret = CreateUSBTXBuffersPCMandUART(ivars->usbOutputPacketSize);
+		if (ret != kIOReturnSuccess)
+		{
+			os_log(OS_LOG_DEFAULT, "HELP: %s", __func__);
+			return;
+		}
+		ret = CreateUSBRXBuffersPCM(ivars->usbInputPacketSize);
+		if (ret != kIOReturnSuccess)
+		{
+			os_log(OS_LOG_DEFAULT, "HELP: %s", __func__);
+			return;
+		}
+		ret = SendPCMUrbs(ivars->usbCurrentUrbCount);
+		if (ret != kIOReturnSuccess)
+		{
+			os_log(OS_LOG_DEFAULT, "HELP: %s", __func__);
+			return;
+		}
+	});
+}
+
+uint16_t PloytecDriver::GetCurrentOutputFramesCount()
+{
+	os_log(OS_LOG_DEFAULT, "DRIVER: %s", __func__);
+
+	return ivars->usbCurrentOutputFramesCount;
 }
 
 kern_return_t IMPL(PloytecDriver, PCMinHandler)
 {
-	kern_return_t ret = ivars->usbPCMinPipe->AsyncIO(ivars->usbRXBufferPCMSegment[ivars->usbRXBufferPCMCurrentSegment].get(), 2048, ivars->usbPCMinCallback, 0);
-	ivars->audioDevice->Capture(ivars->usbRXBufferPCMCurrentSegment, completionTimestamp);
-	return ret;
+	ivars->workQueue->DispatchAsync(^{
+		if (ivars->usbShutdownInProgress)
+		{
+			os_log(OS_LOG_DEFAULT, "Callback aborted: %s", __func__);
+			ivars->usbPCMinPipe->Abort(kIOUSBAbortSynchronous, kIOReturnAborted, NULL);
+			ivars->usbPCMinAbortedCount++;
+			return;
+		}
+		
+		ivars->usbPCMinPipe->AsyncIO(ivars->usbRXBufferPCMSegment[ivars->usbRXBufferPCMCurrentSegment].get(), ivars->usbInputPacketSize, ivars->usbPCMinCallback, 0);
+		ivars->audioDevice->Capture(ivars->usbRXBufferPCMCurrentSegment, ivars->usbCurrentInputFramesCount, completionTimestamp);
+		ivars->usbPCMinFramesCount += ivars->usbCurrentInputFramesCount;
+	});
+
+	return kIOReturnSuccess;
 }
 
-kern_return_t IMPL(PloytecDriver, PCMoutHandlerBulk)
+kern_return_t IMPL(PloytecDriver, PCMoutHandler)
 {
-	ivars->audioDevice->Playback(ivars->usbTXBufferPCMandUARTCurrentSegment, completionTimestamp);
+	ivars->workQueue->DispatchAsync(^{
+		if (ivars->usbShutdownInProgress)
+		{
+			os_log(OS_LOG_DEFAULT, "Callback aborted: %s", __func__);
+			ivars->usbPCMoutPipe->Abort(kIOUSBAbortSynchronous, kIOReturnAborted, NULL);
+			ivars->usbPCMoutAbortedCount++;
+			return;
+		}
+		
+		ivars->audioDevice->Playback(ivars->usbTXBufferPCMandUARTCurrentSegment, ivars->usbCurrentOutputFramesCount, completionTimestamp);
+		uint8_t byte;
+		if (ReadMIDIByte(byte))
+		{
+			ivars->usbTXBufferPCMandUARTSegmentAddr[ivars->usbTXBufferPCMandUARTCurrentSegment][ivars->usbMIDIbyteNo] = byte;
+			ivars->usbMIDIoutBytesCount++;
+		}
+		else
+		{
+			ivars->usbTXBufferPCMandUARTSegmentAddr[ivars->usbTXBufferPCMandUARTCurrentSegment][ivars->usbMIDIbyteNo] = 0xFD;
+		}
+		ivars->usbPCMoutPipe->AsyncIO(ivars->usbTXBufferPCMandUARTSegment[ivars->usbTXBufferPCMandUARTCurrentSegment].get(), ivars->usbOutputPacketSize, ivars->usbPCMoutCallback, 0);
+		ivars->usbPCMoutFramesCount += ivars->usbCurrentOutputFramesCount;
+	});
 
-	uint8_t byte;
-	if (ReadMIDIByte(byte))
-		ivars->usbTXBufferPCMandUARTSegmentAddr[ivars->usbTXBufferPCMandUARTCurrentSegment][480] = byte;
-	else
-		ivars->usbTXBufferPCMandUARTSegmentAddr[ivars->usbTXBufferPCMandUARTCurrentSegment][480] = 0xFD;
-
-	kern_return_t ret = ivars->usbPCMoutPipe->AsyncIO(ivars->usbTXBufferPCMandUARTSegment[ivars->usbTXBufferPCMandUARTCurrentSegment].get(), 2048, ivars->usbPCMoutCallbackBulk, 0);
-
-	return ret;
-}
-
-kern_return_t IMPL(PloytecDriver, PCMoutHandlerInterrupt)
-{
-	ivars->audioDevice->Playback(ivars->usbTXBufferPCMandUARTCurrentSegment, completionTimestamp);
-
-	uint8_t byte;
-	if (ReadMIDIByte(byte))
-		ivars->usbTXBufferPCMandUARTSegmentAddr[ivars->usbTXBufferPCMandUARTCurrentSegment][432] = byte;
-	else
-		ivars->usbTXBufferPCMandUARTSegmentAddr[ivars->usbTXBufferPCMandUARTCurrentSegment][432] = 0xFD;
-
-	kern_return_t ret = ivars->usbPCMoutPipe->AsyncIO(ivars->usbTXBufferPCMandUARTSegment[ivars->usbTXBufferPCMandUARTCurrentSegment].get(), 1928, ivars->usbPCMoutCallbackInterrupt, 0);
-
-	return ret;
+	return kIOReturnSuccess;
 }
 
 kern_return_t IMPL(PloytecDriver, MIDIinHandler)
@@ -511,6 +726,12 @@ kern_return_t IMPL(PloytecDriver, MIDIinHandler)
 				ivars->midiClient->postMIDIMessage(msg);
 			continue;
 		}
+
+		if (byte & 0x80) {
+			ivars->midiParserRunningStatus = byte;
+			ivars->midiParserBytes[0] = byte;
+			ivars->midiParserIndex = 1;
+		} else if (ivars->midiParserRunningStatus) {
 
 		if (byte & 0x80)
 		{
@@ -545,5 +766,6 @@ kern_return_t IMPL(PloytecDriver, MIDIinHandler)
 			ivars->midiParserIndex = 1;
 		}
 	}
+	ivars->usbMIDIinBytesCount += actualByteCount;
 	return ivars->usbMIDIinPipe->AsyncIO(ivars->usbRXBufferMIDI.get(), 512, ivars->usbMIDIinCallback, 0);
 }
