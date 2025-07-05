@@ -121,8 +121,10 @@ kern_return_t PloytecDriverUserClient::ExternalMethod(uint64_t selector, IOUserC
 			break;
 		}
 
-		case PloytecDriverExternalMethod_ChangeURBs: {
-			ret = ivars->mProvider->SendUSBUrbs(*reinterpret_cast<const uint8_t*>(arguments->scalarInput));
+		case PloytecDriverExternalMethod_SetCurrentUrbCount: {
+			//ret = ivars->mProvider->AbortUSBUrbs();
+			ivars->mProvider->SetCurrentUrbCount(*reinterpret_cast<const uint8_t*>(arguments->scalarInput));
+			//ret = ivars->mProvider->SendUSBUrbs();
 			break;
 		}
 
@@ -132,6 +134,42 @@ kern_return_t PloytecDriverUserClient::ExternalMethod(uint64_t selector, IOUserC
 				break;
 			}
 			arguments->scalarOutput[0] = static_cast<uint64_t>(ivars->mProvider->GetCurrentUrbCount());
+			ret = kIOReturnSuccess;
+			break;
+		}
+
+		case PloytecDriverExternalMethod_SetFrameCount: {
+			if (arguments->scalarInputCount < 1) {
+				ret = kIOReturnBadArgument;
+				break;
+			}
+
+			uint64_t packed = arguments->scalarInput[0];
+			uint16_t inputFrames = static_cast<uint16_t>(packed & 0xFFFF);
+			uint16_t outputFrames = static_cast<uint16_t>((packed >> 32) & 0xFFFF);
+
+			ivars->mProvider->SetFrameCount(inputFrames, outputFrames);
+
+			ret = kIOReturnSuccess;
+			break;
+		}
+
+		case PloytecDriverExternalMethod_GetCurrentInputFramesCount: {
+			if (arguments->scalarOutputCount < 1) {
+				ret = kIOReturnBadArgument;
+				break;
+			}
+			arguments->scalarOutput[0] = static_cast<uint64_t>(ivars->mProvider->GetCurrentInputFramesCount());
+			ret = kIOReturnSuccess;
+			break;
+		}
+
+		case PloytecDriverExternalMethod_GetCurrentOutputFramesCount: {
+			if (arguments->scalarOutputCount < 1) {
+				ret = kIOReturnBadArgument;
+				break;
+			}
+			arguments->scalarOutput[0] = static_cast<uint64_t>(ivars->mProvider->GetCurrentOutputFramesCount());
 			ret = kIOReturnSuccess;
 			break;
 		}

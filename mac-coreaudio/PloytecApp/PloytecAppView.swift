@@ -11,9 +11,45 @@ struct PloytecAppView: View {
 	@State private var playbackStatsText = ""
 
 	private let playbackStatsUpdateInterval = 1.0
-	private let urbCount = [1, 2, 3, 4, 5, 6, 7, 8]
 
 	@State private var selectedUrbCount = 4
+	private let urbCount = [1, 2, 3, 4, 5, 6, 7, 8]
+	
+	@State private var usbPCMoutFramesCountOld: UInt64 = 0
+	@State private var usbPCMinFramesCountOld: UInt64 = 0
+	
+	struct FrameCount: Hashable {
+		let output: Int
+		let input: Int
+
+		var label: String { "\(output)/\(input)" }
+	}
+	
+	@State private var selectedFramesCount = FrameCount(output: 80, input: 80)
+
+	/*
+	private let framesCount: [FrameCount] = [
+		.init(output: 20, input: 16),
+		.init(output: 40, input: 32),
+		.init(output: 80, input: 64),
+		.init(output: 160, input: 128),
+		.init(output: 320, input: 256),
+		.init(output: 640, input: 512),
+		.init(output: 1280, input: 1024),
+		.init(output: 2560, input: 2048),
+	]
+	*/
+
+	private let framesCount: [FrameCount] = [
+		.init(output: 20, input: 16),
+		.init(output: 80, input: 80),
+		.init(output: 160, input: 160),
+		.init(output: 320, input: 320),
+		.init(output: 640, input: 640),
+		.init(output: 1280, input: 1280),
+		.init(output: 2560, input: 2560),
+	]
+
 	@State private var timer: Timer?
 	@State private var retryTimer: Timer?
 
@@ -23,8 +59,17 @@ struct PloytecAppView: View {
 			set: { newValue in
 				if selectedUrbCount != newValue {
 					selectedUrbCount = newValue
-					userClient.changeUrbCount(UInt8(newValue))
+					userClient.setCurrentUrbCount(UInt8(newValue))
 				}
+			}
+		)
+	}
+	private var framesBinding: Binding<FrameCount> {
+		Binding(
+			get: { selectedFramesCount },
+			set: { newValue in
+				selectedFramesCount = newValue
+				userClient.setFrameCount(UInt16(newValue.input), output: UInt16(newValue.output))
 			}
 		)
 	}
@@ -56,25 +101,32 @@ struct PloytecAppView: View {
 				.frame(width: 500, alignment: .center)
 				Spacer()
 				VStack(alignment: .center) {
-					Text(deviceNameText)
-					Text(deviceManufacturerText)
-					Text(firmwareVersionText)
 					if viewModel.isConnected {
-						/*
+						Text(deviceNameText)
+						Text(deviceManufacturerText)
+						Text(firmwareVersionText)
+						Text("USB Settings")
+							.padding()
 						Picker("URB Count", selection: urbBinding) {
 							ForEach(urbCount, id: \.self) { size in
 								Text("\(size)")
 							}
 						}
-						.padding()
 						.frame(width: 150)
+						Picker("Frames (Output/Input)", selection: framesBinding) {
+							ForEach(framesCount, id: \.self) { pair in
+								Text(pair.label)
+							}
+						}
 						.pickerStyle(MenuPickerStyle())
-						*/
+						.frame(width: 250)
 					}
+					Text("Driver Statistics")
+						.padding()
 					Text(playbackStatsText)
 						.font(.system(.body, design: .monospaced))
 						.multilineTextAlignment(.leading)
-						.frame(minWidth: 400, maxWidth: 400, minHeight: 200, idealHeight: 200, maxHeight: 200)
+						.frame(minWidth: 400, maxWidth: 400, minHeight: 250, idealHeight: 250, maxHeight: 250)
 						.border(Color.gray)
 						.padding()
 				}
@@ -91,6 +143,9 @@ struct PloytecAppView: View {
 					deviceNameText = self.userClient.getDeviceName()
 					deviceManufacturerText = self.userClient.getDeviceManufacturer()
 					selectedUrbCount = Int(userClient.getCurrentUrbCount())
+					let input = Int(userClient.getCurrentInputFramesCount())
+					let output = Int(userClient.getCurrentOutputFramesCount())
+					selectedFramesCount = FrameCount(output: output, input: input)
 					startTimer()
 				} else {
 					stopTimer()
@@ -127,15 +182,20 @@ struct PloytecAppView: View {
 
 	private func updatePlaybackStats() {
 		let stats = self.userClient.getPlaybackStats()
-		self.playbackStatsText = "Playing             : \(stats.playing)\n" +
-			"Recording           : \(stats.recording)\n" +
-			"Out Sample Time     : \(stats.out_sample_time)\n" +
-			"Out Sample Time USB : \(stats.out_sample_time_usb)\n" +
-			"Out Sample Time diff: \(stats.out_sample_time_diff)\n" +
-			"In Sample Time      : \(stats.in_sample_time)\n" +
-			"In Sample Time USB  : \(stats.in_sample_time_usb)\n" +
-			"In Sample Time diff : \(stats.in_sample_time_diff)\n" +
-			"XRUNS               : \(stats.xruns)"
+		self.playbackStatsText =
+			"Playback                 : \(stats.playing)\n" +
+			"Capture                  : \(stats.recording)\n" +
+			"CoreAudio Sampletime Out : \(stats.out_sample_time)\n" +
+			"CoreAudio Sampletime In  : \(stats.in_sample_time)\n" +
+			"USB PCM Frames Out       : \(stats.usbPCMoutFramesCount)\n" +
+			"USB PCM Framerate Out    : \(stats.usbPCMoutFramesCount - usbPCMoutFramesCountOld)\n" +
+			"USB PCM Frames In        : \(stats.usbPCMinFramesCount)\n" +
+			"USB PCM Framerate In     : \(stats.usbPCMinFramesCount - usbPCMinFramesCountOld)\n" +
+			"USB MIDI Bytes Out       : \(stats.usbMIDIoutBytesCount)\n" +
+			"USB MIDI Bytes In        : \(stats.usbMIDIinBytesCount)\n" +
+			"XRUNS                    : \(stats.xruns)"
+		usbPCMoutFramesCountOld = stats.usbPCMoutFramesCount
+		usbPCMinFramesCountOld = stats.usbPCMinFramesCount
 	}
 }
 

@@ -111,7 +111,7 @@
 	char devicemanufacturer[128] = {0};
 	size_t devicemanufacturerSize = sizeof(devicemanufacturer);
 
-	kern_return_t error = IOConnectCallMethod(_ioConnection, static_cast<uint64_t>(PloytecDriverExternalMethod_GetDeviceManufacturer), nullptr, 0, nullptr, 0, nullptr, nullptr, devicemanufacturer, &devicemanufacturerSize);
+	kern_return_t error = IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_GetDeviceManufacturer, nullptr, 0, nullptr, 0, nullptr, nullptr, devicemanufacturer, &devicemanufacturerSize);
 
 	if (error != kIOReturnSuccess) {
 		return [NSString stringWithFormat:@"Failed to get device manufacturer, error: %s.", mach_error_string(error)];
@@ -131,7 +131,7 @@
 	size_t firmwareverSize = sizeof(firmwarever);
 	
 	kern_return_t error =
-		IOConnectCallMethod(_ioConnection, static_cast<uint64_t>(PloytecDriverExternalMethod_GetFirmwareVer), nullptr, 0, nullptr, 0, nullptr, nullptr, firmwarever, &firmwareverSize);
+		IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_GetFirmwareVer, nullptr, 0, nullptr, 0, nullptr, nullptr, firmwarever, &firmwareverSize);
 
 	if (error != kIOReturnSuccess) {
 		return [NSString stringWithFormat:@"Failed to get firmware, error: %s.", mach_error_string(error)];
@@ -140,14 +140,40 @@
 	return [NSString stringWithFormat:@"Firmware: 1.%d.%d", (firmwarever[2]/10), (firmwarever[2]%10)];
 }
 
-- (void)changeUrbCount:(uint8_t)urbCount
+- (void)setCurrentUrbCount:(uint8_t)urbCount
+{
+	if (_ioConnection == IO_OBJECT_NULL) {
+		NSLog(@"%s: No connection to driver", __FUNCTION__);
+		return;
+	}
+	
+	NSLog(@"%s", __FUNCTION__);
+	
+	uint64_t value = urbCount;
+
+	kern_return_t ret = IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_SetCurrentUrbCount, &value, 1, nullptr, 0, nullptr, nullptr, nullptr, 0);
+	if (ret != KERN_SUCCESS) {
+		NSLog(@"changeUrbCount failed: %s", mach_error_string(ret));
+		return;
+	}
+}
+
+- (void)setFrameCount:(uint16_t)inputFrameCount output:(uint16_t)outputFrameCount
 {
 	if (_ioConnection == IO_OBJECT_NULL) {
 		NSLog(@"%s: No connection to driver", __FUNCTION__);
 		return;
 	}
 
-	IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_ChangeURBs, reinterpret_cast<const uint64_t*>(&urbCount), 1, nullptr, 0, nullptr, nullptr, nullptr, 0);
+	NSLog(@"%s", __FUNCTION__);
+
+	uint64_t value = ((uint64_t)outputFrameCount << 32) | inputFrameCount;
+
+	kern_return_t ret = IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_SetFrameCount, &value, 1, nullptr, 0, nullptr, nullptr, nullptr, 0);
+	if (ret != KERN_SUCCESS) {
+		NSLog(@"setCurrentInputFramesCount failed: %s", mach_error_string(ret));
+		return;
+	}
 }
 
 - (uint8_t)getCurrentUrbCount
@@ -157,14 +183,54 @@
 		return;
 	}
 
-	uint8_t num;
+	NSLog(@"%s", __FUNCTION__);
+
+	uint64_t num = 0;
 	uint32_t outputCount = 1;
-	kern_return_t ret = IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_GetCurrentUrbCount, nullptr, 0, nullptr, 0, reinterpret_cast<uint64_t*>(&num), &outputCount, nullptr, 0);
+	kern_return_t ret = IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_GetCurrentUrbCount, nullptr, 0, nullptr, 0, &num, &outputCount, nullptr, 0);
 	if (ret != KERN_SUCCESS) {
 		NSLog(@"getCurrentUrbCount failed: %s", mach_error_string(ret));
 		return 0;
 	}
-	return num;
+	return (uint8_t)num;
+}
+
+- (uint16_t)getCurrentInputFramesCount
+{
+	if (_ioConnection == IO_OBJECT_NULL) {
+		NSLog(@"%s: No connection to driver", __FUNCTION__);
+		return;
+	}
+
+	NSLog(@"%s", __FUNCTION__);
+
+	uint64_t num = 0;
+	uint32_t outputCount = 1;
+	kern_return_t ret = IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_GetCurrentInputFramesCount, nullptr, 0, nullptr, 0, &num, &outputCount, nullptr, 0);
+	if (ret != KERN_SUCCESS) {
+		NSLog(@"GetCurrentInputFramesCount failed: %s", mach_error_string(ret));
+		return 0;
+	}
+	return (uint16_t)num;
+}
+
+- (uint16_t)getCurrentOutputFramesCount
+{
+	if (_ioConnection == IO_OBJECT_NULL) {
+		NSLog(@"%s: No connection to driver", __FUNCTION__);
+		return;
+	}
+
+	NSLog(@"%s", __FUNCTION__);
+
+	uint64_t num = 0;
+	uint32_t outputCount = 1;
+	kern_return_t ret = IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_GetCurrentOutputFramesCount, nullptr, 0, nullptr, 0, &num, &outputCount, nullptr, 0);
+	if (ret != KERN_SUCCESS) {
+		NSLog(@"getCurrentOutputFramesCount failed: %s", mach_error_string(ret));
+		return 0;
+	}
+	return (uint16_t)num;
 }
 
 - (playbackstats)getPlaybackStats
@@ -177,7 +243,7 @@
 	playbackstats stats;
 	size_t playbackstatsSize = sizeof(stats);
 	
-	kern_return_t error = IOConnectCallMethod(_ioConnection, static_cast<uint64_t>(PloytecDriverExternalMethod_GetPlaybackStats), nullptr, 0, nullptr, 0, nullptr, nullptr, &stats, &playbackstatsSize);
+	kern_return_t error = IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_GetPlaybackStats, nullptr, 0, nullptr, 0, nullptr, nullptr, &stats, &playbackstatsSize);
 
 	return stats;
 }

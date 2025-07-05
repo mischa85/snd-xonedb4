@@ -19,8 +19,7 @@ struct PloytecDriver_IVars
 	IOUSBHostPipe				*usbMIDIinPipe;
 	IOUSBHostPipe				*usbPCMoutPipe;
 	IOUSBHostPipe				*usbPCMinPipe;
-	OSAction				*usbPCMoutCallbackBulk;
-	OSAction				*usbPCMoutCallbackInterrupt;
+	OSAction				*usbPCMoutCallback;
 	OSAction				*usbPCMinCallback;
 	OSAction				*usbMIDIinCallback;
 
@@ -40,6 +39,19 @@ struct PloytecDriver_IVars
 	OSSharedPtr<IOBufferMemoryDescriptor> 	usbRXBufferMIDI;
 	uint8_t					*usbRXBufferMIDIAddr;
 	uint8_t					usbCurrentUrbCount;
+	uint32_t				usbOutputPacketSize;
+	uint16_t				usbCurrentOutputFramesCount;
+	uint32_t				usbInputPacketSize;
+	uint16_t				usbCurrentInputFramesCount;
+	bool					usbShutdownInProgress = false;
+	uint8_t					usbPCMoutAbortedCount;
+	uint8_t					usbPCMinAbortedCount;
+	uint8_t					usbMIDIinAbortedCount;
+	uint16_t				usbMIDIbyteNo;
+	uint64_t				usbPCMoutFramesCount;
+	uint64_t				usbPCMinFramesCount;
+	uint64_t				usbMIDIoutBytesCount;
+	uint64_t				usbMIDIinBytesCount;
 
 	char					*firmwarever;
 	IOBufferMemoryDescriptor		*sampleratebytes;
@@ -76,13 +88,22 @@ public:
 	virtual void WriteMIDIBytes(const uint64_t msg) LOCALONLY;
 	virtual bool ReadMIDIByte(uint8_t &outByte) LOCALONLY;
 
-	virtual kern_return_t SendUSBUrbs(uint8_t num) LOCALONLY;
+	virtual void AbortUSBUrbs(uint8_t num) LOCALONLY;
+	virtual kern_return_t SendPCMUrbs(uint8_t num) LOCALONLY;
+	virtual kern_return_t SendMIDIUrbs(uint8_t num) LOCALONLY;
 	virtual uint8_t GetCurrentUrbCount() LOCALONLY;
+	virtual void SetCurrentUrbCount(uint8_t num) LOCALONLY;
+	virtual uint16_t GetCurrentInputFramesCount() LOCALONLY;
+	virtual void SetFrameCount(uint16_t inputCount, uint16_t outputCount) LOCALONLY;
+	virtual uint16_t GetCurrentOutputFramesCount() LOCALONLY;
+	virtual kern_return_t CreateUSBTXBuffersPCMandUART(uint32_t outputPacketSize) LOCALONLY;
+	virtual kern_return_t CreateUSBRXBuffersPCM(uint32_t inputPacketSize) LOCALONLY;
+	virtual kern_return_t CreateUSBHandlers() LOCALONLY;
+	virtual kern_return_t CreateUSBPipes() LOCALONLY;
 
 protected:
 	virtual kern_return_t PCMinHandler(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);
-	virtual kern_return_t PCMoutHandlerBulk(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);
-	virtual kern_return_t PCMoutHandlerInterrupt(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);
+	virtual kern_return_t PCMoutHandler(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);
 	virtual kern_return_t MIDIinHandler(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);
 };
 
