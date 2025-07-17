@@ -105,6 +105,8 @@ bool PloytecDevice::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 	// set the available sample rates in CoreAudio
 	ret = SetAvailableSampleRates(sample_rates, 1);
 	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to set the available samplerates in CoreAudio");
+	
+	SetOutputSafetyOffset(100);
 
 	// set the current sample rate in CoreAudio
 	ret = SetSampleRate(96000);
