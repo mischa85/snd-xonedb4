@@ -26,7 +26,7 @@ The development of the macOS driverkit driver has been an unpleasant experience 
 
 - [x] PCM out 8 channels
 - [x] PCM in 8 channels
-- [ ] Driver config in UI
+- [x] Driver config in UI
 - [ ] Sample Rate Switching
 - [x] MIDI out
 - [x] MIDI in
@@ -45,15 +45,16 @@ How to install:
 
 **macOS**:
 
-- Reboot the system and keep ```COMMAND ⌘ + R``` pressed while booting, this will bring you in recovery.
+- Open a terminal.
+- ```sudo nvram boot-args="amfi_get_out_of_my_way=0x1"```
+- Reboot the system. Intel: ```COMMAND ⌘ + R``` pressed while booting to enter recovery. Apple Silicon: Keep the power button pressed, and select Options to enter 1TR.
 - Open a terminal.
 - ```csrutil disable``` to disable System Integrity Protection.
-- ```sudo nvram boot-args="amfi_get_out_of_my_way=0x1"```
 - Reboot to macOS.
 - Open a terminal.
 - Clone the repo using ```git clone https://github.com/mischa85/snd-xonedb4```
 - Change the directory to the cloned repo: ```cd snd-xonedb4```
-- Get a (free) Apple developer account via Xcode.
+- Get a (free) Apple developer account via Xcode. Make sure it's active in Settings -> Accounts. Double check if it actually works using ```security find-identity -v```. If this still gives "0 valid identities found", you need to troubleshoot the chain of trust. I know this is a frustrating issue, but please don't waste my time by opening issues about it. There's plenty of things to try if you search the net for this issue.
 - ```make mac``` to compile the driver.
 - If you installed an earlier version, uninstall it first! ```systemextensionsctl list``` to list, ```systemextensionsctl uninstall <teamID> <bundleID>``` to uninstall.
 - ```make mac-install``` to move it to the ```/Applications``` directory.
