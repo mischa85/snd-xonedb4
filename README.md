@@ -11,7 +11,7 @@ The development of the macOS driverkit driver has been an unpleasant experience 
 - [x] Allen&Heath Xone:DX
 - [ ] Allen&Heath Xone:2D
 - [x] Allen&Heath Xone:4D
-- [ ] Allen&Heath WZ4:USB
+- [x] Allen&Heath WZ4:USB
 - [ ] Smyth Research A16 Realiser
 
 **Linux**:
