@@ -121,7 +121,7 @@ bool PloytecDevice::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 	// allocate the CoreAudio ring buffers
 	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, MAX_BUFFERSIZE * COREAUDIO_PLAYBACK_BYTES_PER_FRAME, 0, ivars->output_io_ring_buffer.attach());
 	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create output ring buffer");
-	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, MAX_BUFFERSIZE * COREAUDIO_PLAYBACK_BYTES_PER_FRAME, 0, ivars->input_io_ring_buffer.attach());
+	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, MAX_BUFFERSIZE * COREAUDIO_CAPTURE_BYTES_PER_FRAME, 0, ivars->input_io_ring_buffer.attach());
 	FailIf(ret != kIOReturnSuccess, , Failure, "Failed to create input ring buffer");
 
 	// create the streams
