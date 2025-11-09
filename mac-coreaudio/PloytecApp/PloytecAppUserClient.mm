@@ -129,15 +129,14 @@
 
 	char firmwarever[15] = {0};
 	size_t firmwareverSize = sizeof(firmwarever);
-	
-	kern_return_t error =
-		IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_GetFirmwareVer, nullptr, 0, nullptr, 0, nullptr, nullptr, firmwarever, &firmwareverSize);
+
+	kern_return_t error = IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_GetFirmwareVer, nullptr, 0, nullptr, 0, nullptr, nullptr, firmwarever, &firmwareverSize);
 
 	if (error != kIOReturnSuccess) {
 		return [NSString stringWithFormat:@"Failed to get firmware, error: %s.", mach_error_string(error)];
 	}
 
-	return [NSString stringWithFormat:@"Firmware: 1.%d.%d", (firmwarever[2]/10), (firmwarever[2]%10)];
+	return [NSString stringWithFormat:@"Firmware: %d.%d.%d", firmwarever[0], firmwarever[1], firmwarever[2]];
 }
 
 - (void)setCurrentUrbCount:(uint8_t)urbCount

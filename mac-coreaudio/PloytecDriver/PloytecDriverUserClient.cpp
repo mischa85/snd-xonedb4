@@ -98,19 +98,19 @@ kern_return_t PloytecDriverUserClient::ExternalMethod(uint64_t selector, IOUserC
 
 		case PloytecDriverExternalMethod_GetDeviceName: {
 			ret = kIOReturnSuccess;
-			arguments->structureOutput = ivars->mProvider->GetDeviceName();
+			arguments->structureOutput = OSData::withBytes(ivars->mProvider->GetDeviceName()->getCStringNoCopy(), ivars->mProvider->GetDeviceName()->getLength());
 			break;
 		}
 
 		case PloytecDriverExternalMethod_GetDeviceManufacturer: {
 			ret = kIOReturnSuccess;
-			arguments->structureOutput = ivars->mProvider->GetDeviceManufacturer();
+			arguments->structureOutput = OSData::withBytes(ivars->mProvider->GetDeviceManufacturer()->getCStringNoCopy(), ivars->mProvider->GetDeviceManufacturer()->getLength());
 			break;
 		}
 
 		case PloytecDriverExternalMethod_GetFirmwareVer: {
 			ret = kIOReturnSuccess;
-			arguments->structureOutput = ivars->mProvider->GetFirmwareVer();
+			arguments->structureOutput = OSData::withBytes(ivars->mProvider->GetFirmwareVer(), 3);
 			break;
 		}
 
@@ -122,9 +122,11 @@ kern_return_t PloytecDriverUserClient::ExternalMethod(uint64_t selector, IOUserC
 		}
 
 		case PloytecDriverExternalMethod_SetCurrentUrbCount: {
-			//ret = ivars->mProvider->AbortUSBUrbs();
+			if (arguments->scalarInputCount < 1) {
+				ret = kIOReturnBadArgument;
+				break;
+			}
 			ivars->mProvider->SetCurrentUrbCount(*reinterpret_cast<const uint8_t*>(arguments->scalarInput));
-			//ret = ivars->mProvider->SendUSBUrbs();
 			break;
 		}
 
