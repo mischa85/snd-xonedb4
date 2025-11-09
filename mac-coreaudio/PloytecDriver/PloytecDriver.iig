@@ -8,6 +8,13 @@
 
 using namespace AudioDriverKit;
 
+struct FirmwareVersion
+{
+	uint8_t					major;
+	uint8_t					minor;
+	uint8_t					patch;
+};
+
 struct PloytecDriver_IVars
 {
 	OSSharedPtr<IODispatchQueue>		workQueue;
@@ -24,6 +31,9 @@ struct PloytecDriver_IVars
 	OSAction				*usbMIDIinCallback;
 
 	OSSharedPtr<IOBufferMemoryDescriptor>	usbRXBufferCONTROL;
+	uint8_t									*usbRXBufferCONTROLAddr;
+	OSSharedPtr<IOBufferMemoryDescriptor>	usbTXBufferCONTROL;
+	uint8_t									*usbTXBufferCONTROLAddr;
 	OSSharedPtr<IOBufferMemoryDescriptor>	MIDIBuffer;
 	uint8_t					*MIDIBufferAddr;
 	uint8_t					midiRingHead;
@@ -53,16 +63,16 @@ struct PloytecDriver_IVars
 	uint64_t				usbMIDIoutBytesCount;
 	uint64_t				usbMIDIinBytesCount;
 
-	char					*firmwarever;
-	IOBufferMemoryDescriptor		*sampleratebytes;
+	FirmwareVersion*			firmwareVersion;
+	//IOBufferMemoryDescriptor		*sampleratebytes;
 	OSSharedPtr<OSString>			FirmwareVersionBytes;
-	OSSharedPtr<OSString>			manufacturer_uid;
-	OSSharedPtr<OSString>			device_name;
-	char 					*manufacturer_utf8;
-	char 					*device_name_utf8;
+
+	OSSharedPtr<OSString> 		modelName;
+	OSSharedPtr<OSString> 		manufacturerName;
+	OSSharedPtr<OSString> 		deviceName;
 
 	TransferMode				transferMode;
-	
+
 	IOUserClient*				midiUserClient = nullptr;
 	PloytecDriverUserClient*		midiClient = nullptr;
 	uint8_t					midiParserRunningStatus = 0;
@@ -80,28 +90,30 @@ public:
 	virtual void free() override;
 	virtual kern_return_t StartDevice(IOUserAudioObjectID in_object_id, IOUserAudioStartStopFlags in_flags) override;
 	virtual kern_return_t StopDevice(IOUserAudioObjectID in_object_id, IOUserAudioStartStopFlags in_flags) override;
-	virtual OSData* GetFirmwareVer() LOCALONLY;
-	virtual OSData* GetDeviceName() LOCALONLY;
-	virtual OSData* GetDeviceManufacturer() LOCALONLY;
+	virtual FirmwareVersion* GetFirmwareVer() LOCALONLY;
+	virtual OSSharedPtr<OSString> GetDeviceName() LOCALONLY;
+	virtual OSSharedPtr<OSString> GetDeviceManufacturer() LOCALONLY;
 	kern_return_t GetPlaybackStats(playbackstats *stats) LOCALONLY;
 
 	virtual void WriteMIDIBytes(const uint64_t msg) LOCALONLY;
 	virtual bool ReadMIDIByte(uint8_t &outByte) LOCALONLY;
 
-	virtual void AbortUSBUrbs(uint8_t num) LOCALONLY;
+	virtual kern_return_t AbortUSBUrbs(uint8_t num) LOCALONLY;
 	virtual kern_return_t SendPCMUrbs(uint8_t num) LOCALONLY;
 	virtual kern_return_t SendMIDIUrbs(uint8_t num) LOCALONLY;
 	virtual uint8_t GetCurrentUrbCount() LOCALONLY;
-	virtual void SetCurrentUrbCount(uint8_t num) LOCALONLY;
+	virtual kern_return_t SetCurrentUrbCount(uint8_t num) LOCALONLY;
 	virtual uint16_t GetCurrentInputFramesCount() LOCALONLY;
-	virtual void SetFrameCount(uint16_t inputCount, uint16_t outputCount) LOCALONLY;
+	virtual kern_return_t SetFrameCount(uint16_t inputCount, uint16_t outputCount) LOCALONLY;
 	virtual uint16_t GetCurrentOutputFramesCount() LOCALONLY;
 	virtual kern_return_t CreateUSBTXBuffersPCMandUART(uint32_t outputPacketSize) LOCALONLY;
 	virtual kern_return_t CreateUSBRXBuffersPCM(uint32_t inputPacketSize) LOCALONLY;
-	virtual kern_return_t CreateUSBHandlers() LOCALONLY;
-	virtual kern_return_t CreateUSBPipes() LOCALONLY;
 
 protected:
+	virtual OSSharedPtr<OSString> MakeStringFromDescriptor(IOUSBHostDevice* device, uint8_t index) LOCALONLY;
+	virtual kern_return_t CreateBuffers() LOCALONLY;
+	virtual kern_return_t CreateUSBHandlers() LOCALONLY;
+	virtual kern_return_t CreateUSBPipes() LOCALONLY;
 	virtual kern_return_t PCMinHandler(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);
 	virtual kern_return_t PCMoutHandler(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);
 	virtual kern_return_t MIDIinHandler(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);
