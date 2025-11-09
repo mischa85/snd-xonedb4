@@ -559,7 +559,7 @@ kern_return_t PloytecDriver::CreateUSBPipes()
 	ret = ivars->usbDevice->DestroyInterfaceIterator(interfaceIterator);
 	if (ret != kIOReturnSuccess)
 		return ret;
-	ret = ivars->usbInterface0->Open(this, NULL, NULL);
+	ret = ivars->usbInterface0->Open(this, 0, NULL);
 	if (ret != kIOReturnSuccess)
 		return ret;
 	ret = ivars->usbInterface0->SelectAlternateSetting(1);
@@ -571,7 +571,7 @@ kern_return_t PloytecDriver::CreateUSBPipes()
 	ret = ivars->usbInterface0->CopyPipe(PCM_OUT_EP, &ivars->usbPCMoutPipe);
 	if (ret != kIOReturnSuccess)
 		return ret;
-	ret = ivars->usbInterface1->Open(this, NULL, NULL);
+	ret = ivars->usbInterface1->Open(this, 0, NULL);
 	if (ret != kIOReturnSuccess)
 		return ret;
 	ret = ivars->usbInterface1->SelectAlternateSetting(1);
