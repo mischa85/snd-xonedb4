@@ -35,14 +35,16 @@ struct PloytecDevice_IVars
 	uint64_t				HWSampleTimeIn;
 	uint64_t				HWSampleTimeOut;
 	//uint64_t				out_hw_sample_time_usb;
-	uint16_t				out_current_buffer_pos_usb;
 	uint64_t				in_sample_time;
 	uint64_t				out_sample_time;
 	
+	bool					IOStarted;
 	bool					PCMinActive;
 	bool					PCMoutActive;
 	
 	uint64_t				xruns;
+
+	uint64_t				lastZeroReported;
 };
 
 bool PloytecDevice::init(IOUserAudioDriver* in_driver, bool in_supports_prewarming, OSString* in_device_uid, OSString* in_model_uid, OSString* in_manufacturer_uid, uint32_t in_zero_timestamp_period, IOBufferMemoryDescriptor* receiveBuffer, IOBufferMemoryDescriptor* transmitBuffer, TransferMode transferMode)
@@ -264,6 +266,8 @@ kern_return_t PloytecDevice::StartIO(IOUserAudioStartStopFlags in_flags)
 
 		ivars->HWSampleTimeOut = 0;
 		ivars->HWSampleTimeIn = 0;
+		ivars->lastZeroReported = UINT64_MAX;
+		ivars->IOStarted = true;
 		ivars->PCMinActive = false;
 		ivars->PCMoutActive = false;
 
@@ -288,7 +292,8 @@ kern_return_t PloytecDevice::StopIO(IOUserAudioStartStopFlags in_flags)
 
 	ivars->m_work_queue->DispatchSync(^(){
 		ret = super::StopIO(in_flags);
-		
+
+		ivars->IOStarted = false;
 		ivars->PCMinActive = false;
 		ivars->PCMoutActive = false;
 	});
@@ -354,21 +359,16 @@ bool PloytecDevice::Playback(uint16_t &currentpos, uint16_t frameCount, uint64_t
 
 	currentpos = (sampleTime % period) / frameCount;
 
-	uint64_t expectedZeroTimestamp = (sampleTime / period) * period;
-
-	uint64_t currentZeroTimestamp;
-	GetCurrentZeroTimestamp(&currentZeroTimestamp, nullptr);
-
-	if (sampleTime + (period / 2) < currentZeroTimestamp) {
-		ivars->xruns++;
-		os_log(OS_LOG_DEFAULT, "XRUN detected: sampleTime=%llu zeroTime=%llu", sampleTime, currentZeroTimestamp);
+	if (ivars->IOStarted)
+	{
+		ivars->HWSampleTimeOut += frameCount;
+		const uint64_t expectedZero = (ivars->HWSampleTimeOut / period) * period;
+		if (expectedZero != ivars->lastZeroReported)
+		{
+			UpdateCurrentZeroTimestamp(expectedZero, completionTimestamp);
+			ivars->lastZeroReported = expectedZero;
+		}
 	}
-
-	if (currentZeroTimestamp != expectedZeroTimestamp) {
-		UpdateCurrentZeroTimestamp(expectedZeroTimestamp, completionTimestamp);
-	}
-
-	ivars->HWSampleTimeOut += frameCount;
 
 	return true;
 }
