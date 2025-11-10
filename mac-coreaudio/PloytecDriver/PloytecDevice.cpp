@@ -278,18 +278,22 @@ kern_return_t PloytecDevice::StartIO(IOUserAudioStartStopFlags in_flags)
 
 kern_return_t PloytecDevice::StopIO(IOUserAudioStartStopFlags in_flags)
 {
-	__block kern_return_t ret;
+	__block kern_return_t ret = kIOReturnSuccess;
 
-	ivars->m_work_queue->DispatchSync(^(){
-		ret = super::StopIO(in_flags);
-
+	ivars->m_work_queue->DispatchSync(^{
 		ivars->IOStarted = false;
 		ivars->PCMinActive = false;
 		ivars->PCMoutActive = false;
+
+		if (ivars->m_output_memory_map) ivars->m_output_memory_map.reset();
+		if (ivars->m_input_memory_map) ivars->m_input_memory_map.reset();
+		ivars->CoreAudioOutputBufferAddr = nullptr;
+		ivars->CoreAudioInputBufferAddr = nullptr;
+
+		ret = super::StopIO(in_flags);
 	});
 
-	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::StopIO: failed to stop IO: %s", strerror(ret)); }
-
+	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::StopIO: super::StopIO failed: %s", strerror(ret)); }
 	return ret;
 }
 
