@@ -18,6 +18,11 @@ struct PloytecAppView: View {
 	@State private var usbPCMoutFramesCountOld: UInt64 = 0
 	@State private var usbPCMinFramesCountOld: UInt64 = 0
 	
+	@inline(__always)
+	private func safeDelta(_ new: UInt64, _ old: UInt64) -> UInt64 {
+	    return new >= old ? (new - old) : 0
+	}
+
 	struct FrameCount: Hashable {
 		let output: Int
 		let input: Int
@@ -146,9 +151,14 @@ struct PloytecAppView: View {
 					let input = Int(userClient.getCurrentInputFramesCount())
 					let output = Int(userClient.getCurrentOutputFramesCount())
 					selectedFramesCount = FrameCount(output: output, input: input)
+					let stats = self.userClient.getPlaybackStats()
+					usbPCMoutFramesCountOld = stats.usbPCMoutFramesCount
+					usbPCMinFramesCountOld  = stats.usbPCMinFramesCount
 					startTimer()
 				} else {
 					stopTimer()
+					usbPCMoutFramesCountOld = 0
+					usbPCMinFramesCountOld  = 0
 					startRetryingUserClient()
 				}
 			}
@@ -182,6 +192,10 @@ struct PloytecAppView: View {
 
 	private func updatePlaybackStats() {
 		let stats = self.userClient.getPlaybackStats()
+		if stats.usbPCMoutFramesCount < usbPCMoutFramesCountOld { usbPCMoutFramesCountOld = stats.usbPCMoutFramesCount }
+		if stats.usbPCMinFramesCount  < usbPCMinFramesCountOld  { usbPCMinFramesCountOld  = stats.usbPCMinFramesCount  }
+		let outDelta = safeDelta(stats.usbPCMoutFramesCount, usbPCMoutFramesCountOld)
+		let inDelta  = safeDelta(stats.usbPCMinFramesCount,  usbPCMinFramesCountOld)
 		self.playbackStatsText =
 			"Playback                 : \(stats.playing)\n" +
 			"Capture                  : \(stats.recording)\n" +

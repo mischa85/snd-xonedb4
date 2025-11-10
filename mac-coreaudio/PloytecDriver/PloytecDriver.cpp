@@ -58,8 +58,6 @@ kern_return_t IMPL(PloytecDriver, Start)
 	ret = CreateBuffers();
 	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: failed to create buffers: %s", strerror(ret)); return ret; }
 
-	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Fetching firmware version...");
-
 	// Allocate
 	ivars->firmwareVersion = IONewZero(FirmwareVersion, 1);
 	if (!ivars->firmwareVersion) {
@@ -68,35 +66,32 @@ kern_return_t IMPL(PloytecDriver, Start)
 	}
 
 	// get firmware
+	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Fetching firmware version...");
 	ret = ivars->usbDevice->DeviceRequest(this, 0xC0, 0x56, 0x00, 0x00, 0x0f, ivars->usbRXBufferCONTROL.get(), &bytesTransferred, 0);
 	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: failed to get firmware version from device: %s", strerror(ret)); return ret; }
 	ivars->firmwareVersion->major = 1;
 	ivars->firmwareVersion->minor = ivars->usbRXBufferCONTROLAddr[2] / 10;
 	ivars->firmwareVersion->patch = ivars->usbRXBufferCONTROLAddr[2] % 10;
-
 	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Firmware version: %d.%d.%d", ivars->firmwareVersion->major, ivars->firmwareVersion->minor, ivars->firmwareVersion->patch);
 
-	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Getting device status...");
-
 	// get status
+	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Getting device status...");
 	ret = ivars->usbDevice->DeviceRequest(this, 0xC0, 0x49, 0x0000, 0x0000, 0x01, ivars->usbRXBufferCONTROL.get(), &bytesTransferred, 0);
 	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: failed to get status from device: %s", strerror(ret)); return ret; }
 
-	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Getting samplerate...");
-
 	// get samplerate
+	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Getting current samplerate...");
 	ret = ivars->usbDevice->DeviceRequest(this, 0xA2, 0x81, 0x0100, 0, 0x03, ivars->usbRXBufferCONTROL.get(), &bytesTransferred, 0);
 	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: failed to get current samplerate from device: %s", strerror(ret)); return ret; }
 	if (bytesTransferred < 3) { os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: samplerate: short read (%u bytes)", (unsigned)bytesTransferred); return kIOReturnUnderrun; }
 	sampleRate = ((uint32_t)ivars->usbRXBufferCONTROLAddr[0]) | ((uint32_t)ivars->usbRXBufferCONTROLAddr[1] << 8) | ((uint32_t)ivars->usbRXBufferCONTROLAddr[2] << 16);
 	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Current samplerate: %u", sampleRate);
-
-	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Setting samplerate to 96 kHz...");
 
 	// set 96 khz
 	do { uint32_t sr = SAMPLE_RATE_96000; uint8_t* p = ivars->usbTXBufferCONTROLAddr; p[0] = (uint8_t)(sr & 0xFF); p[1] = (uint8_t)((sr >> 8) & 0xFF); p[2] = (uint8_t)((sr >> 16) & 0xFF); } while (0);
 
 	// set samplerate
+	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Setting samplerate to 96 kHz...");
 	ret = ivars->usbDevice->DeviceRequest(this, 0x22, 0x01, 0x0100, 0x0086, 0x03, ivars->usbTXBufferCONTROL.get(), &bytesTransferred, 0);
 	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: failed to set samplerate on device: %s", strerror(ret)); return ret; }
 	ret = ivars->usbDevice->DeviceRequest(this, 0x22, 0x01, 0x0100, 0x0005, 0x03, ivars->usbTXBufferCONTROL.get(), &bytesTransferred, 0);
@@ -107,31 +102,27 @@ kern_return_t IMPL(PloytecDriver, Start)
 	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: failed to set samplerate on device: %s", strerror(ret)); return ret; }
 	ret = ivars->usbDevice->DeviceRequest(this, 0x22, 0x01, 0x0100, 0x0086, 0x03, ivars->usbTXBufferCONTROL.get(), &bytesTransferred, 0);
 	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: failed to set samplerate on device: %s", strerror(ret)); return ret; }
-
-	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Getting current samplerate...");
 
 	// get samplerate
+	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Getting current samplerate...");
 	ret = ivars->usbDevice->DeviceRequest(this, 0xA2, 0x81, 0x0100, 0, 0x03, ivars->usbRXBufferCONTROL.get(), &bytesTransferred, 0);
 	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: failed to get current samplerate from device: %s", strerror(ret)); return ret; }
 	if (bytesTransferred < 3) { os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: samplerate: short read (%u bytes)", (unsigned)bytesTransferred); return kIOReturnUnderrun; }
 	sampleRate = ((uint32_t)ivars->usbRXBufferCONTROLAddr[0]) | ((uint32_t)ivars->usbRXBufferCONTROLAddr[1] << 8) | ((uint32_t)ivars->usbRXBufferCONTROLAddr[2] << 16);
 	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Current samplerate: %u", sampleRate);
 
-	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Getting device status...");
-
 	// get status
+	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Getting device status...");
 	ret = ivars->usbDevice->DeviceRequest(this, 0xC0, 0x49, 0x0000, 0x0000, 0x01, ivars->usbRXBufferCONTROL.get(), &bytesTransferred, 0);
 	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: failed to get status from device: %s", strerror(ret)); return ret; }
 
-	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Sending allgood...");
-
 	// allgood
+	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Sending allgood...");
 	ret = ivars->usbDevice->DeviceRequest(this, 0x40, 0x49, 0xFFB2, 0x0000, 0x00, ivars->usbRXBufferCONTROL.get(), &bytesTransferred, 0);
 	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: failed to get allgood from device: %s", strerror(ret)); return ret; }
 
-	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Get USB pipes...");
-
 	// get the USB pipes
+	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Get USB pipes...");
 	ret = CreateUSBPipes();
 	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: failed to create USB pipes: %s", strerror(ret)); return ret; }
 
@@ -225,9 +216,20 @@ kern_return_t IMPL(PloytecDriver, Start)
 
 kern_return_t IMPL(PloytecDriver, Stop)
 {
-	kern_return_t ret = kIOReturnSuccess;
+	if (ivars && ivars->usbPCMoutPipe) (void)ivars->usbPCMoutPipe->Abort(0, kIOReturnAborted, this);
+	if (ivars && ivars->usbPCMinPipe)  (void)ivars->usbPCMinPipe->Abort(0, kIOReturnAborted, this);
+	if (ivars && ivars->usbMIDIinPipe) (void)ivars->usbMIDIinPipe->Abort(0, kIOReturnAborted, this);
+	if (ivars && ivars->usbInterface0) { (void)ivars->usbInterface0->Close(this, 0); ivars->usbInterface0 = nullptr; }
+	if (ivars && ivars->usbInterface1) { (void)ivars->usbInterface1->Close(this, 0); ivars->usbInterface1 = nullptr; }
+	if (ivars) {
+		ivars->usbTXBufferCONTROLAddr = nullptr;
+		ivars->usbRXBufferCONTROLAddr = nullptr;
+	}
 
-	os_log(OS_LOG_DEFAULT, "PloytecDriver::Stop: stop ding %s", __FUNCTION__);
+	kern_return_t ret = super::Stop(provider, SUPERDISPATCH);
+	if (ret != kIOReturnSuccess) {
+		os_log(OS_LOG_DEFAULT, "PloytecDriver::Stop: super::Stop failed: %s", strerror(ret));
+	}
 
 	return ret;
 }
