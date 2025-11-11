@@ -110,6 +110,7 @@ public:
 	virtual kern_return_t CreateUSBRXBuffersPCM(uint32_t inputPacketSize) LOCALONLY;
 
 protected:
+	virtual kern_return_t GetChannelCount(const IOUSBDeviceDescriptor* usbDescriptor, uint32_t &inChannelCount, uint32_t &outChannelCount) LOCALONLY;
 	virtual OSSharedPtr<OSString> MakeStringFromDescriptor(IOUSBHostDevice* device, uint8_t index) LOCALONLY;
 	virtual kern_return_t CreateBuffers() LOCALONLY;
 	virtual kern_return_t CreateUSBHandlers() LOCALONLY;
