@@ -13,7 +13,7 @@
 struct PloytecDriverUserClient_IVars
 {
 	OSSharedPtr<PloytecDriver> mProvider = nullptr;
-	OSAction* midiNotificationAction = nullptr;
+	OSSharedPtr<OSAction> midiNotificationAction = nullptr;
 };
 
 bool PloytecDriverUserClient::init()
@@ -32,16 +32,14 @@ bool PloytecDriverUserClient::init()
 
 void PloytecDriverUserClient::free()
 {
-	if (ivars != nullptr) {
-		if (ivars->midiNotificationAction) {
-			ivars->midiNotificationAction->release();
-			ivars->midiNotificationAction = nullptr;
-		}
-		ivars->mProvider.reset();
-	}
+    if (ivars) {
+	ivars->midiNotificationAction.reset();
+	ivars->mProvider.reset();
 	IOSafeDeleteNULL(ivars, PloytecDriverUserClient_IVars, 1);
-	super::free();
+    }
+    super::free();
 }
+
 
 kern_return_t PloytecDriverUserClient::Start_Impl(IOService* provider)
 {
@@ -69,17 +67,15 @@ Failure:
 	return ret;
 }
 
-kern_return_t PloytecDriverUserClient::Stop_Impl(IOService* provider)
-{
-	if (ivars && ivars->mProvider) {
-	    if (ivars->mProvider->ivars) {
-		ivars->mProvider->ivars->midiClient = nullptr;
-	    }
-	    ivars->mProvider.reset();
-	}
+kern_return_t PloytecDriverUserClient::Stop_Impl(IOService* provider) {
+    if (ivars && ivars->mProvider && ivars->mProvider->ivars)
+	ivars->mProvider->ivars->midiClient = nullptr;
 
-	return Stop(provider, SUPERDISPATCH);
+    ivars->midiNotificationAction.reset();
+    ivars->mProvider.reset();
+    return Stop(provider, SUPERDISPATCH);
 }
+
 
 kern_return_t PloytecDriverUserClient::ExternalMethod(uint64_t selector, IOUserClientMethodArguments* arguments, const IOUserClientMethodDispatch* dispatch, OSObject* target, void* reference)
 {
@@ -199,25 +195,20 @@ kern_return_t PloytecDriverUserClient::ExternalMethod(uint64_t selector, IOUserC
 	return ret;
 }
 
-kern_return_t
-PloytecDriverUserClient::RegisterForMIDINotification_Impl(IOUserClientMethodArguments *arguments)
+kern_return_t PloytecDriverUserClient::RegisterForMIDINotification_Impl(IOUserClientMethodArguments *arguments)
 {
 	if (!arguments || !arguments->completion) {
 		os_log(OS_LOG_DEFAULT, "Missing completion in async registration");
 		return kIOReturnBadArgument;
 	}
 
-	if (ivars->midiNotificationAction)
-		ivars->midiNotificationAction->release();
-
-	ivars->midiNotificationAction = arguments->completion;
-	ivars->midiNotificationAction->retain();
+	ivars->midiNotificationAction.reset();
+	ivars->midiNotificationAction = OSSharedPtr<OSAction>(arguments->completion, OSRetain);
 
 	return kIOReturnSuccess;
 }
 
-kern_return_t
-PloytecDriverUserClient::postMIDIMessage(uint64_t msg)
+kern_return_t PloytecDriverUserClient::postMIDIMessage(uint64_t msg)
 {
 	if (!ivars || !ivars->midiNotificationAction)
 	{
@@ -225,13 +216,12 @@ PloytecDriverUserClient::postMIDIMessage(uint64_t msg)
 	}
 
 	uint64_t asyncArgs[1] = { msg };
-	AsyncCompletion(ivars->midiNotificationAction, kIOReturnSuccess, asyncArgs, 1);
+	AsyncCompletion(ivars->midiNotificationAction.get(), kIOReturnSuccess, asyncArgs, 1);
 
 	return kIOReturnSuccess;
 }
 
-kern_return_t
-PloytecDriverUserClient::SendMIDI(IOUserClientMethodArguments *arguments)
+kern_return_t PloytecDriverUserClient::SendMIDI(IOUserClientMethodArguments *arguments)
 {
 	if (!ivars || !ivars->mProvider) {
 		return kIOReturnNotAttached;
