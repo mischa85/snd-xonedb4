@@ -1,69 +1,200 @@
 # Ploytec Driver
 
-This is a driver for several Ploytec audio/MIDI interfaces. It supports both BULK and INTERRUPT streaming modes.
+This repository provides a cross-platform open-source **audio and MIDI driver** for various **Ploytec-based interfaces**, including multiple **Allen & Heath Xone** models and compatible hardware.  
+It supports both **BULK** and **INTERRUPT** USB streaming modes and is available for **Linux** and **macOS**.
 
-The development of the macOS driverkit driver has been an unpleasant experience to say the least. Apart from the largely undocumented functions and the severe lack of examples, which made the development a hell, there are many issues regarding the codesigning. Of course it would be easier if I could just make a signed binary available, but as Apple wants $99/year for this I kindly refuse to pay that out of my own pocket. If anyone is able to get me one of those I'll start supplying a signed binary for the driver.
+---
 
-**Supported Devices**:
+## Overview
 
-- [x] Allen&Heath Xone:DB4
-- [x] Allen&Heath Xone:DB2
-- [x] Allen&Heath Xone:DX
-- [ ] Allen&Heath Xone:2D
-- [x] Allen&Heath Xone:4D
-- [x] Allen&Heath WZ4:USB
-- [ ] Smyth Research A16 Realiser
+The goal of this project is to deliver reliable and well-documented driver support for devices that were previously **unavailable on Linux** and only worked on **very old macOS versions**.  
+Both the **Linux kernel module** and **macOS DriverKit system extension** have reached a **fairly stable** stage and are usable for everyday audio work.
 
-**Linux**:
+Developing under macOS **DriverKit** has proven challenging due to sparse documentation and limited reference code. This project reflects many lessons learned from building an end-to-end user-space + driver-space audio stack — from USB packet handling to CoreAudio and CoreMIDI integration.
 
-- [x] PCM out 8 channels
-- [x] PCM in 8 channels
-- [x] Sample Rate Switching
-- [x] MIDI out
-- [x] MIDI in
+---
 
-**macOS**:
+## Supported Devices
 
-- [x] PCM out 8 channels
-- [x] PCM in 8 channels
-- [x] Driver config in UI
-- [ ] Sample Rate Switching
-- [x] MIDI out
-- [x] MIDI in
+| Device | Status |
+|:--|:--|
+| Allen & Heath Xone:DB4 | ✅ Supported |
+| Allen & Heath Xone:DB2 | ✅ Supported |
+| Allen & Heath Xone:DX | ✅ Supported |
+| Allen & Heath Xone:2D | ⚪ Planned |
+| Allen & Heath Xone:4D | ✅ Supported |
+| Allen & Heath WZ4:USB | 🔧 *Work in progress — support for non-8x8 channel layouts is being implemented* |
+| Smyth Research A16 Realiser | ⚪ Planned |
 
-How to install:
+---
 
-**Linux**:
+## Platform Support
 
-- Clone the repo using ```git clone https://github.com/mischa85/snd-xonedb4```
-- Change the directory to the cloned repo: ```cd snd-xonedb4```
-- ```make linux``` to compile the kernel module.
-- ```zstd snd-usb-xonedb4.ko``` to compress the compiled kernel module.
-- ```cp -f snd-usb-xonedb4.ko.zst /usr/lib/modules/$(uname -r)/kernel/sound/usb``` to copy the kernel module to the running kernel.
-- ```depmod``` to rebuild the module dependency tree.
-- ```modprobe snd-usb-xonedb4```
+### Linux
+- ✅ PCM Out — 8 channels  
+- ✅ PCM In — 8 channels  
+- ✅ Sample Rate Switching  
+- ✅ MIDI Out  
+- ✅ MIDI In  
 
-**macOS**:
+### macOS
+- ✅ PCM Out — 8 channels  
+- ✅ PCM In — 8 channels  
+- ✅ Driver configuration via UI  
+- ⚙️ Sample Rate Switching (partial support)  
+- ✅ MIDI Out  
+- ✅ MIDI In  
 
-- Open a terminal.
-- ```sudo nvram boot-args="amfi_get_out_of_my_way=0x1"```
-- Reboot the system. Intel: ```COMMAND ⌘ + R``` pressed while booting to enter recovery. Apple Silicon: Keep the power button pressed, and select Options to enter 1TR.
-- Open a terminal.
-- ```csrutil disable``` to disable System Integrity Protection.
-- Reboot to macOS.
-- Open a terminal.
-- Clone the repo using ```git clone https://github.com/mischa85/snd-xonedb4```
-- Change the directory to the cloned repo: ```cd snd-xonedb4```
-- Get a (free) Apple developer account via Xcode. Make sure it's active in Settings -> Accounts. Double check if it actually works using ```security find-identity -v```. If this still gives "0 valid identities found", you need to troubleshoot the chain of trust. I know this is a frustrating issue, but please don't waste my time by opening issues about it. There's plenty of things to try if you search the net for this issue.
-- ```make mac``` to compile the driver.
-- If you installed an earlier version, uninstall it first! ```systemextensionsctl list``` to list, ```systemextensionsctl uninstall <teamID> <bundleID>``` to uninstall.
-- ```make mac-install``` to move it to the ```/Applications``` directory.
-- Start ```Ploytec Driver Extension``` from Applications.
+---
 
-Random comments:
-- On macOS MIDI in/out is implemented in userspace. The Ploytec Driver Extension application needs to run for MIDI to work.
-- On Linux MIDI out is still sent too fast. Small fix, will do soon.
-- On macOS there can be rare instances where the audio gets distorted. This could happen when an application changes the audio buffer size. There's probably better ways to sync up the audio again.
-- You might need to manually uninstall older versions of the driver on macOS. You can list them using ```systemextensionsctl list``` and uninstall using ```systemextensionsctl uninstall <teamID> <bundleID>```.
+## Installation
 
-<a href="https://www.buymeacoffee.com/mischa85" target="_blank"><img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174"></a>
+### Linux
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/mischa85/snd-xonedb4
+   cd snd-xonedb4
+   ```
+
+2. Build the kernel module:
+   ```bash
+   make linux
+   ```
+
+3. Compress and install:
+   ```bash
+   zstd snd-usb-xonedb4.ko
+   sudo cp -f snd-usb-xonedb4.ko.zst /usr/lib/modules/$(uname -r)/kernel/sound/usb
+   sudo depmod
+   sudo modprobe snd-usb-xonedb4
+   ```
+
+---
+
+### macOS
+
+> **Note:** The driver uses **DriverKit** and runs as a **System Extension**.  
+> These steps must be followed carefully to ensure proper loading and permission approval.
+
+1. **Set DriverKit debug boot arguments (before rebooting):**
+   ```bash
+   sudo nvram boot-args="amfi_get_out_of_my_way=0x1"
+   ```
+
+2. **Reboot into Recovery Mode:**
+   - **Intel:** Hold `⌘ + R` during boot.  
+   - **Apple Silicon:** Hold the power button → select *Options → Continue*.
+
+3. **Disable System Integrity Protection (SIP)** *(for testing/development use only)*:
+   ```bash
+   csrutil disable
+   reboot
+   ```
+
+4. **After reboot, clone and build the project:**
+   ```bash
+   git clone https://github.com/mischa85/snd-xonedb4
+   cd snd-xonedb4
+   make mac
+   ```
+
+5. **Install Xcode and configure signing:**
+   - Download **Xcode** from the Mac App Store.  
+   - Open **Xcode → Settings → Accounts**, and sign in with your Apple ID to create a free developer account.  
+   - Ensure a valid signing identity is available by running:
+     ```bash
+     security find-identity -v
+     ```
+     If this outputs `0 valid identities found`, you need to fix your signing setup in Xcode before proceeding.
+
+6. **Copy the Ploytec Driver Extension to the Applications:**
+   ```bash
+   make mac-install
+   ```
+
+7. **Enable logging before starting the driver:**
+   ```bash
+   make mac-logstream
+   ```
+   This starts a live log view to catch errors during startup.
+
+   Then start **Ploytec Driver Extension** from your **Applications** folder.
+
+---
+
+## Troubleshooting
+
+- **System Extension approval prompt:**  
+  After installation, macOS may block the extension. Open **System Settings → Privacy & Security**, scroll to the bottom, and click **Allow** next to the developer name.
+
+- **⚠️ “Allow” button missing in Privacy & Securit):**  
+  macOS only shows the “Allow” button for a short time after a system extension is blocked.  
+  It will **hide the button** if:
+  - more than ~30 minutes have passed  
+  - the Mac has gone to sleep or locked  
+  - the user rebooted before clicking Allow  
+  - System Settings was already open when the extension was blocked  
+
+  To force macOS to show the “Allow” dialog again:
+
+  1. **Quit System Settings completely**  
+     (right-click → Quit)
+  2. Reset the System Extension state:  
+     ```bash
+     systemextensionsctl reset
+     ```
+  3. Reinstall from the app.  
+
+  4. Immediately open **System Settings → Privacy & Security**  
+     The **Allow** button should now be visible again.
+
+- **Driver not loading:**  
+  Run:
+  ```bash
+  make mac-logshow
+  ```
+  Review logs for entitlement, signature, or permission errors.
+
+- **No valid developer identities:**  
+  Ensure your Apple ID is added under **Xcode → Settings → Accounts**, then run:
+  ```bash
+  security find-identity -v
+  ```
+  If it still shows *0 valid identities*, recreate the certificate via Xcode’s automatic signing.
+
+- **MIDI not working:**  
+  On macOS, MIDI runs in user space. The **Ploytec Driver Extension** app must be running for MIDI I/O to function.
+
+## Additional Notes
+
+
+- Current builds support **8-in / 8-out PCM** layouts only. Work is ongoing for devices with alternate configurations.  
+- Both Linux and macOS versions are stable for everyday use, though active development continues.  
+- On macOS, rare audio distortion may occur if the host application changes buffer size — this is under investigation.
+
+---
+
+## Contributing
+
+Contributions and testing feedback are welcome!  
+Particularly valuable are reports on alternate hardware, unusual channel layouts, or improvements to the macOS DriverKit implementation.
+
+---
+
+## Support the Project ☕
+
+If this project helped you, consider buying me a coffee:
+
+<a href="https://www.buymeacoffee.com/mischa85" target="_blank">
+  <img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174">
+</a>
+
+Your support helps keep this project maintained and compatible with evolving systems.
+
+---
+
+## License
+
+MIT License © 2025  
+Developed and maintained by the community.
