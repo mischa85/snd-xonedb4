@@ -1,83 +1,142 @@
 #import "PloytecAppUserClient.h"
 #import "PloytecDriverKeys.h"
+#import <IOKit/IOKitLib.h>
+#import <IOKit/IOMessage.h>
+
+static void PloytecInterestCallback(void *refCon, io_service_t service, uint32_t type, void *arg)
+{
+	if (type == kIOMessageServiceIsTerminated)
+	{
+		[(__bridge PloytecAppUserClient *)refCon handleDisconnected];
+	}
+}
 
 @interface PloytecAppUserClient()
 @property io_object_t ioObject;
 @property io_connect_t ioConnection;
 @property (nonatomic, assign) CFRunLoopRef globalRunLoop;
+@property (nonatomic, assign) IONotificationPortRef notePort;
 @property mach_port_t globalMachNotificationPort;
+@property io_object_t terminationNotifier;
 @end
 
 @implementation PloytecAppUserClient
 
+- (instancetype)init
+{
+	NSLog(@"PloytecAppUserClient: Init");
+
+	self = [super init];
+	if (!self) return nil;
+
+	if (!_notePort)
+	{
+		_notePort = IONotificationPortCreate(kIOMainPortDefault);
+		if (_notePort)
+			CFRunLoopAddSource(CFRunLoopGetMain(), IONotificationPortGetRunLoopSource(_notePort), kCFRunLoopCommonModes);
+		else
+			NSLog(@"PloytecAppUserClient: IONotificationPortCreate failed");
+	}
+
+	return self;
+}
+
+- (void)handleDisconnected
+{
+	NSLog(@"PloytecAppUserClient: Disconnected");
+
+	if (_ioConnection != IO_OBJECT_NULL)
+	{
+		IOServiceClose(_ioConnection);
+		_ioConnection = IO_OBJECT_NULL;
+	}
+
+	if (_terminationNotifier)
+	{
+		IOObjectRelease(_terminationNotifier);
+		_terminationNotifier = IO_OBJECT_NULL;
+	}
+	[[NSNotificationCenter defaultCenter] postNotificationName:@"UserClientConnectionClosed" object:nil];
+}
+
 // Open a user client instance, which initiates communication with the driver.
 - (NSString*)openConnection
 {
+	NSLog(@"PloytecAppUserClient:openConnection");
+
 	kern_return_t ret;
 
-	_globalRunLoop = CFRunLoopGetCurrent();
-	if (_globalRunLoop == NULL)
+	if (self.notePort == NULL)
 	{
-		return @"Failed to initialize globalRunLoop.";
-	}
-	CFRetain(_globalRunLoop);
-
-	IONotificationPortRef globalNotificationPort = IONotificationPortCreate(kIOMainPortDefault);
-	if (globalNotificationPort == NULL)
-	{
-		return @"Failed to initialize globalNotificationPort.";
-	}
-
-	_globalMachNotificationPort = IONotificationPortGetMachPort(globalNotificationPort);
-	if (_globalMachNotificationPort == 0)
-	{
-		return @"Failed to initialize globalMachNotificationPort.";
+		self.notePort = IONotificationPortCreate(kIOMainPortDefault);
+		if (self.notePort == NULL)
+		{
+			NSLog(@"PloytecAppUserClient:openConnection: Failed to initialize IONotificationPort");
+			return @"Failed to initialize IONotificationPort.";
+		}
+		CFRunLoopSourceRef src = IONotificationPortGetRunLoopSource(self.notePort);
+		if (src == NULL)
+		{
+			NSLog(@"PloytecAppUserClient:openConnection: Failed to get IONotification runloop source");
+			return @"Failed to get IONotification runloop source.";
+		}
+		CFRunLoopAddSource(CFRunLoopGetCurrent(), src, kCFRunLoopDefaultMode);
 	}
 
-	CFRunLoopSourceRef globalRunLoopSource = IONotificationPortGetRunLoopSource(globalNotificationPort);
-	if (globalRunLoopSource == NULL)
+	if (self.ioObject != IO_OBJECT_NULL && self.ioConnection != IO_OBJECT_NULL)
 	{
-		return @"Failed to initialize globalRunLoopSource.";
+		io_async_ref64_t asyncRef = {};
+		asyncRef[kIOAsyncCalloutFuncIndex] = (io_user_reference_t)MIDIAsyncCallback;
+		asyncRef[kIOAsyncCalloutRefconIndex] = (io_user_reference_t)self;
+
+		mach_port_t mp = IONotificationPortGetMachPort(self.notePort);
+		ret = IOConnectCallAsyncMethod(self.ioConnection, PloytecDriverExternalMethod_RegisterForMIDINotification, mp, asyncRef, kIOAsyncCalloutCount, nullptr, 0, nullptr, 0, nullptr, nullptr, nullptr, nullptr);
+		if (ret != kIOReturnSuccess)
+		{
+			NSLog(@"PloytecAppUserClient:openConnection:IOConnectCallAsyncMethod: %s", mach_error_string(ret));
+			return [NSString stringWithFormat:@"Failed to register async MIDI: %s", mach_error_string(ret)];
+		}
+		[[NSNotificationCenter defaultCenter] postNotificationName:@"UserClientConnectionOpened" object:nil];
+		return @"Connection to user client succeeded";
 	}
 
-	CFRunLoopAddSource(_globalRunLoop, globalRunLoopSource, kCFRunLoopDefaultMode);
-
-	if (_ioObject == IO_OBJECT_NULL && _ioConnection == IO_OBJECT_NULL)
+	io_service_t service = IOServiceGetMatchingService(kIOMainPortDefault, IOServiceNameMatching("PloytecDriver"));
+	if (!service)
 	{
-		mach_port_t theMainPort = MACH_PORT_NULL;
-		ret = IOMainPort(bootstrap_port, &theMainPort);
-		if (ret != KERN_SUCCESS) {
-			return @"Failed to get IOMainPort.";
-		}
+		NSLog(@"PloytecAppUserClient:openConnection:IOServiceOpen: Driver Extension is not running");
+		return @"Driver Extension is not running.";
+	}
 
-		CFDictionaryRef matchDict = IOServiceNameMatching("PloytecDriver");
-		if (!matchDict) {
-			return @"Failed to create matching dictionary.";
-		}
+	io_connect_t conn = IO_OBJECT_NULL;
+	ret = IOServiceOpen(service, mach_task_self(), 0, &conn);
+	if (ret != kIOReturnSuccess) {
+		NSLog(@"PloytecAppUserClient:openConnection:IOServiceOpen: %s", mach_error_string(ret));
+		IOObjectRelease(service);
+		return [NSString stringWithFormat:@"Failed to open user client: %s", mach_error_string(ret)];
+	}
 
-		io_service_t service = IOServiceGetMatchingService(theMainPort, matchDict);
-		if (!service) {
-			return @"Driver Extension is not running.";
-		}
+	self.ioObject = service;
+	self.ioConnection = conn;
 
-		_ioObject = service;
-		ret = IOServiceOpen(_ioObject, mach_task_self(), 0, &_ioConnection);
-		if (ret != KERN_SUCCESS) {
-			_ioObject = IO_OBJECT_NULL;
-			_ioConnection = IO_OBJECT_NULL;
-			return [NSString stringWithFormat:@"Failed to open user client: %s", mach_error_string(ret)];
-		}
+	ret = IOServiceAddInterestNotification(self.notePort, service, kIOGeneralInterest, PloytecInterestCallback, (__bridge void *)self, &_terminationNotifier);
+	if (ret != kIOReturnSuccess) {
+		NSLog(@"PloytecAppUserClient:openConnection:IOServiceAddInterestNotification: %s", mach_error_string(ret));
+		IOObjectRelease(service);
+		return @"Failed to set IOServiceAddInterestNotification.";
 	}
 
 	io_async_ref64_t asyncRef = {};
 	asyncRef[kIOAsyncCalloutFuncIndex] = (io_user_reference_t)MIDIAsyncCallback;
 	asyncRef[kIOAsyncCalloutRefconIndex] = (io_user_reference_t)self;
 
-	ret = IOConnectCallAsyncMethod(_ioConnection, PloytecDriverExternalMethod_RegisterForMIDINotification, _globalMachNotificationPort, asyncRef, kIOAsyncCalloutCount, nullptr, 0, nullptr, 0, nullptr, nullptr, nullptr, nullptr);
-	if (ret != KERN_SUCCESS) {
+	mach_port_t mp = IONotificationPortGetMachPort(self.notePort);
+	ret = IOConnectCallAsyncMethod(self.ioConnection, PloytecDriverExternalMethod_RegisterForMIDINotification, mp, asyncRef, kIOAsyncCalloutCount, nullptr, 0, nullptr, 0, nullptr, nullptr, nullptr, nullptr);
+	if (ret != kIOReturnSuccess) {
+		NSLog(@"PloytecAppUserClient:openConnection:IOConnectCallAsyncMethod: %s", mach_error_string(ret));
 		return [NSString stringWithFormat:@"Failed to register async MIDI: %s", mach_error_string(ret)];
 	}
 
+	NSLog(@"PloytecAppUserClient:openConnection: Success");
 	[[NSNotificationCenter defaultCenter] postNotificationName:@"UserClientConnectionOpened" object:nil];
 	return @"Connection to user client succeeded";
 }
@@ -92,185 +151,195 @@
 	char devicename[128] = {0};
 	size_t devicenameSize = sizeof(devicename);
 
-	kern_return_t error = IOConnectCallMethod(_ioConnection, static_cast<uint64_t>(PloytecDriverExternalMethod_GetDeviceName), nullptr, 0, nullptr, 0, nullptr, nullptr, devicename, &devicenameSize);
+	kern_return_t ret = IOConnectCallMethod(_ioConnection, static_cast<uint64_t>(PloytecDriverExternalMethod_GetDeviceName), nullptr, 0, nullptr, 0, nullptr, nullptr, devicename, &devicenameSize);
 
-	if (error != kIOReturnSuccess) {
-		return [NSString stringWithFormat:@"Failed to get device name, error: %s.", mach_error_string(error)];
-	}
+	if (ret != kIOReturnSuccess)
+		return [NSString stringWithFormat:@"Failed to get device name, error: %s.", mach_error_string(ret)];
 
 	return [NSString stringWithUTF8String:devicename];
 }
 
 - (NSString*)getDeviceManufacturer
 {
-	if (_ioConnection == IO_OBJECT_NULL) {
-		NSLog(@"%s: No connection to driver", __FUNCTION__);
+	if (_ioConnection == IO_OBJECT_NULL)
+	{
+		NSLog(@"PloytecAppUserClient:getDeviceManufacturer: No connection to driver");
 		return;
 	}
 
 	char devicemanufacturer[128] = {0};
 	size_t devicemanufacturerSize = sizeof(devicemanufacturer);
 
-	kern_return_t error = IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_GetDeviceManufacturer, nullptr, 0, nullptr, 0, nullptr, nullptr, devicemanufacturer, &devicemanufacturerSize);
+	kern_return_t ret = IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_GetDeviceManufacturer, nullptr, 0, nullptr, 0, nullptr, nullptr, devicemanufacturer, &devicemanufacturerSize);
 
-	if (error != kIOReturnSuccess) {
-		return [NSString stringWithFormat:@"Failed to get device manufacturer, error: %s.", mach_error_string(error)];
-	}
+	if (ret != kIOReturnSuccess)
+		return [NSString stringWithFormat:@"Failed to get device manufacturer, error: %s.", mach_error_string(ret)];
 	
 	return [NSString stringWithUTF8String:devicemanufacturer];
 }
 
 - (NSString*)getFirmwareVersion
 {
-	if (_ioConnection == IO_OBJECT_NULL) {
-		NSLog(@"%s: No connection to driver", __FUNCTION__);
+	if (_ioConnection == IO_OBJECT_NULL)
+	{
+		NSLog(@"PloytecAppUserClient:getFirmwareVersion: No connection to driver");
 		return;
 	}
 
 	char firmwarever[15] = {0};
 	size_t firmwareverSize = sizeof(firmwarever);
 
-	kern_return_t error = IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_GetFirmwareVer, nullptr, 0, nullptr, 0, nullptr, nullptr, firmwarever, &firmwareverSize);
+	kern_return_t ret = IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_GetFirmwareVer, nullptr, 0, nullptr, 0, nullptr, nullptr, firmwarever, &firmwareverSize);
 
-	if (error != kIOReturnSuccess) {
-		return [NSString stringWithFormat:@"Failed to get firmware, error: %s.", mach_error_string(error)];
-	}
+	if (ret != kIOReturnSuccess)
+		return [NSString stringWithFormat:@"Failed to get firmware, error: %s.", mach_error_string(ret)];
 
 	return [NSString stringWithFormat:@"Firmware: %d.%d.%d", firmwarever[0], firmwarever[1], firmwarever[2]];
 }
 
 - (void)setCurrentUrbCount:(uint8_t)urbCount
 {
-	if (_ioConnection == IO_OBJECT_NULL) {
-		NSLog(@"%s: No connection to driver", __FUNCTION__);
+	if (_ioConnection == IO_OBJECT_NULL)
+	{
+		NSLog(@"PloytecAppUserClient:setCurrentUrbCount: No connection to driver");
 		return;
 	}
-	
-	NSLog(@"%s", __FUNCTION__);
-	
+
 	uint64_t value = urbCount;
 
 	kern_return_t ret = IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_SetCurrentUrbCount, &value, 1, nullptr, 0, nullptr, nullptr, nullptr, 0);
-	if (ret != KERN_SUCCESS) {
-		NSLog(@"changeUrbCount failed: %s", mach_error_string(ret));
-		return;
-	}
+
+	if (ret != kIOReturnSuccess)
+		NSLog(@"PloytecAppUserClient:setCurrentUrbCount: %s", mach_error_string(ret));
 }
 
 - (void)setFrameCount:(uint16_t)inputFrameCount output:(uint16_t)outputFrameCount
 {
-	if (_ioConnection == IO_OBJECT_NULL) {
-		NSLog(@"%s: No connection to driver", __FUNCTION__);
+	if (_ioConnection == IO_OBJECT_NULL)
+	{
+		NSLog(@"PloytecAppUserClient:setFrameCount: No connection to driver");
 		return;
 	}
-
-	NSLog(@"%s", __FUNCTION__);
 
 	uint64_t value = ((uint64_t)outputFrameCount << 32) | inputFrameCount;
 
 	kern_return_t ret = IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_SetFrameCount, &value, 1, nullptr, 0, nullptr, nullptr, nullptr, 0);
-	if (ret != KERN_SUCCESS) {
+
+	if (ret != kIOReturnSuccess)
 		NSLog(@"setCurrentInputFramesCount failed: %s", mach_error_string(ret));
-		return;
-	}
 }
 
 - (uint8_t)getCurrentUrbCount
 {
-	if (_ioConnection == IO_OBJECT_NULL) {
-		NSLog(@"%s: No connection to driver", __FUNCTION__);
+	if (_ioConnection == IO_OBJECT_NULL)
+	{
+		NSLog(@"PloytecAppUserClient:getCurrentUrbCount: No connection to driver");
 		return;
 	}
-
-	NSLog(@"%s", __FUNCTION__);
 
 	uint64_t num = 0;
 	uint32_t outputCount = 1;
 	kern_return_t ret = IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_GetCurrentUrbCount, nullptr, 0, nullptr, 0, &num, &outputCount, nullptr, 0);
-	if (ret != KERN_SUCCESS) {
+
+	if (ret != kIOReturnSuccess)
+	{
 		NSLog(@"getCurrentUrbCount failed: %s", mach_error_string(ret));
 		return 0;
 	}
+
 	return (uint8_t)num;
 }
 
 - (uint16_t)getCurrentInputFramesCount
 {
-	if (_ioConnection == IO_OBJECT_NULL) {
-		NSLog(@"%s: No connection to driver", __FUNCTION__);
+	if (_ioConnection == IO_OBJECT_NULL)
+	{
+		NSLog(@"PloytecAppUserClient:getCurrentInputFramesCount: No connection to driver");
 		return;
 	}
-
-	NSLog(@"%s", __FUNCTION__);
 
 	uint64_t num = 0;
 	uint32_t outputCount = 1;
 	kern_return_t ret = IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_GetCurrentInputFramesCount, nullptr, 0, nullptr, 0, &num, &outputCount, nullptr, 0);
-	if (ret != KERN_SUCCESS) {
+
+	if (ret != kIOReturnSuccess)
+	{
 		NSLog(@"GetCurrentInputFramesCount failed: %s", mach_error_string(ret));
 		return 0;
 	}
+
 	return (uint16_t)num;
 }
 
 - (uint16_t)getCurrentOutputFramesCount
 {
-	if (_ioConnection == IO_OBJECT_NULL) {
-		NSLog(@"%s: No connection to driver", __FUNCTION__);
+	if (_ioConnection == IO_OBJECT_NULL)
+	{
+		NSLog(@"PloytecAppUserClient:getCurrentOutputFramesCount: No connection to driver");
 		return;
 	}
-
-	NSLog(@"%s", __FUNCTION__);
 
 	uint64_t num = 0;
 	uint32_t outputCount = 1;
 	kern_return_t ret = IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_GetCurrentOutputFramesCount, nullptr, 0, nullptr, 0, &num, &outputCount, nullptr, 0);
-	if (ret != KERN_SUCCESS) {
+
+	if (ret != kIOReturnSuccess)
+	{
 		NSLog(@"getCurrentOutputFramesCount failed: %s", mach_error_string(ret));
 		return 0;
 	}
+
 	return (uint16_t)num;
 }
 
 - (playbackstats)getPlaybackStats
 {
-	if (_ioConnection == IO_OBJECT_NULL) {
-		NSLog(@"%s: No connection to driver", __FUNCTION__);
+	if (_ioConnection == IO_OBJECT_NULL)
+	{
+		NSLog(@"PloytecAppUserClient:getPlaybackStats: No connection to driver");
 		return;
 	}
 
 	playbackstats stats;
 	size_t playbackstatsSize = sizeof(stats);
 	
-	kern_return_t error = IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_GetPlaybackStats, nullptr, 0, nullptr, 0, nullptr, nullptr, &stats, &playbackstatsSize);
+	kern_return_t ret = IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_GetPlaybackStats, nullptr, 0, nullptr, 0, nullptr, nullptr, &stats, &playbackstatsSize);
+	if (ret != kIOReturnSuccess)
+	{
+		NSLog(@"PloytecAppUserClient:getPlaybackStats: %s", mach_error_string(ret));
+		return {0};
+	}
 
 	return stats;
 }
 
 - (void)sendMIDIMessageToDriver:(uint64_t)message {
-	if (_ioConnection == IO_OBJECT_NULL) {
-		NSLog(@"%s: No connection to driver", __FUNCTION__);
+	if (_ioConnection == IO_OBJECT_NULL)
+	{
+		NSLog(@"PloytecAppUserClient:sendMIDIMessageToDriver: No connection to driver");
 		return;
 	}
 
-	kern_return_t result = IOConnectCallScalarMethod(_ioConnection, PloytecDriverExternalMethod_SendMIDI, &message, 1, NULL, NULL);
-	if (result != KERN_SUCCESS) {
-		NSLog(@"Failed to send MIDI to driver: %s", mach_error_string(result));
-	}
+	kern_return_t ret = IOConnectCallScalarMethod(_ioConnection, PloytecDriverExternalMethod_SendMIDI, &message, 1, NULL, NULL);
+
+	if (ret != kIOReturnSuccess)
+		NSLog(@"PloytecAppUserClient:sendMIDIMessageToDriver: %s", mach_error_string(ret));
 }
 
-static void MIDIAsyncCallback(void* refcon, IOReturn result, void** args, UInt32 numArgs)
+static void MIDIAsyncCallback(void* refcon, IOReturn ret, void** args, UInt32 numArgs)
 {
-	if (result != kIOReturnSuccess) {
-		NSLog(@"Async MIDI callback failed: %s", mach_error_string(result));
+	if (ret != kIOReturnSuccess)
+	{
+		NSLog(@"PloytecAppUserClient:MIDIAsyncCallback: %s", mach_error_string(ret));
 		return;
 	}
 
 	uint64_t midiMsg = (uint64_t)(uintptr_t)args;
 	uint8_t length = midiMsg & 0xFF;
 
-	if (length == 0 || length > 3) {
-		NSLog(@"Invalid MIDI message length: %u", length);
+	if (length == 0 || length > 3)
+	{
+		NSLog(@"PloytecAppUserClient:MIDIAsyncCallback: Invalid MIDI message length: %u", length);
 		return;
 	}
 

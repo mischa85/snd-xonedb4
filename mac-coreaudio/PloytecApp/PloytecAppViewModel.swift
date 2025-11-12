@@ -7,7 +7,8 @@ import SystemExtensions
 
 class PloytecAppStateMachine {
 
-	enum State {
+	enum State
+	{
 		case activating
 		case deactivating
 		case needsActivatingApproval
@@ -20,7 +21,8 @@ class PloytecAppStateMachine {
 		case codeSigningError
 	}
 
-	enum Event {
+	enum Event
+	{
 		case activationStarted
 		case deactivationStarted
 		case promptForApproval
@@ -32,7 +34,8 @@ class PloytecAppStateMachine {
 		case codeSigningErr
 	}
 
-	static func onActivatingOrNeedsApproval(_ event: Event) -> State {
+	static func onActivatingOrNeedsApproval(_ event: Event) -> State
+	{
 		switch event {
 		case .activationStarted:
 			return .activating
@@ -49,7 +52,8 @@ class PloytecAppStateMachine {
 		}
 	}
 
-	static func onActivated(_ event: Event) -> State {
+	static func onActivated(_ event: Event) -> State
+	{
 		switch event {
 		case .activationStarted:
 			return .activating
@@ -66,7 +70,8 @@ class PloytecAppStateMachine {
 		}
 	}
 
-	static func onActivationError(_ event: Event) -> State {
+	static func onActivationError(_ event: Event) -> State
+	{
 		switch event {
 		case .activationStarted:
 			return .activating
@@ -79,7 +84,8 @@ class PloytecAppStateMachine {
 		}
 	}
 	
-	static func onDeactivatingOrNeedsApproval(_ event: Event) -> State {
+	static func onDeactivatingOrNeedsApproval(_ event: Event) -> State
+	{
 		switch event {
 		case .deactivationStarted:
 			return .deactivating
@@ -96,7 +102,8 @@ class PloytecAppStateMachine {
 		}
 	}
 	
-	static func onDeActivated(_ event: Event) -> State {
+	static func onDeActivated(_ event: Event) -> State
+	{
 		switch event {
 		case .activationStarted:
 			return .activating
@@ -181,8 +188,8 @@ class PloytecAppStateMachine {
 	}
 }
 
-class PloytecAppViewModel: NSObject {
-	
+class PloytecAppViewModel: NSObject
+{
 	private let dextIdentifier: String = "sc.hackerman.ploytecdriver"
 	private(set) var midiBridge: PloytecAppUserClientSwift? = nil
 	
@@ -201,9 +208,21 @@ class PloytecAppViewModel: NSObject {
 		NotificationCenter.default.publisher(for: NSNotification.Name("UserClientConnectionOpened"))
 			.sink { [weak self] _ in
 				guard let self = self else { return }
-				if !self.isConnected {
+				if !self.isConnected
+				{
 					self.isConnected = true
 					self.setupMIDIOnce()
+				}
+			}
+			.store(in: &cancellables)
+
+		NotificationCenter.default.publisher(for: NSNotification.Name("UserClientConnectionClosed"))
+			.sink { [weak self] _ in
+				guard let self = self else { return }
+				if self.isConnected
+				{
+					self.isConnected = false
+					//self.setupMIDIOnce()
 				}
 			}
 			.store(in: &cancellables)
@@ -261,17 +280,21 @@ extension PloytecAppViewModel: ObservableObject {
 
 }
 	
-extension PloytecAppViewModel {
+extension PloytecAppViewModel
+{
 #if os(macOS)
-	func activateMyDext() {
+	func activateMyDext()
+	{
 		activateExtension(dextIdentifier)
 	}
 	
-	func deactivateMyDext() {
+	func deactivateMyDext()
+	{
 		deactivateExtension(dextIdentifier)
 	}
 	
-	func activateExtension(_ dextIdentifier: String) {
+	func activateExtension(_ dextIdentifier: String)
+	{
 		let request = OSSystemExtensionRequest.activationRequest(forExtensionWithIdentifier: dextIdentifier, queue: .main)
 		request.delegate = self
 		OSSystemExtensionManager.shared.submitRequest(request)
@@ -279,7 +302,8 @@ extension PloytecAppViewModel {
 		self.state = PloytecAppStateMachine.process(self.state, .activationStarted)
 	}
 
-	func deactivateExtension(_ dextIdentifier: String) {
+	func deactivateExtension(_ dextIdentifier: String)
+	{
 		let request = OSSystemExtensionRequest.deactivationRequest(forExtensionWithIdentifier: dextIdentifier, queue: .main)
 		request.delegate = self
 		OSSystemExtensionManager.shared.submitRequest(request)
@@ -290,12 +314,10 @@ extension PloytecAppViewModel {
 }
 
 #if os(macOS)
-extension PloytecAppViewModel: OSSystemExtensionRequestDelegate {
-	
-	func request(
-		_ request: OSSystemExtensionRequest,
-		actionForReplacingExtension existing: OSSystemExtensionProperties,
-		withExtension ext: OSSystemExtensionProperties) -> OSSystemExtensionRequest.ReplacementAction {
+extension PloytecAppViewModel: OSSystemExtensionRequestDelegate
+{
+	func request(_ request: OSSystemExtensionRequest, actionForReplacingExtension existing: OSSystemExtensionProperties, withExtension ext: OSSystemExtensionProperties) -> OSSystemExtensionRequest.ReplacementAction
+	{
 
 		var replacementAction: OSSystemExtensionRequest.ReplacementAction
 
@@ -315,22 +337,29 @@ extension PloytecAppViewModel: OSSystemExtensionRequestDelegate {
 		return replacementAction
 	}
 
-	func requestNeedsUserApproval(_ request: OSSystemExtensionRequest) {
+	func requestNeedsUserApproval(_ request: OSSystemExtensionRequest)
+	{
 		os_log("system extension requestNeedsUserApproval")
 		self.state = PloytecAppStateMachine.process(self.state, .promptForApproval)
 	}
 
-	func request(_ request: OSSystemExtensionRequest, didFinishWithResult result: OSSystemExtensionRequest.Result) {
+	func request(_ request: OSSystemExtensionRequest, didFinishWithResult result: OSSystemExtensionRequest.Result)
+	{
 		os_log("system extension didFinishWithResult: %d", result.rawValue)
 		self.state = PloytecAppStateMachine.process(self.state, .activationFinished)
 	}
 
-	func request(_ request: OSSystemExtensionRequest, didFailWithError error: Error) {
+	func request(_ request: OSSystemExtensionRequest, didFailWithError error: Error)
+	{
 		os_log("system extension didFailWithError: %@", error.localizedDescription)
-		if let extensionError = error as NSError?, extensionError.domain == OSSystemExtensionErrorDomain {
-			if extensionError.code == 4 {
+		if let extensionError = error as NSError?, extensionError.domain == OSSystemExtensionErrorDomain
+		{
+			if extensionError.code == 4
+			{
 				self.state = PloytecAppStateMachine.process(self.state, .dextNotPresent)
-			} else if extensionError.code == 8 {
+			}
+			else if extensionError.code == 8
+			{
 				self.state = PloytecAppStateMachine.process(self.state, .codeSigningErr)
 			}
 		}

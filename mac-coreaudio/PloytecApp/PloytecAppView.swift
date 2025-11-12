@@ -167,10 +167,25 @@ struct PloytecAppView: View {
 	
 	private func startRetryingUserClient() {
 		stopRetryingUserClient()
-		userClientText = userClient.openConnection()
+		userClientText = userClient.openConnection() ?? "Driver Extension is not running."
 		retryTimer = Timer.scheduledTimer(withTimeInterval: 5.0, repeats: true) { _ in
 			print("Retrying user client connection...")
-			userClientText = userClient.openConnection()
+			DispatchQueue.global(qos: .utility).async {
+				let res = userClient.openConnection()
+				userClientText = res ?? "Driver Extension is not running."
+				if res == "Connection to user client succeeded"
+				{
+					stopRetryingUserClient()
+				}
+				DispatchQueue.main.async
+				{
+					userClientText = res ?? "Driver Extension is not running."
+					if res == "Connection to user client succeeded"
+					{
+						stopRetryingUserClient()
+					}
+				}
+			}
 		}
 	}
 	
@@ -194,8 +209,6 @@ struct PloytecAppView: View {
 		let stats = self.userClient.getPlaybackStats()
 		if stats.usbPCMoutFramesCount < usbPCMoutFramesCountOld { usbPCMoutFramesCountOld = stats.usbPCMoutFramesCount }
 		if stats.usbPCMinFramesCount  < usbPCMinFramesCountOld  { usbPCMinFramesCountOld  = stats.usbPCMinFramesCount  }
-		let outDelta = safeDelta(stats.usbPCMoutFramesCount, usbPCMoutFramesCountOld)
-		let inDelta  = safeDelta(stats.usbPCMinFramesCount,  usbPCMinFramesCountOld)
 		self.playbackStatsText =
 			"Playback                 : \(stats.playing)\n" +
 			"Capture                  : \(stats.recording)\n" +
