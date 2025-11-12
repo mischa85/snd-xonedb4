@@ -371,7 +371,7 @@ bool PloytecDriver::ReadMIDIByte(uint8_t &outByte)
 
 kern_return_t PloytecDriver::SendPCMUrbs(uint8_t num)
 {
-	os_log(OS_LOG_DEFAULT, "PloytecDriver::SendPCMUrbs: DRIVER: %s", __func__);
+	os_log(OS_LOG_DEFAULT, "PloytecDriver::SendPCMUrbs");
 
 	kern_return_t ret = kIOReturnSuccess;
 
@@ -391,7 +391,7 @@ kern_return_t PloytecDriver::SendPCMUrbs(uint8_t num)
 
 kern_return_t PloytecDriver::SendMIDIUrbs(uint8_t num)
 {
-	os_log(OS_LOG_DEFAULT, "PloytecDriver::SendMIDIUrbs: DRIVER: %s", __func__);
+	os_log(OS_LOG_DEFAULT, "PloytecDriver::SendMIDIUrbs");
 
 	kern_return_t ret = kIOReturnSuccess;
 
