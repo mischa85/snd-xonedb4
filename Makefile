@@ -16,3 +16,9 @@ mac-clean:
 
 mac-install:
 	rsync -a --delete "build/Release/Ploytec Driver Extension.app" /Applications
+
+mac-logstream:
+	log stream --predicate 'sender == "sc.hackerman.ploytecdriver.dext"' --predicate 'sender == "Ploytec Driver Extension"'
+
+mac-logshow:
+	log show --predicate 'sender == "sc.hackerman.ploytecdriver.dext"' --predicate 'sender == "Ploytec Driver Extension"'

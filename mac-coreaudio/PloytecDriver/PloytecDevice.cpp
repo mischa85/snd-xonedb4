@@ -104,31 +104,31 @@ bool PloytecDevice::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 
 	// allocate the USB ring buffers
 	ret = transmitBuffer->GetAddressRange(&range);
-	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to get address of output ring buffer: %s", strerror(ret)); cleanup(); return false; }
+	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to get address of output ring buffer: %{public}s", strerror(ret)); cleanup(); return false; }
 	ivars->PloytecOutputBufferAddr = reinterpret_cast<uint8_t*>(range.address);
 	ret = receiveBuffer->GetAddressRange(&range);
-	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to get address of input ring buffer: %s", strerror(ret)); cleanup(); return false; }
+	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to get address of input ring buffer: %{public}s", strerror(ret)); cleanup(); return false; }
 	ivars->PloytecInputBufferAddr = reinterpret_cast<uint8_t*>(range.address);
 
 	// set the available sample rates in CoreAudio
 	ret = SetAvailableSampleRates(sample_rates, 1);
-	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to set available samplerates: %s", strerror(ret)); cleanup(); return false; }
+	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to set available samplerates: %{public}s", strerror(ret)); cleanup(); return false; }
 	
 	SetOutputSafetyOffset(100);
 
 	// set the current sample rate in CoreAudio
 	ret = SetSampleRate(96000);
-	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to set samplerate: %s", strerror(ret)); cleanup(); return false; }
+	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to set samplerate: %{public}s", strerror(ret)); cleanup(); return false; }
 
 	// set the transport type in CoreAudio
 	ret = SetTransportType(IOUserAudioTransportType::USB);
-	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to set transport type: %s", strerror(ret)); cleanup(); return false; }
+	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to set transport type: %{public}s", strerror(ret)); cleanup(); return false; }
 
 	// allocate the CoreAudio ring buffers
 	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, MAX_BUFFERSIZE * ivars->CoreAudioPlaybackBytesPerFrame, 0, ivars->output_io_ring_buffer.attach());
-	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to create output ring buffer: %s", strerror(ret)); cleanup(); return false; }
+	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to create output ring buffer: %{public}s", strerror(ret)); cleanup(); return false; }
 	ret = IOBufferMemoryDescriptor::Create(kIOMemoryDirectionInOut, MAX_BUFFERSIZE * ivars->CoreAudioPlaybackBytesPerFrame, 0, ivars->input_io_ring_buffer.attach());
-	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to create input ring buffer: %s", strerror(ret)); cleanup(); return false; }
+	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to create input ring buffer: %{public}s", strerror(ret)); cleanup(); return false; }
 
 	// create the streams
 	ivars->m_output_stream = IOUserAudioStream::Create(in_driver, IOUserAudioStreamDirection::Output, ivars->output_io_ring_buffer.get());
@@ -138,27 +138,27 @@ bool PloytecDevice::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 
 	// set names on input/output streams
 	ret = ivars->m_output_stream->SetName(output_stream_name.get());
-	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to set name on output stream: %s", strerror(ret)); cleanup(); return false; }
+	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to set name on output stream: %{public}s", strerror(ret)); cleanup(); return false; }
 	ret = ivars->m_input_stream->SetName(input_stream_name.get());
-	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to set name on input stream: %s", strerror(ret)); cleanup(); return false; }
+	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to set name on input stream: %{public}s", strerror(ret)); cleanup(); return false; }
 
 	// set the available sample formats on the streams
 	ret = ivars->m_output_stream->SetAvailableStreamFormats(outputStreamFormats, 1);
-	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to set available formats on output stream: %s", strerror(ret)); cleanup(); return false; }
+	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to set available formats on output stream: %{public}s", strerror(ret)); cleanup(); return false; }
 	ret = ivars->m_input_stream->SetAvailableStreamFormats(inputStreamFormats, 1);
-	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to set available formats on input stream: %s", strerror(ret)); cleanup(); return false; }
+	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to set available formats on input stream: %{public}s", strerror(ret)); cleanup(); return false; }
 
 	// set the current stream format on the stream
 	ret = ivars->m_output_stream->SetCurrentStreamFormat(&outputStreamFormats[0]);
-	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to set current format on output stream: %s", strerror(ret)); cleanup(); return false; }
+	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to set current format on output stream: %{public}s", strerror(ret)); cleanup(); return false; }
 	ret = ivars->m_input_stream->SetCurrentStreamFormat(&inputStreamFormats[0]);
-	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to set current format on input stream: %s", strerror(ret)); cleanup(); return false; }
+	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to set current format on input stream: %{public}s", strerror(ret)); cleanup(); return false; }
 
 	// add the streams to CoreAudio
 	ret = AddStream(ivars->m_output_stream.get());
-	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to add output stream: %s", strerror(ret)); cleanup(); return false; }
+	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to add output stream: %{public}s", strerror(ret)); cleanup(); return false; }
 	ret = AddStream(ivars->m_input_stream.get());
-	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to add input stream: %s", strerror(ret)); cleanup(); return false; }
+	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to add input stream: %{public}s", strerror(ret)); cleanup(); return false; }
 
 	// this block converts the audio from CoreAudioOutputBuffer to the format the USB device wants in PloytecOutputBuffer
 	ioOperationBulk = ^kern_return_t(IOUserAudioObjectID in_device, IOUserAudioIOOperation in_io_operation, uint32_t in_io_buffer_frame_size, uint64_t in_sample_time, uint64_t in_host_time)
@@ -243,7 +243,7 @@ kern_return_t PloytecDevice::StartIO(IOUserAudioStartStopFlags in_flags)
 
 	ivars->m_work_queue->DispatchSync(^{
 		ret = super::StartIO(in_flags);
-		if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::StartIO: super::StartIO failed: %s", strerror(ret)); return; }
+		if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::StartIO: super::StartIO failed: %{public}s", strerror(ret)); return; }
 
 		auto cleanup = [&](){
 			super::StopIO(in_flags);
@@ -255,14 +255,14 @@ kern_return_t PloytecDevice::StartIO(IOUserAudioStartStopFlags in_flags)
 		if (!output_iomd.get()) { ret = kIOReturnNoMemory; os_log(OS_LOG_DEFAULT, "PloytecDevice::StartIO: no output IOMD"); cleanup(); return; }
 
 		ret = output_iomd->CreateMapping(0, 0, 0, 0, 0, ivars->m_output_memory_map.attach());
-		if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::StartIO: output mapping failed: %s", strerror(ret)); cleanup(); return; }
+		if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::StartIO: output mapping failed: %{public}s", strerror(ret)); cleanup(); return; }
 		ivars->CoreAudioOutputBufferAddr = reinterpret_cast<uint8_t*>(ivars->m_output_memory_map->GetAddress() + ivars->m_output_memory_map->GetOffset());
 
 		OSSharedPtr<IOMemoryDescriptor> input_iomd = ivars->m_input_stream->GetIOMemoryDescriptor();
 		if (!input_iomd.get()) { ret = kIOReturnNoMemory; os_log(OS_LOG_DEFAULT, "PloytecDevice::StartIO: no input IOMD"); cleanup(); return; }
 
 		ret = input_iomd->CreateMapping(0, 0, 0, 0, 0, ivars->m_input_memory_map.attach());
-		if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::StartIO: input mapping failed: %s", strerror(ret)); cleanup(); return; }
+		if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::StartIO: input mapping failed: %{public}s", strerror(ret)); cleanup(); return; }
 		ivars->CoreAudioInputBufferAddr = reinterpret_cast<uint8_t*>(ivars->m_input_memory_map->GetAddress() + ivars->m_input_memory_map->GetOffset());
 
 		ivars->HWSampleTimeOut = 0;
@@ -296,7 +296,7 @@ kern_return_t PloytecDevice::StopIO(IOUserAudioStartStopFlags in_flags)
 		ret = super::StopIO(in_flags);
 	});
 
-	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::StopIO: super::StopIO failed: %s", strerror(ret)); }
+	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::StopIO: super::StopIO failed: %{public}s", strerror(ret)); }
 	return ret;
 }
 
