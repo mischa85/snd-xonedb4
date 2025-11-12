@@ -20,8 +20,7 @@ class MIDIManager {
 		let status2 = MIDISourceCreate(client, midiInName, &source)
 		guard status2 == noErr else { return }
 
-		let status3 = MIDIDestinationCreate(client, midiOutName, midiReadCallback,
-			UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()), &destination)
+		let status3 = MIDIDestinationCreate(client, midiOutName, midiReadCallback, UnsafeMutableRawPointer(Unmanaged.passUnretained(self).toOpaque()), &destination)
 		if status3 != noErr { return }
 	}
 

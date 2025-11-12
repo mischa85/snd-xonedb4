@@ -26,5 +26,6 @@ typedef struct {
 - (uint16_t)getCurrentOutputFramesCount;
 - (playbackstats)getPlaybackStats;
 - (void)sendMIDIMessageToDriver:(uint64_t)message;
+- (void)handleDisconnected;
 
 @end

@@ -71,6 +71,13 @@ Failure:
 
 kern_return_t PloytecDriverUserClient::Stop_Impl(IOService* provider)
 {
+	if (ivars && ivars->mProvider) {
+	    if (ivars->mProvider->ivars) {
+		ivars->mProvider->ivars->midiClient = nullptr;
+	    }
+	    ivars->mProvider.reset();
+	}
+
 	return Stop(provider, SUPERDISPATCH);
 }
 
@@ -110,7 +117,8 @@ kern_return_t PloytecDriverUserClient::ExternalMethod(uint64_t selector, IOUserC
 
 		case PloytecDriverExternalMethod_GetFirmwareVer: {
 			ret = kIOReturnSuccess;
-			arguments->structureOutput = OSData::withBytes(ivars->mProvider->GetFirmwareVer(), 3);
+			FirmwareVersion firmwareVersion = ivars->mProvider->GetFirmwareVer();
+			arguments->structureOutput = OSData::withBytes(&firmwareVersion, 3);
 			break;
 		}
 

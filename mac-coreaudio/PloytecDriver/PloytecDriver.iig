@@ -20,34 +20,39 @@ struct PloytecDriver_IVars
 	OSSharedPtr<IODispatchQueue>		workQueue;
 	OSSharedPtr<PloytecDevice>		audioDevice;
 
-	IOUSBHostDevice				*usbDevice;
-	IOUSBHostInterface			*usbInterface0;
-	IOUSBHostInterface			*usbInterface1;
-	IOUSBHostPipe				*usbMIDIinPipe;
-	IOUSBHostPipe				*usbPCMoutPipe;
-	IOUSBHostPipe				*usbPCMinPipe;
-	OSAction				*usbPCMoutCallback;
-	OSAction				*usbPCMinCallback;
-	OSAction				*usbMIDIinCallback;
+	OSSharedPtr<OSString> 			modelName;
+	OSSharedPtr<OSString> 			manufacturerName;
+	OSSharedPtr<OSString> 			deviceName;
+
+	IOUSBHostDevice*			usbDevice;
+	OSSharedPtr<IOUSBHostInterface>		usbInterface0;
+	OSSharedPtr<IOUSBHostInterface>		usbInterface1;
+	OSSharedPtr<IOUSBHostPipe>		usbMIDIinPipe;
+	OSSharedPtr<IOUSBHostPipe>		usbPCMoutPipe;
+	OSSharedPtr<IOUSBHostPipe>		usbPCMinPipe;
+	OSSharedPtr<OSAction>			usbPCMoutCallback;
+	OSSharedPtr<OSAction>			usbPCMinCallback;
+	OSSharedPtr<OSAction>			usbMIDIinCallback;
 
 	OSSharedPtr<IOBufferMemoryDescriptor>	usbRXBufferCONTROL;
-	uint8_t									*usbRXBufferCONTROLAddr;
 	OSSharedPtr<IOBufferMemoryDescriptor>	usbTXBufferCONTROL;
-	uint8_t									*usbTXBufferCONTROLAddr;
 	OSSharedPtr<IOBufferMemoryDescriptor>	MIDIBuffer;
-	uint8_t					*MIDIBufferAddr;
+	OSSharedPtr<IOBufferMemoryDescriptor> 	usbRXBufferPCM;
+	OSSharedPtr<IOBufferMemoryDescriptor> 	usbTXBufferPCMandUART;
+	OSSharedPtr<IOBufferMemoryDescriptor> 	usbRXBufferMIDI;
+	OSSharedPtr<IOMemoryDescriptor>		usbRXBufferPCMSegment[32768];
+	OSSharedPtr<IOMemoryDescriptor>		usbTXBufferPCMandUARTSegment[32768];
+	uint8_t*				usbRXBufferCONTROLAddr;
+	uint8_t*				usbTXBufferCONTROLAddr;
+	uint8_t*				MIDIBufferAddr;
+	uint8_t*				usbRXBufferMIDIAddr;
+	uint8_t*				usbTXBufferPCMandUARTAddr;
+	uint8_t*				usbTXBufferPCMandUARTSegmentAddr[32768];
+
 	uint8_t					midiRingHead;
 	uint8_t					midiRingTail;
-	OSSharedPtr<IOBufferMemoryDescriptor> 	usbTXBufferPCMandUART;
-	uint8_t					*usbTXBufferPCMandUARTAddr;
-	OSSharedPtr<IOMemoryDescriptor>		usbTXBufferPCMandUARTSegment[32768];
-	uint8_t					*usbTXBufferPCMandUARTSegmentAddr[32768];
 	uint16_t				usbTXBufferPCMandUARTCurrentSegment;
-	OSSharedPtr<IOBufferMemoryDescriptor> 	usbRXBufferPCM;
-	OSSharedPtr<IOMemoryDescriptor>		usbRXBufferPCMSegment[32768];
 	uint16_t				usbRXBufferPCMCurrentSegment;
-	OSSharedPtr<IOBufferMemoryDescriptor> 	usbRXBufferMIDI;
-	uint8_t					*usbRXBufferMIDIAddr;
 	uint8_t					usbCurrentUrbCount;
 	uint32_t				usbOutputPacketSize;
 	uint16_t				usbCurrentOutputFramesCount;
@@ -63,13 +68,7 @@ struct PloytecDriver_IVars
 	uint64_t				usbMIDIoutBytesCount;
 	uint64_t				usbMIDIinBytesCount;
 
-	FirmwareVersion*			firmwareVersion;
-	//IOBufferMemoryDescriptor		*sampleratebytes;
-	OSSharedPtr<OSString>			FirmwareVersionBytes;
-
-	OSSharedPtr<OSString> 		modelName;
-	OSSharedPtr<OSString> 		manufacturerName;
-	OSSharedPtr<OSString> 		deviceName;
+	FirmwareVersion				firmwareVersion;
 
 	TransferMode				transferMode;
 
@@ -90,7 +89,7 @@ public:
 	virtual void free() override;
 	virtual kern_return_t StartDevice(IOUserAudioObjectID in_object_id, IOUserAudioStartStopFlags in_flags) override;
 	virtual kern_return_t StopDevice(IOUserAudioObjectID in_object_id, IOUserAudioStartStopFlags in_flags) override;
-	virtual FirmwareVersion* GetFirmwareVer() LOCALONLY;
+	virtual FirmwareVersion GetFirmwareVer() LOCALONLY;
 	virtual OSSharedPtr<OSString> GetDeviceName() LOCALONLY;
 	virtual OSSharedPtr<OSString> GetDeviceManufacturer() LOCALONLY;
 	kern_return_t GetPlaybackStats(playbackstats *stats) LOCALONLY;
