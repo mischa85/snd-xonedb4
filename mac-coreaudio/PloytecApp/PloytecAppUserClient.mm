@@ -151,7 +151,7 @@ static void PloytecInterestCallback(void *refCon, io_service_t service, uint32_t
 	char devicename[128] = {0};
 	size_t devicenameSize = sizeof(devicename);
 
-	kern_return_t ret = IOConnectCallMethod(_ioConnection, static_cast<uint64_t>(PloytecDriverExternalMethod_GetDeviceName), nullptr, 0, nullptr, 0, nullptr, nullptr, devicename, &devicenameSize);
+	kern_return_t ret = IOConnectCallMethod(_ioConnection, PloytecDriverExternalMethod_GetDeviceName, nullptr, 0, nullptr, 0, nullptr, nullptr, devicename, &devicenameSize);
 
 	if (ret != kIOReturnSuccess)
 		return [NSString stringWithFormat:@"Failed to get device name, error: %s.", mach_error_string(ret)];
