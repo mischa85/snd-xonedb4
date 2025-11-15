@@ -114,6 +114,8 @@ protected:
 	virtual kern_return_t CreateBuffers() LOCALONLY;
 	virtual kern_return_t CreateUSBHandlers() LOCALONLY;
 	virtual kern_return_t CreateUSBPipes() LOCALONLY;
+	virtual kern_return_t SetSampleRate(uint32_t samplerate) LOCALONLY;
+	virtual kern_return_t GetSampleRate(uint32_t &samplerate) LOCALONLY;
 	virtual kern_return_t PCMinHandler(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);
 	virtual kern_return_t PCMoutHandler(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);
 	virtual kern_return_t MIDIinHandler(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);

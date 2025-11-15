@@ -9,7 +9,6 @@ static constexpr uint8_t COREAUDIO_BYTES_PER_SAMPLE = 3; // S24_3LE
 
 struct PloytecDevice_IVars
 {
-	OSSharedPtr<IOUserAudioDriver>		m_driver;
 	OSSharedPtr<IODispatchQueue>		m_work_queue;
 	OSSharedPtr<IOUserAudioStream>		m_output_stream;
 	OSSharedPtr<IOUserAudioStream>		m_input_stream;
@@ -50,7 +49,6 @@ bool PloytecDevice::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 	if (ivars == nullptr) {	os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to alloc ivars"); return false; }
 
 	auto cleanup = [&]() {
-		ivars->m_driver.reset();
 		ivars->m_output_stream.reset();
 		ivars->m_input_stream.reset();
 		ivars->m_output_memory_map.reset();
@@ -70,8 +68,6 @@ bool PloytecDevice::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 	snprintf(inputName, sizeof(inputName), "%s PCM IN", in_device_uid->getCStringNoCopy());
 	OSSharedPtr<OSString> output_stream_name = OSSharedPtr(OSString::withCString(outputName), OSNoRetain);
 	OSSharedPtr<OSString> input_stream_name = OSSharedPtr(OSString::withCString(inputName), OSNoRetain);
-	ivars->m_driver = OSSharedPtr(in_driver, OSRetain);
-	//ivars->m_work_queue = GetWorkQueue();
 	double sample_rates[] = { 96000 };
 	IOUserAudioStreamBasicDescription outputStreamFormats[] =
 	{
@@ -114,7 +110,8 @@ bool PloytecDevice::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 	ret = SetAvailableSampleRates(sample_rates, 1);
 	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to set available samplerates: %{public}s", strerror(ret)); cleanup(); return false; }
 	
-	SetOutputSafetyOffset(100);
+	ret = SetOutputSafetyOffset(100);
+	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::init: failed to set output safety offset: %{public}s", strerror(ret)); cleanup(); return false; }
 
 	// set the current sample rate in CoreAudio
 	ret = SetSampleRate(96000);
@@ -163,7 +160,9 @@ bool PloytecDevice::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 	// this block converts the audio from CoreAudioOutputBuffer to the format the USB device wants in PloytecOutputBuffer
 	ioOperationBulk = ^kern_return_t(IOUserAudioObjectID in_device, IOUserAudioIOOperation in_io_operation, uint32_t in_io_buffer_frame_size, uint64_t in_sample_time, uint64_t in_host_time)
 	{
-		if (in_io_operation == IOUserAudioIOOperationWriteEnd) {
+		// playback
+		if (in_io_operation == IOUserAudioIOOperationWriteEnd)
+		{
 			ivars->PCMoutActive = true;
 			ivars->out_sample_time = in_sample_time;
 
@@ -182,7 +181,10 @@ bool PloytecDevice::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 
 				EncodePloytecPCM(ivars->PloytecOutputBufferAddr + byteoffset + (sampleoffset * PLOYTEC_PCM_OUT_FRAME_SIZE), ivars->CoreAudioOutputBufferAddr + (sampleoffset * ivars->CoreAudioPlaybackBytesPerFrame));
 			}
-		} else if (in_io_operation == IOUserAudioIOOperationBeginRead) {
+		}
+		// capture
+		else if (in_io_operation == IOUserAudioIOOperationBeginRead)
+		{
 			ivars->PCMinActive = true;
 			ivars->in_sample_time = in_sample_time;
 
@@ -197,7 +199,9 @@ bool PloytecDevice::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 
 	ioOperationInterrupt = ^kern_return_t(IOUserAudioObjectID in_device, IOUserAudioIOOperation in_io_operation, uint32_t in_io_buffer_frame_size, uint64_t in_sample_time, uint64_t in_host_time)
 	{
-		if (in_io_operation == IOUserAudioIOOperationWriteEnd) {
+		// playback
+		if (in_io_operation == IOUserAudioIOOperationWriteEnd)
+		{
 			ivars->PCMoutActive = true;
 			ivars->out_sample_time = in_sample_time;
 
@@ -216,7 +220,10 @@ bool PloytecDevice::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 
 				EncodePloytecPCM(ivars->PloytecOutputBufferAddr + byteoffset + (sampleoffset * PLOYTEC_PCM_OUT_FRAME_SIZE), ivars->CoreAudioOutputBufferAddr + (sampleoffset * ivars->CoreAudioPlaybackBytesPerFrame));
 			}
-		} else if (in_io_operation == IOUserAudioIOOperationBeginRead) {
+		}
+		// capture
+		else if (in_io_operation == IOUserAudioIOOperationBeginRead)
+		{
 			ivars->PCMinActive = true;
 			ivars->in_sample_time = in_sample_time;
 
@@ -230,9 +237,15 @@ bool PloytecDevice::init(IOUserAudioDriver* in_driver, bool in_supports_prewarmi
 	};
 
 	if (transferMode == INTERRUPT)
-		this->SetIOOperationHandler(ioOperationInterrupt);
+	{
+		ret = this->SetIOOperationHandler(ioOperationInterrupt);
+		if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::StartIO: Cannot set IOOperationHandler: %{public}s", strerror(ret)); return false; }
+	}
 	else if (transferMode == BULK)
-		this->SetIOOperationHandler(ioOperationBulk);
+	{
+		ret = this->SetIOOperationHandler(ioOperationBulk);
+		if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::StartIO: Cannot set IOOperationHandler: %{public}s", strerror(ret)); return false; }
+	}
 	
 	return true;
 }
@@ -246,9 +259,17 @@ kern_return_t PloytecDevice::StartIO(IOUserAudioStartStopFlags in_flags)
 		if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::StartIO: super::StartIO failed: %{public}s", strerror(ret)); return; }
 
 		auto cleanup = [&](){
-			super::StopIO(in_flags);
-			if (ivars->m_output_memory_map.get()) ivars->m_output_memory_map.reset();
-			if (ivars->m_input_memory_map.get()) ivars->m_input_memory_map.reset();
+		    ivars->IOStarted = false;
+		    ivars->PCMinActive = false;
+		    ivars->PCMoutActive = false;
+
+		    if (ivars->m_output_memory_map) ivars->m_output_memory_map.reset();
+		    if (ivars->m_input_memory_map) ivars->m_input_memory_map.reset();
+
+		    ivars->CoreAudioOutputBufferAddr = nullptr;
+		    ivars->CoreAudioInputBufferAddr = nullptr;
+
+		    (void)super::StopIO(in_flags);
 		};
 
 		OSSharedPtr<IOMemoryDescriptor> output_iomd = ivars->m_output_stream->GetIOMemoryDescriptor();
@@ -272,8 +293,11 @@ kern_return_t PloytecDevice::StartIO(IOUserAudioStartStopFlags in_flags)
 		ivars->PCMinActive = false;
 		ivars->PCMoutActive = false;
 
-		(void)ivars->m_output_stream->SetStreamIsActive(true);
-		(void)ivars->m_input_stream->SetStreamIsActive(true);
+		ret = ivars->m_output_stream->SetStreamIsActive(true);
+		if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::StartIO: Set output stream active: %{public}s", strerror(ret)); cleanup(); return; }
+
+		ret = ivars->m_input_stream->SetStreamIsActive(true);
+		if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::StartIO: Set input stream active: %{public}s", strerror(ret)); cleanup(); return; }
 	});
 
 	return ret;
@@ -296,14 +320,15 @@ kern_return_t PloytecDevice::StopIO(IOUserAudioStartStopFlags in_flags)
 		ret = super::StopIO(in_flags);
 	});
 
-	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::StopIO: super::StopIO failed: %{public}s", strerror(ret)); }
+	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDevice::StopIO: super::StopIO failed: %{public}s", strerror(ret)); return ret; }
 	return ret;
 }
 
 kern_return_t PloytecDevice::PerformDeviceConfigurationChange(uint64_t change_action, OSObject* in_change_info)
 {
 	kern_return_t ret = kIOReturnSuccess;
-	switch (change_action) {
+	switch (change_action)
+	{
 		default:
 			ret = super::PerformDeviceConfigurationChange(change_action, in_change_info);
 			break;
@@ -320,7 +345,6 @@ kern_return_t PloytecDevice::AbortDeviceConfigurationChange(uint64_t change_acti
 void PloytecDevice::free()
 {
 	if (ivars != nullptr) {
-		ivars->m_driver.reset();
 		ivars->m_output_stream.reset();
 		ivars->m_output_memory_map.reset();
 		ivars->m_input_stream.reset();
