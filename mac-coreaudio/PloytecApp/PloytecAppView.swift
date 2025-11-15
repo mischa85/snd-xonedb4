@@ -214,6 +214,7 @@ struct PloytecAppView: View {
 			"Capture                  : \(stats.recording)\n" +
 			"CoreAudio Sampletime Out : \(stats.out_sample_time)\n" +
 			"CoreAudio Sampletime In  : \(stats.in_sample_time)\n" +
+			"HW Framerate             : \(stats.currentHWFrameRate)\n" +
 			"USB PCM Frames Out       : \(stats.usbPCMoutFramesCount)\n" +
 			"USB PCM Framerate Out    : \(stats.usbPCMoutFramesCount - usbPCMoutFramesCountOld)\n" +
 			"USB PCM Frames In        : \(stats.usbPCMinFramesCount)\n" +

@@ -15,6 +15,15 @@ struct FirmwareVersion
 	uint8_t					patch;
 };
 
+enum PloytecStatusMask : uint8_t {
+    kStatusSyncReady       = 0x01,
+    kStatusUsbInterfaceOn  = 0x02,
+    kStatusDigitalLock     = 0x04,
+    kStatusStreamingArmed  = 0x10,
+    kStatusLegacyActive    = 0x20,
+    kStatusHighSpeedActive = 0x80
+};
+
 struct PloytecDriver_IVars
 {
 	OSSharedPtr<IODispatchQueue>		workQueue;
@@ -69,6 +78,8 @@ struct PloytecDriver_IVars
 	uint64_t				usbMIDIinBytesCount;
 
 	FirmwareVersion				firmwareVersion;
+	uint8_t					currentStatus;
+	uint32_t				currentHWFrameRate;
 
 	TransferMode				transferMode;
 
@@ -114,6 +125,11 @@ protected:
 	virtual kern_return_t CreateBuffers() LOCALONLY;
 	virtual kern_return_t CreateUSBHandlers() LOCALONLY;
 	virtual kern_return_t CreateUSBPipes() LOCALONLY;
+	virtual kern_return_t GetHardwareStatus() LOCALONLY;
+	virtual kern_return_t SetHardwareStatus(uint16_t value) LOCALONLY;
+	virtual kern_return_t GetHardwareFirmwareVersion() LOCALONLY;
+	virtual kern_return_t SetHardwareFrameRate(uint32_t samplerate) LOCALONLY;
+	virtual kern_return_t GetHardwareFrameRate() LOCALONLY;
 	virtual kern_return_t PCMinHandler(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);
 	virtual kern_return_t PCMoutHandler(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);
 	virtual kern_return_t MIDIinHandler(OSAction *action, IOReturn status, uint32_t actualByteCount, uint64_t completionTimestamp);

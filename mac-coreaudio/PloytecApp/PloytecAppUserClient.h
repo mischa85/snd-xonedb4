@@ -4,6 +4,7 @@
 typedef struct {
 	bool playing;
 	bool recording;
+	uint32_t currentHWFrameRate;
 	uint64_t out_sample_time;
 	uint64_t in_sample_time;
 	uint64_t usbPCMoutFramesCount;
