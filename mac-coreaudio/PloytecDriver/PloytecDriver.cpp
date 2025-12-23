@@ -71,13 +71,20 @@ kern_return_t IMPL(PloytecDriver, Start)
 	ret = GetHardwareStatus();
 	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: failed to get status from device: %{public}s", strerror(ret)); return ret; }
 
-	// Transition Guard: The Ploytec streaming engine requires a synchronous
-	// settling period after hardware state changes. This 500ms window
-	// ensures the FPGA state machine is ready to handle Audio Class requests
-	// without NAKing the control pipe.
-	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Sleeping for a bit...");
-	IOSleep(K_PLOYTEC_HARDWARE_SETTLE_MS);
-	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Continuing...");
+	if (ivars->firmwareVersion.ID < 0x30)
+	{
+		os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Legacy Platform (0x%{public}02X) detected. Pre-authorizing hardware...", ivars->firmwareVersion.ID);
+		ret = SetHardwareStatus(0xFFB2);
+		if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Failed to pre-authorize legacy hardware"); }
+
+		// Transition Guard: The Ploytec streaming engine requires a synchronous
+		// settling period after hardware state changes. This 500ms window
+		// ensures the FPGA state machine is ready to handle Audio Class requests
+		// without NAKing the control pipe.
+		os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Sleeping for a bit...");
+		IOSleep(K_PLOYTEC_HARDWARE_SETTLE_MS);
+		os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Continuing...");
+	}
 
 	// get framerate
 	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Getting current framerate...");
@@ -101,7 +108,7 @@ kern_return_t IMPL(PloytecDriver, Start)
 
 	// allgood
 	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Sending allgood...");
-	ret = ivars->usbDevice->DeviceRequest(this, 0x40, 0x49, 0xFFB2, 0x0000, 0x00, ivars->usbRXBufferCONTROL.get(), &bytesTransferred, 0);
+	ret = SetHardwareStatus(0xFFB2);
 	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: failed to get allgood from device: %{public}s", strerror(ret)); return ret; }
 
 	// get the USB pipes
@@ -697,12 +704,10 @@ kern_return_t PloytecDriver::SetHardwareStatus(uint16_t value)
 	kern_return_t ret;
 	uint16_t bytesTransferred = 0;
 
-	os_log(OS_LOG_DEFAULT, "PloytecDriver::SetHardwareStatus: Sending mode 0x%04X...", value);
+	os_log(OS_LOG_DEFAULT, "PloytecDriver::SetHardwareStatus: Setting mode 0x%{public}04X...", value);
 
 	ret = ivars->usbDevice->DeviceRequest(this, 0x40, static_cast<uint8_t>('I'), value, 0x0000, 0x00, ivars->usbTXBufferCONTROL.get(), &bytesTransferred, 0);
-	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "SetHardwareStatus: failed %{public}s", strerror(ret)); return ret; }
-
-	IOSleep(500);
+	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDriver::SetHardwareStatus: failed %{public}s", strerror(ret)); return ret; }
 
 	return ret;
 }
@@ -715,8 +720,9 @@ kern_return_t PloytecDriver::GetHardwareFirmwareVersion()
 	ret = ivars->usbDevice->DeviceRequest(this, 0xC0, static_cast<uint8_t>('V'), 0x00, 0x00, 0x0f, ivars->usbRXBufferCONTROL.get(), &bytesTransferred, 0);
 	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDriver::GetHardwareFirmwareVersion: failed to get firmware version from device: %{public}s", strerror(ret)); return ret; }
 	
-	os_log(OS_LOG_DEFAULT, "PloytecDriver::GetHardwareFirmwareVersion: Firmware version: %{public}d.%{public}d.%{public}d", 1, ivars->usbRXBufferCONTROLAddr[2] / 10, ivars->usbRXBufferCONTROLAddr[2] % 10);
-	
+	os_log(OS_LOG_DEFAULT, "PloytecDriver::GetHardwareFirmwareVersion: ID:0x%{public}02X -> %{public}d.%{public}d.%{public}d", ivars->usbRXBufferCONTROLAddr[0], 1, ivars->usbRXBufferCONTROLAddr[2] / 10, ivars->usbRXBufferCONTROLAddr[2] % 10);
+
+	ivars->firmwareVersion.ID = ivars->usbRXBufferCONTROLAddr[0];
 	ivars->firmwareVersion.major = 1;
 	ivars->firmwareVersion.minor = ivars->usbRXBufferCONTROLAddr[2] / 10;
 	ivars->firmwareVersion.patch = ivars->usbRXBufferCONTROLAddr[2] % 10;

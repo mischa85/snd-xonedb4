@@ -10,6 +10,7 @@ using namespace AudioDriverKit;
 
 struct FirmwareVersion
 {
+	uint8_t					ID;
 	uint8_t					major;
 	uint8_t					minor;
 	uint8_t					patch;
