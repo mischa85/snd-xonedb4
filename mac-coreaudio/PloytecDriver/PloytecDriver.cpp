@@ -71,19 +71,26 @@ kern_return_t IMPL(PloytecDriver, Start)
 	ret = GetHardwareStatus();
 	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: failed to get status from device: %{public}s", strerror(ret)); return ret; }
 
-	if (ivars->firmwareVersion.ID < 0x30)
-	{
-		os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Legacy Platform (0x%{public}02X) detected. Pre-authorizing hardware...", ivars->firmwareVersion.ID);
-		ret = SetHardwareStatus(0xFFB2);
-		if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Failed to pre-authorize legacy hardware"); }
+	if (!(ivars->currentStatus & kStatusLegacyActive)) {
+	    os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Mode transition required. Current: 0x%02X", ivars->currentStatus);
 
-		// Transition Guard: The Ploytec streaming engine requires a synchronous
-		// settling period after hardware state changes. This 500ms window
-		// ensures the FPGA state machine is ready to handle Audio Class requests
-		// without NAKing the control pipe.
-		os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Sleeping for a bit...");
-		IOSleep(K_PLOYTEC_HARDWARE_SETTLE_MS);
-		os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Continuing...");
+	    ret = SetHardwareStatus(0xFFB2);
+	    if (ret != kIOReturnSuccess) {
+		os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: SetHardwareStatus failed: %{public}s", strerror(ret));
+		return ret;
+	    }
+
+	    IOSleep(K_PLOYTEC_HARDWARE_SETTLE_MS);
+
+	    ret = GetHardwareStatus();
+	    if (ret != kIOReturnSuccess || !(ivars->currentStatus & kStatusLegacyActive)) {
+		os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Hardware failed to enter Legacy Mode. Status: 0x%{public}02X", ivars->currentStatus);
+		return kIOReturnNotReady;
+	    }
+
+	    os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Successfully entered Legacy Mode (Status: 0x%{public}02X)", ivars->currentStatus);
+	} else {
+	    os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Hardware already in Legacy Mode (0x%{public}02X). Skipping handshake.", ivars->currentStatus);
 	}
 
 	// get framerate
