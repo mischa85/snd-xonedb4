@@ -114,7 +114,7 @@ kern_return_t PloytecDriverUserClient::ExternalMethod(uint64_t selector, IOUserC
 		case PloytecDriverExternalMethod_GetFirmwareVer: {
 			ret = kIOReturnSuccess;
 			FirmwareVersion firmwareVersion = ivars->mProvider->GetFirmwareVer();
-			arguments->structureOutput = OSData::withBytes(&firmwareVersion, 3);
+			arguments->structureOutput = OSData::withBytes(&firmwareVersion, 4);
 			break;
 		}
 
