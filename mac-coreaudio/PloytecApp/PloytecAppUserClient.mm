@@ -194,7 +194,7 @@ static void PloytecInterestCallback(void *refCon, io_service_t service, uint32_t
 	if (ret != kIOReturnSuccess)
 		return [NSString stringWithFormat:@"Failed to get firmware, error: %s.", mach_error_string(ret)];
 
-	return [NSString stringWithFormat:@"Firmware: %d.%d.%d", firmwarever[0], firmwarever[1], firmwarever[2]];
+	return [NSString stringWithFormat:@"Firmware: %d.%d.%d", firmwarever[1], firmwarever[2], firmwarever[3]];
 }
 
 - (void)setCurrentUrbCount:(uint8_t)urbCount

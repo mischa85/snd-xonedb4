@@ -43,7 +43,15 @@ kern_return_t IMPL(PloytecDriver, Start)
 	ivars->usbDevice = OSDynamicCast(IOUSBHostDevice, provider);
 	if (!ivars->usbDevice) { os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: no IOUSBHostDevice provider"); return kIOReturnBadArgument; }
 
-	ret = GetChannelCount(ivars->usbDevice->CopyDeviceDescriptor(), inChannelCount, outChannelCount);
+	const IOUSBDeviceDescriptor* deviceDescriptor = ivars->usbDevice->CopyDeviceDescriptor();
+	if (deviceDescriptor)
+	{
+		ivars->usbVendorID = OSSwapLittleToHostInt16(deviceDescriptor->idVendor);
+		ivars->usbProductID = OSSwapLittleToHostInt16(deviceDescriptor->idProduct);
+		os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: VID: 0x%{public}04X PID: 0x%{public}04X", ivars->usbVendorID, ivars->usbProductID);
+	}
+
+	ret = GetChannelCount(inChannelCount, outChannelCount);
 	if (!ivars->usbDevice) { os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Cannot get channel count: %{public}s", strerror(ret)); return ret; }
 
 	ret = ivars->usbDevice->Open(this, 0, NULL);
@@ -71,14 +79,6 @@ kern_return_t IMPL(PloytecDriver, Start)
 	ret = GetHardwareStatus();
 	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: failed to get status from device: %{public}s", strerror(ret)); return ret; }
 
-	// Transition Guard: The Ploytec streaming engine requires a synchronous
-	// settling period after hardware state changes. This 500ms window
-	// ensures the FPGA state machine is ready to handle Audio Class requests
-	// without NAKing the control pipe.
-	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Sleeping for a bit...");
-	IOSleep(K_PLOYTEC_HARDWARE_SETTLE_MS);
-	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Continuing...");
-
 	// get framerate
 	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Getting current framerate...");
 	ret = GetHardwareFrameRate();
@@ -101,7 +101,7 @@ kern_return_t IMPL(PloytecDriver, Start)
 
 	// allgood
 	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Sending allgood...");
-	ret = ivars->usbDevice->DeviceRequest(this, 0x40, 0x49, 0xFFB2, 0x0000, 0x00, ivars->usbRXBufferCONTROL.get(), &bytesTransferred, 0);
+	ret = SetHardwareStatus(0xFFB2);
 	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: failed to get allgood from device: %{public}s", strerror(ret)); return ret; }
 
 	// get the USB pipes
@@ -562,35 +562,35 @@ uint16_t PloytecDriver::GetCurrentOutputFramesCount()
 	return ivars->usbCurrentOutputFramesCount;
 }
 
-kern_return_t PloytecDriver::GetChannelCount(const IOUSBDeviceDescriptor* usbDescriptor, uint32_t &inChannelCount, uint32_t &outChannelCount)
+kern_return_t PloytecDriver::GetChannelCount(uint32_t &inChannelCount, uint32_t &outChannelCount)
 {
 	kern_return_t ret;
 
 	os_log(OS_LOG_DEFAULT, "PloytecDriver::GetChannelCount: Getting channel count...");
 
-	switch (usbDescriptor->idProduct)
+	switch (ivars->usbProductID)
 	{
-		case 0xffdb: // Xone:DB4
+		case 0xFFDB: // Xone:DB4
 			inChannelCount = 8;
 			outChannelCount = 8;
 			ret = kIOReturnSuccess;
 			break;
-		case 0xffd2: // Xone:DB2
+		case 0xFFD2: // Xone:DB2
 			inChannelCount = 8;
 			outChannelCount = 8;
 			ret = kIOReturnSuccess;
 			break;
-		case 0xffdd: // Xone:DX
+		case 0xFFDD: // Xone:DX
 			inChannelCount = 8;
 			outChannelCount = 8;
 			ret = kIOReturnSuccess;
 			break;
-		case 0xff4d: // Xone:4D
+		case 0xFF4D: // Xone:4D
 			inChannelCount = 8;
 			outChannelCount = 8;
 			ret = kIOReturnSuccess;
 			break;
-		case 0xffad: // Wizard 4
+		case 0xFFAD: // Wizard 4
 			inChannelCount = 16;
 			outChannelCount = 2;
 			ret = kIOReturnUnsupported;
@@ -697,12 +697,10 @@ kern_return_t PloytecDriver::SetHardwareStatus(uint16_t value)
 	kern_return_t ret;
 	uint16_t bytesTransferred = 0;
 
-	os_log(OS_LOG_DEFAULT, "PloytecDriver::SetHardwareStatus: Sending mode 0x%04X...", value);
+	os_log(OS_LOG_DEFAULT, "PloytecDriver::SetHardwareStatus: Setting mode 0x%{public}04X...", value);
 
 	ret = ivars->usbDevice->DeviceRequest(this, 0x40, static_cast<uint8_t>('I'), value, 0x0000, 0x00, ivars->usbTXBufferCONTROL.get(), &bytesTransferred, 0);
-	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "SetHardwareStatus: failed %{public}s", strerror(ret)); return ret; }
-
-	IOSleep(500);
+	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDriver::SetHardwareStatus: failed %{public}s", strerror(ret)); return ret; }
 
 	return ret;
 }
@@ -715,8 +713,9 @@ kern_return_t PloytecDriver::GetHardwareFirmwareVersion()
 	ret = ivars->usbDevice->DeviceRequest(this, 0xC0, static_cast<uint8_t>('V'), 0x00, 0x00, 0x0f, ivars->usbRXBufferCONTROL.get(), &bytesTransferred, 0);
 	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDriver::GetHardwareFirmwareVersion: failed to get firmware version from device: %{public}s", strerror(ret)); return ret; }
 	
-	os_log(OS_LOG_DEFAULT, "PloytecDriver::GetHardwareFirmwareVersion: Firmware version: %{public}d.%{public}d.%{public}d", 1, ivars->usbRXBufferCONTROLAddr[2] / 10, ivars->usbRXBufferCONTROLAddr[2] % 10);
-	
+	os_log(OS_LOG_DEFAULT, "PloytecDriver::GetHardwareFirmwareVersion: ID:0x%{public}02X -> %{public}d.%{public}d.%{public}d", ivars->usbRXBufferCONTROLAddr[0], 1, ivars->usbRXBufferCONTROLAddr[2] / 10, ivars->usbRXBufferCONTROLAddr[2] % 10);
+
+	ivars->firmwareVersion.ID = ivars->usbRXBufferCONTROLAddr[0];
 	ivars->firmwareVersion.major = 1;
 	ivars->firmwareVersion.minor = ivars->usbRXBufferCONTROLAddr[2] / 10;
 	ivars->firmwareVersion.patch = ivars->usbRXBufferCONTROLAddr[2] % 10;
@@ -752,6 +751,14 @@ kern_return_t PloytecDriver::GetHardwareFrameRate()
 {
 	kern_return_t ret = kIOReturnSuccess;
 	uint16_t bytesTransferred;
+
+	// FIXME: For some reason the Xone:4D does not respond to the framerate readout request
+	if (ivars->usbVendorID == 0x0A4A && ivars->usbProductID == 0xFF4D)
+	{
+		os_log(OS_LOG_DEFAULT, "PloytecDriver::GetHardwareFrameRate: Xone:4D detected, skipping framerate readout.");
+		ivars->currentHWFrameRate = 96000;
+		return kIOReturnSuccess;
+	}
 
 	os_log(OS_LOG_DEFAULT, "PloytecDriver::GetHardwareFrameRate: Getting framerate...");
 
