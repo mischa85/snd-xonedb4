@@ -66,52 +66,10 @@ kern_return_t IMPL(PloytecDriver, Start)
 	ret = GetHardwareFirmwareVersion();
 	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: failed to get firmware version: %{public}s", strerror(ret)); return ret; }
 
-	// get status
-	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Getting device status...");
-	ret = GetHardwareStatus();
-	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: failed to get status from device: %{public}s", strerror(ret)); return ret; }
-
-	if (!(ivars->currentStatus & kStatusLegacyActive)) {
-	    os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Mode transition required. Current: 0x%02X", ivars->currentStatus);
-
-	    ret = SetHardwareStatus(0xFFB2);
-	    if (ret != kIOReturnSuccess) {
-		os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: SetHardwareStatus failed: %{public}s", strerror(ret));
-		return ret;
-	    }
-
-	    IOSleep(K_PLOYTEC_HARDWARE_SETTLE_MS);
-
-	    ret = GetHardwareStatus();
-	    if (ret != kIOReturnSuccess || !(ivars->currentStatus & kStatusLegacyActive)) {
-		os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Hardware failed to enter Legacy Mode. Status: 0x%{public}02X", ivars->currentStatus);
-		return kIOReturnNotReady;
-	    }
-
-	    os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Successfully entered Legacy Mode (Status: 0x%{public}02X)", ivars->currentStatus);
-	} else {
-	    os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Hardware already in Legacy Mode (0x%{public}02X). Skipping handshake.", ivars->currentStatus);
-	}
-
-	// get framerate
-	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Getting current framerate...");
-	ret = GetHardwareFrameRate();
-	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Cannot get framerate: %{public}s", strerror(ret)); return ret; }
-
 	// set framerate
 	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Setting framerate...");
 	ret = SetHardwareFrameRate(FRAME_RATE);
 	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Cannot set framerate: %{public}s", strerror(ret)); return ret; }
-
-	// get framerate
-	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Getting current framerate...");
-	ret = GetHardwareFrameRate();
-	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Cannot get framerate: %{public}s", strerror(ret)); return ret; }
-
-	// get status
-	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Getting device status...");
-	ret = GetHardwareStatus();
-	if (ret != kIOReturnSuccess) { os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: failed to get status from device: %{public}s", strerror(ret)); return ret; }
 
 	// allgood
 	os_log(OS_LOG_DEFAULT, "PloytecDriver::Start: Sending allgood...");
