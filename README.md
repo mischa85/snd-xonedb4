@@ -1,200 +1,189 @@
-# Ploytec Driver
+# 🎛️ Ploytec USB Audio & MIDI Driver
 
-This repository provides a cross-platform open-source **audio and MIDI driver** for various **Ploytec-based interfaces**, including multiple **Allen & Heath Xone** models and compatible hardware.  
-It supports both **BULK** and **INTERRUPT** USB streaming modes and is available for **Linux** and **macOS**.
+**Resurrecting the best DJ mixers ever made.**
 
----
+This repository contains an open-source, reverse-engineered driver for **Ploytec-based USB interfaces**. If you own an **Allen & Heath Xone:DB4**, **DB2**, or **DX**, you probably noticed that the official drivers died years ago.
 
-## Overview
-
-The goal of this project is to deliver reliable and well-documented driver support for devices that were previously **unavailable on Linux** and only worked on **very old macOS versions**.  
-Both the **Linux kernel module** and **macOS DriverKit system extension** have reached a **fairly stable** stage and are usable for everyday audio work.
-
-Developing under macOS **DriverKit** has proven challenging due to sparse documentation and limited reference code. This project reflects many lessons learned from building an end-to-end user-space + driver-space audio stack — from USB packet handling to CoreAudio and CoreMIDI integration.
+We fixed that.
 
 ---
 
-## Supported Devices
+## 🚀 The Philosophy
 
-| Device | Status |
-|:--|:--|
-| Allen & Heath Xone:DB4 | ✅ Supported |
-| Allen & Heath Xone:DB2 | ✅ Supported |
-| Allen & Heath Xone:DX | ✅ Supported |
-| Allen & Heath Xone:2D | ⚪ Planned |
-| Allen & Heath Xone:4D | ✅ Supported |
-| Allen & Heath WZ4:USB | 🔧 *Work in progress — support for non-8x8 channel layouts is being implemented* |
-| Smyth Research A16 Realiser | ⚪ Planned |
+We provide two ways to run this.
 
----
+1.  **CoreAudio HAL Plug-in (Recommended):**
+    This uses **Classic IOKit** to punch a hole directly to the USB bus from userspace.
+    * **SIP Compatible:** Works perfectly with System Integrity Protection (SIP) and AMFI **enabled**.
+    * **Zero-Copy:** Audio doesn't bounce around user-space unnecessarily.
+    * **Zero-Latency:** (Well, near zero). We use direct ring-buffers in shared memory.
+    * **Robust:** No "System Extension Blocked" loops. It just works.
 
-## Platform Support
-
-### Linux
-- ✅ PCM Out — 8 channels  
-- ✅ PCM In — 8 channels  
-- ✅ Sample Rate Switching  
-- ✅ MIDI Out  
-- ✅ MIDI In  
-
-### macOS
-- ✅ PCM Out — 8 channels  
-- ✅ PCM In — 8 channels  
-- ✅ Driver configuration via UI  
-- ⚙️ Sample Rate Switching (partial support)  
-- ✅ MIDI Out  
-- ✅ MIDI In  
+2.  **DriverKit System Extension:**
+    The "modern" Apple way using a **System Extension (dext)**.
+    * **Sandboxed:** Runs in the DriverKit environment.
+    * **Requires SIP Disabled:** Because we do not yet have the specific DriverKit entitlements from Apple, you must disable SIP and AMFI to load this driver. One day, if Apple grants us the entitlements, this will be the signed, secure standard.
 
 ---
 
-## Installation
+## 🎚️ Supported Devices
 
-### Linux
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/mischa85/snd-xonedb4
-   cd snd-xonedb4
-   ```
-
-2. Build the kernel module:
-   ```bash
-   make linux
-   ```
-
-3. Compress and install:
-   ```bash
-   zstd snd-usb-xonedb4.ko
-   sudo cp -f snd-usb-xonedb4.ko.zst /usr/lib/modules/$(uname -r)/kernel/sound/usb
-   sudo depmod
-   sudo modprobe snd-usb-xonedb4
-   ```
+| Device | Status | Notes |
+| :--- | :--- | :--- |
+| **Allen & Heath Xone:DB4** | ✅ **Perfect** | The beast works. 8-in/8-out. |
+| **Allen & Heath Xone:DB2** | ✅ **Perfect** | Your effects unit is back online. |
+| **Allen & Heath Xone:DX** | ✅ **Perfect** | 2010 called, it wants its Serato controller back. |
+| **Allen & Heath Xone:4D** | ✅ **Verified** | Analog filters meet digital routing. |
+| **Allen & Heath WZ4:USB** | 🚧 *WIP* | We are still teaching it how to count channels. |
+| **Smyth Research A16** | ⚪ *Planned* | Audioholics, we see you. |
 
 ---
 
-### macOS
+## 🖥️ Platform Support
 
-> **Note:** The driver uses **DriverKit** and runs as a **System Extension**.  
-> These steps must be followed carefully to ensure proper loading and permission approval.
+### 🐧 Linux (The "Just Works" Kernel Module)
+If you run Linux, you are already cool. This is a standard ALSA kernel module.
+* **Audio:** 8x8 Channels (PCM)
+* **MIDI:** In/Out fully supported via ALSA Sequencer.
+* **Modes:** Supports both **BULK** and **INTERRUPT** transfer modes automatically.
 
-1. **Set DriverKit debug boot arguments (before rebooting):**
-   ```bash
-   sudo nvram boot-args="amfi_get_out_of_my_way=0x1"
-   ```
+### 🍎 macOS (HAL Plugin)
+We bypass the generic class drivers to give you raw performance.
+* **Audio:** 8x8 Channels (CoreAudio HAL).
+* **MIDI:** CoreMIDI driver utilizing a lock-free ring buffer in shared memory.
 
-2. **Reboot into Recovery Mode:**
-   - **Intel:** Hold `⌘ + R` during boot.  
-   - **Apple Silicon:** Hold the power button → select *Options → Continue*.
-
-3. **Disable System Integrity Protection (SIP)** *(for testing/development use only)*:
-   ```bash
-   csrutil disable
-   reboot
-   ```
-
-4. **After reboot, clone and build the project:**
-   ```bash
-   git clone https://github.com/mischa85/snd-xonedb4
-   cd snd-xonedb4
-   make mac
-   ```
-
-5. **Install Xcode and configure signing:**
-   - Download **Xcode** from the Mac App Store.  
-   - Open **Xcode → Settings → Accounts**, and sign in with your Apple ID to create a free developer account.  
-   - Ensure a valid signing identity is available by running:
-     ```bash
-     security find-identity -v
-     ```
-     If this outputs `0 valid identities found`, you need to fix your signing setup in Xcode before proceeding.
-
-6. **Copy the Ploytec Driver Extension to the Applications:**
-   ```bash
-   make mac-install
-   ```
-
-7. **Enable logging before starting the driver:**
-   ```bash
-   make mac-logstream
-   ```
-   This starts a live log view to catch errors during startup.
-
-   Then start **Ploytec Driver Extension** from your **Applications** folder.
+### 🍎 macOS (DriverKit Extension)
+The modern, sandboxed implementation.
+* **Audio:** Standard CoreAudio integration via `AudioDriverKit`.
+* **Security:** Runs entirely in DriverKit.
 
 ---
 
-## Troubleshooting
+## 💿 Installation
 
-- **System Extension approval prompt:**  
-  After installation, macOS may block the extension. Open **System Settings → Privacy & Security**, scroll to the bottom, and click **Allow** next to the developer name.
+### 🍎 macOS: Option A - HAL Plugin (Recommended)
 
-- **⚠️ “Allow” button missing in Privacy & Securit):**  
-  macOS only shows the “Allow” button for a short time after a system extension is blocked.  
-  It will **hide the button** if:
-  - more than ~30 minutes have passed  
-  - the Mac has gone to sleep or locked  
-  - the user rebooted before clicking Allow  
-  - System Settings was already open when the extension was blocked  
+This gives you the lowest latency and works **without** disabling system security.
 
-  To force macOS to show the “Allow” dialog again:
+1.  **Download** the latest release.
+2.  **Run the Installer:**
+    * Right-click `install_hal.command` and select **Open**.
+    * *Note:* If you double-click and get a "Developer cannot be verified" or "Permission Denied" error, go to **System Settings** -> **Privacy & Security** and look for the "Open Anyway" button near the bottom, or just right-click and Open again.
+3.  **Authenticate:** Type your password (we need `sudo` to copy files to `/Library/Audio`).
+4.  The script will:
+    * Install the drivers.
+    * Nuke the "Gatekeeper Quarantine" (Apple doesn't like fun).
+    * Restart `coreaudiod`. **(Your audio will glitch for 2 seconds. Relax.)**
+5.  Plug in your mixer. Rock on.
 
-  1. **Quit System Settings completely**  
-     (right-click → Quit)
-  2. Reset the System Extension state:  
-     ```bash
-     systemextensionsctl reset
-     ```
-  3. Reinstall from the app.  
+### 🍎 macOS: Option B - DriverKit (System Extension)
 
-  4. Immediately open **System Settings → Privacy & Security**  
-     The **Allow** button should now be visible again.
+**⚠️ Important:** To run this extension without an official Apple entitlement, you **must** disable System Integrity Protection (SIP) and Apple Mobile File Integrity (AMFI).
 
-- **Driver not loading:**  
-  Run:
-  ```bash
-  make mac-logshow
-  ```
-  Review logs for entitlement, signature, or permission errors.
+**Prerequisites:**
+1.  Boot into **Recovery Mode** (Hold Cmd+R on Intel, or Power Button on Apple Silicon).
+2.  Open Utilities -> Terminal.
+3.  Run: `csrutil disable`
+4.  Reboot normally.
+5.  Open Terminal and run: `sudo boot-args="amfi_get_out_of_my_way=0x1"`
+6.  Reboot again.
 
-- **No valid developer identities:**  
-  Ensure your Apple ID is added under **Xcode → Settings → Accounts**, then run:
-  ```bash
-  security find-identity -v
-  ```
-  If it still shows *0 valid identities*, recreate the certificate via Xcode’s automatic signing.
+**Installation:**
+1.  **Download** the release.
+2.  **Run the Installer:**
+    * Right-click `install_dext.command` and select **Open**.
+    * *Note:* If you double-click and get a "Developer cannot be verified" or "Permission Denied" error, go to **System Settings** -> **Privacy & Security** and look for the "Open Anyway" button near the bottom, or just right-click and Open again.
+3.  The script will copy the "Ploytec Driver Extension.app" to `/Applications` and launch it.
+4.  **Activate:** Click "Activate" in the window that appears.
+5.  **Allow:** Go to **System Settings** -> **Privacy & Security** and allow the extension.
 
-- **MIDI not working:**  
-  On macOS, MIDI runs in user space. The **Ploytec Driver Extension** app must be running for MIDI I/O to function.
+### 🐧 Linux (Power User Mode)
 
-## Additional Notes
-
-
-- Current builds support **8-in / 8-out PCM** layouts only. Work is ongoing for devices with alternate configurations.  
-- Both Linux and macOS versions are stable for everyday use, though active development continues.  
-- On macOS, rare audio distortion may occur if the host application changes buffer size — this is under investigation.
+1.  Clone and build:
+    ```bash
+    git clone https://github.com/mischa85/snd-xonedb4
+    cd snd-xonedb4
+    sudo ./install_linux.sh
+    ```
+2.  That's it. We even reload the module for you.
 
 ---
 
-## Contributing
+## 🏗️ Building from Source (The "Signing" Pain)
 
-Contributions and testing feedback are welcome!  
-Particularly valuable are reports on alternate hardware, unusual channel layouts, or improvements to the macOS DriverKit implementation.
+If you are a developer or want to build the latest code, you **must** code-sign the binaries.
+
+### 1. Get a Free Signing Identity
+You do not need a paid Apple Developer program membership ($99/yr). A free Apple ID works fine.
+1.  Open **Xcode**.
+2.  Go to **Settings (Cmd+,)** -> **Accounts**.
+3.  Click the **`+`** button and add your Apple ID.
+4.  Select your Personal Team.
+5.  Click **Manage Certificates...**.
+6.  Click the **`+`** in the bottom left and select **Apple Development**.
+7.  Wait for it to say "Created". You now have a valid certificate in your Keychain.
+
+### 2. Build & Install
+Run the build script. It will auto-detect your new certificate:
+```bash ./install_hal.command```
 
 ---
 
-## Support the Project ☕
+## 🕵️ Troubleshooting
 
-If this project helped you, consider buying me a coffee:
+### 🔑 Signing & Build Issues
+
+**"The build script says '0 valid identities found'."**
+This is the most common error. It means `security find-identity -v -p codesigning` returns nothing, even if you added your account in Xcode.
+
+**Fix 1: The "Trust" Trap (Most Likely)**
+Did you manually change the certificate trust settings in Keychain Access?
+
+1. Open **Keychain Access**.
+2. Find your **"Apple Development: [Your Name]"** certificate.
+3. Right-click -> **Get Info**.
+4. Expand the **Trust** section.
+5. **CRITICAL:** Set everything to **"Use System Defaults"**.
+* *Why?* If you set this to "Always Trust", macOS adds a custom trust policy that breaks the codesign toolchain. It must stay on "System Defaults".
+
+**Fix 2: Missing WWDR Intermediate Certificate**
+Your certificate relies on an Apple intermediate authority. If it's missing, your cert is invalid.
+
+1. Open Keychain Access.
+2. Select "System Roots" or "Login" and look for **"Apple Worldwide Developer Relations Certification Authority"**.
+3. If missing or expired, download the [Worldwide Developer Relations - G3 (Intermediate)](https://www.apple.com/certificateauthority/) from Apple and double-click to install.
+
+### 🛠 Uninstalling
+
+* **HAL:** Run `uninstall_hal.command`.
+* **DriverKit:** Run `uninstall_dext.command`.
+* **Linux:** Run `uninstall_linux.sh`.
+
+---
+
+## 🛠️ For Developers
+
+The **HAL Plugin** implementation in this project is a rare example of a **User-Space USB Audio Driver** on macOS that *doesn't* use DriverKit. It utilizes:
+
+1. **IOUSBLib:** For raw pipe access directly from the HAL plugin.
+2. **AudioServerPlugIn:** To talk to CoreAudio.
+3. **POSIX Shared Memory:** To tunnel MIDI data between the Audio driver and the MIDI driver.
+
+Feel free to steal our code for your own obscure hardware projects.
+
+---
+
+## ☕ Fuel the Project
+
+If this driver saved your $2000 mixer from becoming a doorstop, consider buying me a coffee. It fuels the late-night reverse engineering sessions.
 
 <a href="https://www.buymeacoffee.com/mischa85" target="_blank">
-  <img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174">
+<img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174">
 </a>
-
-Your support helps keep this project maintained and compatible with evolving systems.
 
 ---
 
 ## License
 
-MIT License © 2025  
-Developed and maintained by the community.
+MIT License.
+*Do whatever you want*

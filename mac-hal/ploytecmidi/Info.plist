@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>hackerman.ploytecmidi</string>
+	<key>CFBundleName</key>
+	<string>Ploytec MIDI Driver</string>
+	<key>CFBundleExecutable</key>
+	<string>ploytecmidi</string>
+	<key>CFPlugInFactories</key>
+	<dict>
+		<key>43A67C89-12F5-4076-92F7-8975306B8F82</key>
+		<string>PloytecMIDIFactory</string>
+	</dict>
+	<key>CFPlugInTypes</key>
+	<dict>
+		<key>ECDE9574-0FE4-11D4-BB1A-0050E4CEA526</key>
+		<array>
+			<string>43A67C89-12F5-4076-92F7-8975306B8F82</string>
+		</array>
+	</dict>
+</dict>
+</plist>

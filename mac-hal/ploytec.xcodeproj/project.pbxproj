@@ -1,0 +1,483 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		1FC985DA2F05B4AE00668435 /* PloytecDriver.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 1FC985D72F05B4AE00668435 /* PloytecDriver.cpp */; };
+		1FC985DB2F05B4AE00668435 /* PloytecAudioDevice.cpp in Sources */ = {isa = PBXBuildFile; fileRef = 1FC985D52F05B4AE00668435 /* PloytecAudioDevice.cpp */; };
+		1FC985DC2F05B4AE00668435 /* PloytecPlugin.mm in Sources */ = {isa = PBXBuildFile; fileRef = 1FC985D82F05B4AE00668435 /* PloytecPlugin.mm */; };
+		1FC985E22F05B4B700668435 /* PloytecMIDIPlugin.mm in Sources */ = {isa = PBXBuildFile; fileRef = 1FC985DF2F05B4B700668435 /* PloytecMIDIPlugin.mm */; };
+		1FE242542F05D730004C729F /* CoreMIDI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1FC985E62F05B63100668435 /* CoreMIDI.framework */; };
+		1FF6DC902F06F1F00061482F /* CoreAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1FC985EA2F05B64A00668435 /* CoreAudio.framework */; };
+		1FF6DC912F06F1F40061482F /* IOKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1FC985E82F05B64300668435 /* IOKit.framework */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXFileReference section */
+		1FADCD2B2F05C8AC0059FC84 /* PloytecMIDIPlugin.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PloytecMIDIPlugin.h; sourceTree = "<group>"; };
+		1FADCD2E2F05C9960059FC84 /* CoreFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreFoundation.framework; path = System/Library/Frameworks/CoreFoundation.framework; sourceTree = SDKROOT; };
+		1FC985C72F05B43000668435 /* ploytechal.driver */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ploytechal.driver; sourceTree = BUILT_PRODUCTS_DIR; };
+		1FC985CF2F05B44B00668435 /* ploytecmidi.plugin */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ploytecmidi.plugin; sourceTree = BUILT_PRODUCTS_DIR; };
+		1FC985D32F05B4AE00668435 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		1FC985D42F05B4AE00668435 /* PloytecAudioDevice.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PloytecAudioDevice.h; sourceTree = "<group>"; };
+		1FC985D52F05B4AE00668435 /* PloytecAudioDevice.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = PloytecAudioDevice.cpp; sourceTree = "<group>"; };
+		1FC985D62F05B4AE00668435 /* PloytecDriver.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PloytecDriver.h; sourceTree = "<group>"; };
+		1FC985D72F05B4AE00668435 /* PloytecDriver.cpp */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.cpp; path = PloytecDriver.cpp; sourceTree = "<group>"; };
+		1FC985D82F05B4AE00668435 /* PloytecPlugin.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = PloytecPlugin.mm; sourceTree = "<group>"; };
+		1FC985DE2F05B4B700668435 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		1FC985DF2F05B4B700668435 /* PloytecMIDIPlugin.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = PloytecMIDIPlugin.mm; sourceTree = "<group>"; };
+		1FC985E32F05B55100668435 /* PloytecSharedData.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PloytecSharedData.h; sourceTree = "<group>"; };
+		1FC985E62F05B63100668435 /* CoreMIDI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMIDI.framework; path = System/Library/Frameworks/CoreMIDI.framework; sourceTree = SDKROOT; };
+		1FC985E82F05B64300668435 /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = System/Library/Frameworks/IOKit.framework; sourceTree = SDKROOT; };
+		1FC985EA2F05B64A00668435 /* CoreAudio.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreAudio.framework; path = System/Library/Frameworks/CoreAudio.framework; sourceTree = SDKROOT; };
+/* End PBXFileReference section */
+
+/* Begin PBXFrameworksBuildPhase section */
+		1FC985C42F05B43000668435 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1FF6DC902F06F1F00061482F /* CoreAudio.framework in Frameworks */,
+				1FF6DC912F06F1F40061482F /* IOKit.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1FE242532F05D726004C729F /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1FE242542F05D730004C729F /* CoreMIDI.framework in Frameworks */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXFrameworksBuildPhase section */
+
+/* Begin PBXGroup section */
+		1FA2686F2EF990B700378831 = {
+			isa = PBXGroup;
+			children = (
+				1FA268792EF990B700378831 /* Products */,
+				1FC985D92F05B4AE00668435 /* ploytechal */,
+				1FC985E02F05B4B700668435 /* ploytecmidi */,
+				1FC985E42F05B55100668435 /* shared */,
+				1FC985E52F05B63000668435 /* Frameworks */,
+			);
+			sourceTree = "<group>";
+		};
+		1FA268792EF990B700378831 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				1FC985C72F05B43000668435 /* ploytechal.driver */,
+				1FC985CF2F05B44B00668435 /* ploytecmidi.plugin */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+		1FC985D92F05B4AE00668435 /* ploytechal */ = {
+			isa = PBXGroup;
+			children = (
+				1FC985D32F05B4AE00668435 /* Info.plist */,
+				1FC985D82F05B4AE00668435 /* PloytecPlugin.mm */,
+				1FC985D72F05B4AE00668435 /* PloytecDriver.cpp */,
+				1FC985D62F05B4AE00668435 /* PloytecDriver.h */,
+				1FC985D52F05B4AE00668435 /* PloytecAudioDevice.cpp */,
+				1FC985D42F05B4AE00668435 /* PloytecAudioDevice.h */,
+			);
+			path = ploytechal;
+			sourceTree = "<group>";
+		};
+		1FC985E02F05B4B700668435 /* ploytecmidi */ = {
+			isa = PBXGroup;
+			children = (
+				1FC985DE2F05B4B700668435 /* Info.plist */,
+				1FC985DF2F05B4B700668435 /* PloytecMIDIPlugin.mm */,
+				1FADCD2B2F05C8AC0059FC84 /* PloytecMIDIPlugin.h */,
+			);
+			path = ploytecmidi;
+			sourceTree = "<group>";
+		};
+		1FC985E42F05B55100668435 /* shared */ = {
+			isa = PBXGroup;
+			children = (
+				1FC985E32F05B55100668435 /* PloytecSharedData.h */,
+			);
+			path = shared;
+			sourceTree = "<group>";
+		};
+		1FC985E52F05B63000668435 /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				1FADCD2E2F05C9960059FC84 /* CoreFoundation.framework */,
+				1FC985EA2F05B64A00668435 /* CoreAudio.framework */,
+				1FC985E62F05B63100668435 /* CoreMIDI.framework */,
+				1FC985E82F05B64300668435 /* IOKit.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		1FC985C62F05B43000668435 /* ploytechal */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1FC985C82F05B43000668435 /* Build configuration list for PBXNativeTarget "ploytechal" */;
+			buildPhases = (
+				1FC985C32F05B43000668435 /* Sources */,
+				1FC985C52F05B43000668435 /* Resources */,
+				1FC985C42F05B43000668435 /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ploytechal;
+			packageProductDependencies = (
+			);
+			productName = ploytechal;
+			productReference = 1FC985C72F05B43000668435 /* ploytechal.driver */;
+			productType = "com.apple.product-type.bundle";
+		};
+		1FC985CE2F05B44B00668435 /* ploytecmidi */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 1FC985D02F05B44B00668435 /* Build configuration list for PBXNativeTarget "ploytecmidi" */;
+			buildPhases = (
+				1FC985CB2F05B44B00668435 /* Sources */,
+				1FC985CD2F05B44B00668435 /* Resources */,
+				1FE242532F05D726004C729F /* Frameworks */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = ploytecmidi;
+			packageProductDependencies = (
+			);
+			productName = ploytecmidi;
+			productReference = 1FC985CF2F05B44B00668435 /* ploytecmidi.plugin */;
+			productType = "com.apple.product-type.bundle";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		1FA268702EF990B700378831 /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = 1;
+				LastUpgradeCheck = 2610;
+				TargetAttributes = {
+					1FC985C62F05B43000668435 = {
+						CreatedOnToolsVersion = 26.1;
+					};
+					1FC985CE2F05B44B00668435 = {
+						CreatedOnToolsVersion = 26.1;
+					};
+				};
+			};
+			buildConfigurationList = 1FA268732EF990B700378831 /* Build configuration list for PBXProject "ploytec" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				en,
+				Base,
+			);
+			mainGroup = 1FA2686F2EF990B700378831;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = 1FA268792EF990B700378831 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				1FC985C62F05B43000668435 /* ploytechal */,
+				1FC985CE2F05B44B00668435 /* ploytecmidi */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		1FC985C52F05B43000668435 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1FC985CD2F05B44B00668435 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		1FC985C32F05B43000668435 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1FC985DA2F05B4AE00668435 /* PloytecDriver.cpp in Sources */,
+				1FC985DB2F05B4AE00668435 /* PloytecAudioDevice.cpp in Sources */,
+				1FC985DC2F05B4AE00668435 /* PloytecPlugin.mm in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		1FC985CB2F05B44B00668435 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				1FC985E22F05B4B700668435 /* PloytecMIDIPlugin.mm in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin XCBuildConfiguration section */
+		1FA2687A2EF990B700378831 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = ET9H987U26;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"DEBUG=1",
+					"$(inherited)",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.1;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				NEW_SETTING = "";
+				SDKROOT = macosx;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Debug;
+		};
+		1FA2687B2EF990B700378831 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = ET9H987U26;
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_USER_SCRIPT_SANDBOXING = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu17;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
+				MACOSX_DEPLOYMENT_TARGET = 26.1;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				NEW_SETTING = "";
+				SDKROOT = macosx;
+				TARGETED_DEVICE_FAMILY = 1;
+			};
+			name = Release;
+		};
+		1FC985C92F05B43000668435 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ploytechal/Info.plist;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSPrincipalClass = "";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Bundles";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = hackerman.ploytechal;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				WRAPPER_EXTENSION = driver;
+			};
+			name = Debug;
+		};
+		1FC985CA2F05B43000668435 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ploytechal/Info.plist;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSPrincipalClass = "";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Bundles";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = hackerman.ploytechal;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				WRAPPER_EXTENSION = driver;
+			};
+			name = Release;
+		};
+		1FC985D12F05B44B00668435 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ploytecmidi/Info.plist;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSPrincipalClass = "";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Bundles";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = hackerman.ploytecmidi;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				WRAPPER_EXTENSION = plugin;
+			};
+			name = Debug;
+		};
+		1FC985D22F05B44B00668435 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Manual;
+				COMBINE_HIDPI_IMAGES = YES;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = "";
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = ploytecmidi/Info.plist;
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				INFOPLIST_KEY_NSPrincipalClass = "";
+				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Bundles";
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = hackerman.ploytecmidi;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				PROVISIONING_PROFILE_SPECIFIER = "";
+				SKIP_INSTALL = YES;
+				STRING_CATALOG_GENERATE_SYMBOLS = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				WRAPPER_EXTENSION = plugin;
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		1FA268732EF990B700378831 /* Build configuration list for PBXProject "ploytec" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1FA2687A2EF990B700378831 /* Debug */,
+				1FA2687B2EF990B700378831 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		1FC985C82F05B43000668435 /* Build configuration list for PBXNativeTarget "ploytechal" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1FC985C92F05B43000668435 /* Debug */,
+				1FC985CA2F05B43000668435 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		1FC985D02F05B44B00668435 /* Build configuration list for PBXNativeTarget "ploytecmidi" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				1FC985D12F05B44B00668435 /* Debug */,
+				1FC985D22F05B44B00668435 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 1FA268702EF990B700378831 /* Project object */;
+}
