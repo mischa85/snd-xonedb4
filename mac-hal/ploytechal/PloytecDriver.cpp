@@ -398,6 +398,21 @@ bool PloytecDriver::StartStreaming(uint8_t urbCount) {
 	} else {
 		for (size_t i = 432; i + 1 < BUFFER_SIZE_OUT; i += 482) { ivars->usbTXBufferPCMandUART[i] = 0xFD; ivars->usbTXBufferPCMandUART[i + 1] = 0xFD; }
 	}
+
+	IOUSBInterfaceInterface** inIntf = IfPtr(ivars, ivars->pcmInIf);
+	if (inIntf && ivars->usbPCMinPipe) {
+		(*inIntf)->ClearPipeStallBothEnds(inIntf, ivars->usbPCMinPipe);
+	}
+
+	IOUSBInterfaceInterface** outIntf = IfPtr(ivars, ivars->pcmOutIf);
+	if (outIntf && ivars->usbPCMoutPipe) {
+		(*outIntf)->ClearPipeStallBothEnds(outIntf, ivars->usbPCMoutPipe);
+	}
+
+	IOUSBInterfaceInterface** midiIntf= IfPtr(ivars, ivars->midiInIf);
+	if (midiIntf && ivars->usbMIDIinPipe) {
+		(*midiIntf)->ClearPipeStallBothEnds(midiIntf, ivars->usbMIDIinPipe);
+	}
 	
 	SubmitMIDIin();
 	for(uint8_t i=0; i<urbCount; ++i) { SubmitPCMin(i); SubmitPCMout(i); }
