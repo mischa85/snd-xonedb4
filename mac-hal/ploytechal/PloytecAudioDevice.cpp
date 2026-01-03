@@ -8,6 +8,8 @@
 #include <cstring>
 
 static constexpr uint8_t COREAUDIO_BYTES_PER_SAMPLE = 4; // FLOAT32
+#define PLOYTEC_PCM_OUT_FRAME_SIZE 48
+#define PLOYTEC_PCM_IN_FRAME_SIZE 64
 
 PloytecAudioDevice& PloytecAudioDevice::Get() {
 	static PloytecAudioDevice instance;
@@ -56,11 +58,9 @@ bool PloytecAudioDevice::init(PloytecDriver* in_driver, bool in_supports_prewarm
 	mIvars.currentStreamFormat.mBytesPerFrame = 32;
 	mIvars.currentStreamFormat.mChannelsPerFrame = 8;
 	mIvars.currentStreamFormat.mBitsPerChannel = 32;
-	mIvars.bufferFrameSize = 2560;
 	
 	RebuildStreamConfigsForBufferSize();
-	mach_timebase_info_data_t timebase; mach_timebase_info(&timebase);
-	mTimebaseNumer = timebase.numer; mTimebaseDenom = timebase.denom;
+
 	mIvars.HWSampleTimeOut = 0; mIvars.HWSampleTimeIn = 0;
 	os_log(GetLog(), "[PloytecHAL] Audio Engine Initialized (Period=%u)", in_zero_timestamp_period);
 	return true;
@@ -72,8 +72,9 @@ kern_return_t PloytecAudioDevice::StartIO() {
 	os_log(GetLog(), "[PloytecHAL] >>> StartIO Called <<<");
 	mIvars.lastZeroReported = 0; mIvars.IOStarted = true;
 	mIvars.PCMinActive = false; mIvars.PCMoutActive = false;
-	
-	UpdateCurrentZeroTimestamp(mIvars.HWSampleTimeOut, mach_absolute_time());
+	mIvars.HWSampleTimeIn = 0; mIvars.HWSampleTimeOut = 0;
+	mIvars.lastZeroReported = UINT64_MAX;
+
 	mIvars.mTimestampSeed++;
 	return kIOReturnSuccess;
 }
@@ -87,13 +88,19 @@ kern_return_t PloytecAudioDevice::StopIO() {
 
 bool PloytecAudioDevice::Playback(uint16_t &currentpos, uint16_t frameCount, uint64_t completionTimestamp) {
 	uint32_t period = GetZeroTimestampPeriod();
-	uint64_t currentSampleTime = mIvars.HWSampleTimeOut;
-	currentpos = (currentSampleTime % period) / frameCount;
-	mIvars.HWSampleTimeOut += frameCount;
-	uint64_t nextSampleTime = mIvars.HWSampleTimeOut;
-	if ((currentSampleTime / period) != (nextSampleTime / period)) {
-		uint64_t newAnchorSample = (nextSampleTime / period) * period;
-		UpdateCurrentZeroTimestamp(newAnchorSample, completionTimestamp);
+	uint64_t sampleTime = mIvars.HWSampleTimeOut;
+
+	currentpos = (sampleTime % period) / frameCount;
+
+	if (mIvars.IOStarted)
+	{
+		mIvars.HWSampleTimeOut += frameCount;
+		const uint64_t expectedZero = (mIvars.HWSampleTimeOut / period) * period;
+		if (expectedZero != mIvars.lastZeroReported)
+		{
+			UpdateCurrentZeroTimestamp(expectedZero, completionTimestamp);
+			mIvars.lastZeroReported = expectedZero;
+		}
 	}
 	return true;
 }
@@ -117,83 +124,70 @@ HRESULT PloytecAudioDevice::GetZeroTimeStamp(AudioServerPlugInDriverRef inDriver
 uint32_t PloytecAudioDevice::GetZeroTimestampPeriod() const { return mIvars.zeroTimestampPeriod; }
 
 OSStatus PloytecAudioDevice::ioOperationBulk(AudioServerPlugInDriverRef, AudioObjectID inDeviceObjectID, UInt32 inStreamObjectID, UInt32 inClientID, UInt32 inOperationID, UInt32 inIOBufferFrameSize, const AudioServerPlugInIOCycleInfo* inIOCycleInfo, void* ioMainBuffer, void* ioSecondaryBuffer) {
+	uint32_t period = mIvars.zeroTimestampPeriod;
+	if (period == 0) return kAudioHardwareNoError;
+
 	if (inOperationID == kAudioServerPlugInIOOperationWriteMix) {
-		mIvars.PCMoutActive = true; const float* srcPtr = (float*)ioMainBuffer; uint8_t* baseDst = mIvars.PloytecOutputBufferAddr;
+		mIvars.PCMoutActive = true;
+		const float* srcBuffer = (float*)ioMainBuffer;
+		uint8_t* dstBuffer = mIvars.PloytecOutputBufferAddr;
 		uint64_t sampleTime = (uint64_t)inIOCycleInfo->mOutputTime.mSampleTime;
-		uint32_t ringWriteIndex = (uint32_t)(sampleTime % mOutputBufferFrameCapacity);
-		uint32_t framesRemaining = inIOBufferFrameSize;
-		
-		while (framesRemaining > 0) {
-			uint32_t framesUntilWrap = mOutputBufferFrameCapacity - ringWriteIndex;
-			uint32_t framesToProcess = (framesRemaining < framesUntilWrap) ? framesRemaining : framesUntilWrap;
-			while (framesToProcess > 0) {
-				uint32_t blockIndex = ringWriteIndex / 10;
-				uint32_t frameInBlock = ringWriteIndex % 10;
-				uint32_t byteOffset = (blockIndex * 512) + (frameInBlock * 48);
-				uint8_t* dstPtr = baseDst + byteOffset;
-				uint32_t framesLeftInBlock = 10 - frameInBlock;
-				uint32_t batch = (framesToProcess < framesLeftInBlock) ? framesToProcess : framesLeftInBlock;
-				for (uint32_t k = 0; k < batch; k++) { EncodePloytecPCM(dstPtr, srcPtr); dstPtr += 48; srcPtr += 8; }
-				framesToProcess -= batch; framesRemaining -= batch; ringWriteIndex += batch;
+		for (uint32_t i = 0; i < inIOBufferFrameSize; i++) {
+			uint32_t sampleOffset = (uint32_t)((sampleTime + i) % period);
+			uint32_t byteOffset = 0;
+			if (sampleOffset >= 10) {
+				byteOffset = ((sampleOffset - 10) / 10) * 32 + 32;
+			} else {
+				byteOffset = 0;
 			}
-			if (ringWriteIndex >= mOutputBufferFrameCapacity) ringWriteIndex = 0;
-		}
-	} else if (inOperationID == kAudioServerPlugInIOOperationReadInput) {
-		float* dstPtr = (float*)ioMainBuffer; uint8_t* baseSrc = mIvars.PloytecInputBufferAddr;
-		uint64_t sampleTime = (uint64_t)inIOCycleInfo->mInputTime.mSampleTime;
-		uint32_t ringReadIndex = (uint32_t)(sampleTime % mInputBufferFrameCapacity);
-		uint32_t framesRemaining = inIOBufferFrameSize;
-		while (framesRemaining > 0) {
-			uint32_t framesUntilWrap = mInputBufferFrameCapacity - ringReadIndex;
-			uint32_t framesToProcess = (framesRemaining < framesUntilWrap) ? framesRemaining : framesUntilWrap;
-			uint8_t* srcPtr = baseSrc + (ringReadIndex * 64);
-			for (uint32_t k = 0; k < framesToProcess; k++) { DecodePloytecPCM(dstPtr, srcPtr); srcPtr += 64; dstPtr += 8; }
-			framesRemaining -= framesToProcess; ringReadIndex += framesToProcess;
-			if (ringReadIndex >= mInputBufferFrameCapacity) ringReadIndex = 0;
+			EncodePloytecPCM(dstBuffer + byteOffset + (sampleOffset * PLOYTEC_PCM_OUT_FRAME_SIZE), srcBuffer + (i * 8));
 		}
 	}
+	else if (inOperationID == kAudioServerPlugInIOOperationReadInput) {
+		mIvars.PCMinActive = true;
+		float* dstPtr = (float*)ioMainBuffer;
+		uint8_t* baseSrc = mIvars.PloytecInputBufferAddr;
+		uint64_t sampleTime = (uint64_t)inIOCycleInfo->mInputTime.mSampleTime;
+		for (uint32_t i = 0; i < inIOBufferFrameSize; i++) {
+			uint32_t sampleOffset = (uint32_t)((sampleTime + i) % period);
+			DecodePloytecPCM(dstPtr + (i * 8), baseSrc + (sampleOffset * PLOYTEC_PCM_IN_FRAME_SIZE));
+		}
+	}
+
 	return kAudioHardwareNoError;
 }
 
 OSStatus PloytecAudioDevice::ioOperationInterrupt(AudioServerPlugInDriverRef, AudioObjectID, UInt32, UInt32, UInt32 inOperationID, UInt32 inIOBufferFrameSize, const AudioServerPlugInIOCycleInfo* inIOCycleInfo, void* ioMainBuffer, void* ioSecondaryBuffer) {
+	uint32_t period = mIvars.zeroTimestampPeriod;
+	if (period == 0) return kAudioHardwareNoError;
+
 	if (inOperationID == kAudioServerPlugInIOOperationWriteMix) {
-		mIvars.PCMoutActive = true; const float* srcPtr = (float*)ioMainBuffer; uint8_t* baseDst = mIvars.PloytecOutputBufferAddr;
+		mIvars.PCMoutActive = true;
+		const float* srcBuffer = (float*)ioMainBuffer;
+		uint8_t* dstBuffer = mIvars.PloytecOutputBufferAddr;
 		uint64_t sampleTime = (uint64_t)inIOCycleInfo->mOutputTime.mSampleTime;
-		uint32_t ringWriteIndex = (uint32_t)(sampleTime % mIvars.zeroTimestampPeriod);
-		uint32_t framesRemaining = inIOBufferFrameSize; uint32_t period = mIvars.zeroTimestampPeriod;
-		while (framesRemaining > 0) {
-			uint32_t framesUntilWrap = period - ringWriteIndex;
-			uint32_t framesToProcess = (framesRemaining < framesUntilWrap) ? framesRemaining : framesUntilWrap;
-			while (framesToProcess > 0) {
-				uint32_t blockIndex = ringWriteIndex / 10;
-				uint32_t frameInBlock = ringWriteIndex % 10;
-				uint32_t blockBase = blockIndex * 482;
-				uint32_t framesLeftInBlock = 10 - frameInBlock;
-				uint32_t batch = (framesToProcess < framesLeftInBlock) ? framesToProcess : framesLeftInBlock;
-				for (uint32_t k = 0; k < batch; k++) {
-					uint32_t padding = (frameInBlock >= 9) ? 2 : 0;
-					uint32_t byteOffset = blockBase + (frameInBlock * 48) + padding;
-					EncodePloytecPCM(baseDst + byteOffset, srcPtr);
-					srcPtr += 8; frameInBlock++;
-				}
-				framesToProcess -= batch; framesRemaining -= batch; ringWriteIndex += batch;
+		for (uint32_t i = 0; i < inIOBufferFrameSize; i++) {
+			uint32_t sampleOffset = (uint32_t)((sampleTime + i) % period);
+			uint32_t byteOffset = 0;
+			if (sampleOffset >= 9) {
+				byteOffset = ((sampleOffset - 9) / 10) * 2 + 2;
+			} else {
+				byteOffset = 0;
 			}
-			if (ringWriteIndex >= period) ringWriteIndex = 0;
-		}
-	} else if (inOperationID == kAudioServerPlugInIOOperationReadInput) {
-		float* dstPtr = (float*)ioMainBuffer; uint8_t* baseSrc = mIvars.PloytecInputBufferAddr;
-		uint64_t sampleTime = (uint64_t)inIOCycleInfo->mInputTime.mSampleTime;
-		uint32_t ringReadIndex = (uint32_t)(sampleTime % mIvars.zeroTimestampPeriod);
-		uint32_t framesRemaining = inIOBufferFrameSize; uint32_t period = mIvars.zeroTimestampPeriod;
-		while (framesRemaining > 0) {
-			uint32_t framesUntilWrap = period - ringReadIndex;
-			uint32_t framesToProcess = (framesRemaining < framesUntilWrap) ? framesRemaining : framesUntilWrap;
-			uint8_t* srcPtr = baseSrc + (ringReadIndex * 64);
-			for (uint32_t k = 0; k < framesToProcess; k++) { DecodePloytecPCM(dstPtr, srcPtr); srcPtr += 64; dstPtr += 8; }
-			framesRemaining -= framesToProcess; ringReadIndex += framesToProcess;
-			if (ringReadIndex >= period) ringReadIndex = 0;
+			EncodePloytecPCM(dstBuffer + byteOffset + (sampleOffset * PLOYTEC_PCM_OUT_FRAME_SIZE), srcBuffer + (i * 8));
 		}
 	}
+	else if (inOperationID == kAudioServerPlugInIOOperationReadInput) {
+		mIvars.PCMinActive = true;
+		float* dstPtr = (float*)ioMainBuffer;
+		uint8_t* baseSrc = mIvars.PloytecInputBufferAddr;
+		uint64_t sampleTime = (uint64_t)inIOCycleInfo->mInputTime.mSampleTime;
+		for (uint32_t i = 0; i < inIOBufferFrameSize; i++) {
+			uint32_t sampleOffset = (uint32_t)((sampleTime + i) % period);
+			DecodePloytecPCM(dstPtr + (i * 8), baseSrc + (sampleOffset * PLOYTEC_PCM_IN_FRAME_SIZE));
+		}
+	}
+
 	return kAudioHardwareNoError;
 }
 
@@ -215,7 +209,6 @@ AudioStreamRangedDescription PloytecAudioDevice::GetStreamRangedDescription() co
 	outDesc.mSampleRateRange.mMinimum = 96000.0; outDesc.mSampleRateRange.mMaximum = 96000.0;
 	return outDesc;
 }
-AudioValueRange PloytecAudioDevice::GetBufferFrameSizeRange() const { AudioValueRange range; range.mMinimum = 2560; range.mMaximum = 2560; return range; }
 
 AudioChannelLayout* PloytecAudioDevice::GetPreferredChannelLayout(AudioObjectPropertyScope inScope) {
 	const UInt32 numChannels = (inScope == kAudioObjectPropertyScopeInput) ? mIvars.inChannelCount : mIvars.outChannelCount;
@@ -239,7 +232,7 @@ UInt32 PloytecAudioDevice::GetPreferredChannelLayoutSize(AudioObjectPropertyScop
 }
 
 void PloytecAudioDevice::RebuildStreamConfigsForBufferSize() {
-	const uint32_t frames = mIvars.bufferFrameSize;
+	const uint32_t frames = 2560;
 	if (mIvars.inChannelCount > 0) {
 		mIvars.inputConfig.mNumberBuffers = 1;
 		mIvars.inputConfig.mBuffers[0].mNumberChannels = mIvars.inChannelCount;

@@ -14,7 +14,6 @@ struct PloytecAudioDevice_IVars {
 	CFStringRef in_device_uid = nullptr;
 	CFStringRef in_model_uid = nullptr;
 	CFStringRef in_manufacturer_uid = nullptr;
-	uint32_t bufferFrameSize = 32768;
 	uint32_t zeroTimestampPeriod = 2560;
 	uint8_t* PloytecInputBufferAddr = nullptr;
 	uint8_t* PloytecOutputBufferAddr = nullptr;
@@ -70,10 +69,8 @@ public:
 	AudioStreamBasicDescription GetStreamFormat() const;
 	AudioStreamRangedDescription GetStreamRangedDescription() const;
 	UInt32 GetLatency() const { return 128; }
-	UInt32 GetSafetyOffset() const { return 512; }
+	UInt32 GetSafetyOffset() const { return 80; }
 	UInt32 GetZeroTimestampPeriod() const;
-	UInt32 GetBufferFrameSize() const { return mIvars.bufferFrameSize; }
-	AudioValueRange GetBufferFrameSizeRange() const;
 	uint64_t GetTotalHardwareFrames() const { return mIvars.HWSampleTimeOut; }
 	AudioChannelLayout* GetPreferredChannelLayout(AudioObjectPropertyScope inScope);
 	UInt32 GetPreferredChannelLayoutSize(AudioObjectPropertyScope inScope) const;
@@ -97,9 +94,16 @@ private:
 		mTimestampSample.store(sample, std::memory_order_release);
 		mTimestampSeq.fetch_add(1, std::memory_order_release);
 	}
+
 	inline void LoadTimestamp(uint64_t& sample, uint64_t& host) {
-		sample = mTimestampSample.load(std::memory_order_relaxed);
-		host = mTimestampHost.load(std::memory_order_relaxed);
+		uint32_t seq1, seq2;
+		do {
+			seq1 = mTimestampSeq.load(std::memory_order_acquire);
+			sample = mTimestampSample.load(std::memory_order_relaxed);
+			host = mTimestampHost.load(std::memory_order_relaxed);
+			std::atomic_thread_fence(std::memory_order_acquire);
+			seq2 = mTimestampSeq.load(std::memory_order_relaxed);
+		} while (seq1 != seq2 || (seq1 & 1));
 	}
 
 	OSStatus ioOperationBulk(AudioServerPlugInDriverRef inDriver, AudioObjectID inDeviceObjectID, UInt32 inStreamObjectID, UInt32 inClientID, UInt32 inOperationID, UInt32 inIOBufferFrameSize, const AudioServerPlugInIOCycleInfo* inIOCycleInfo, void* ioMainBuffer, void* ioSecondaryBuffer);

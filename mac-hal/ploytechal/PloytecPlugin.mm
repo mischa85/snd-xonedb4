@@ -77,10 +77,10 @@ extern "C" Boolean PloytecHasProperty(AudioServerPlugInDriverRef, AudioObjectID 
 			case kAudioDevicePropertyTransportType: case kAudioDevicePropertyIsHidden:
 			case kAudioDevicePropertyDeviceIsAlive: case kAudioDevicePropertyDeviceIsRunning:
 			case kAudioDevicePropertyDeviceIsRunningSomewhere: case kAudioDevicePropertyNominalSampleRate:
-			case kAudioDevicePropertyAvailableNominalSampleRates: case kAudioDevicePropertyBufferFrameSize:
-			case kAudioDevicePropertyBufferFrameSizeRange: case kAudioDevicePropertyStreams:
+			case kAudioDevicePropertyAvailableNominalSampleRates: case kAudioDevicePropertyStreams:
 			case kAudioDevicePropertyStreamConfiguration: case kAudioDevicePropertyLatency:
-			case kAudioDevicePropertyZeroTimeStampPeriod: case kAudioDevicePropertyPreferredChannelLayout:
+			case kAudioDevicePropertySafetyOffset: case kAudioDevicePropertyPreferredChannelLayout:
+			case kAudioDevicePropertyZeroTimeStampPeriod:
 				return true;
 		}
 		return false;
@@ -126,7 +126,6 @@ extern "C" HRESULT PloytecGetPropertyDataSize(AudioServerPlugInDriverRef, AudioO
 			case kAudioDevicePropertyDeviceIsRunningSomewhere: case kAudioDevicePropertyNominalSampleRate:
 				*outDataSize = sizeof(Float64); return kAudioHardwareNoError;
 			case kAudioDevicePropertyAvailableNominalSampleRates: *outDataSize = sizeof(AudioValueRange); return kAudioHardwareNoError;
-			case kAudioDevicePropertyBufferFrameSize: case kAudioDevicePropertyBufferFrameSizeRange: *outDataSize = sizeof(AudioValueRange); return kAudioHardwareNoError;
 			case kAudioDevicePropertyStreams:
 				if (inAddress->mScope == kAudioObjectPropertyScopeInput) *outDataSize = sizeof(AudioObjectID);
 				else if (IsOutputScope(inAddress->mScope)) *outDataSize = sizeof(AudioObjectID);
@@ -136,7 +135,7 @@ extern "C" HRESULT PloytecGetPropertyDataSize(AudioServerPlugInDriverRef, AudioO
 			case kAudioDevicePropertyStreamConfiguration:
 				*outDataSize = GetAudioBufferListSize((IsOutputScope(inAddress->mScope) ? PloytecAudioDevice::Get().GetOutputStreamConfiguration() : PloytecAudioDevice::Get().GetInputStreamConfiguration())->mNumberBuffers);
 				return kAudioHardwareNoError;
-			case kAudioDevicePropertyLatency: case kAudioDevicePropertyZeroTimeStampPeriod: *outDataSize = sizeof(UInt32); return kAudioHardwareNoError;
+			case kAudioDevicePropertySafetyOffset: case kAudioDevicePropertyLatency: case kAudioDevicePropertyZeroTimeStampPeriod: *outDataSize = sizeof(UInt32); return kAudioHardwareNoError;
 			case kAudioDevicePropertyPreferredChannelLayout: *outDataSize = PloytecAudioDevice::Get().GetPreferredChannelLayoutSize(inAddress->mScope); return kAudioHardwareNoError;
 			default: return kAudioHardwareUnknownPropertyError;
 		}
@@ -186,8 +185,6 @@ extern "C" HRESULT PloytecGetPropertyData(AudioServerPlugInDriverRef, AudioObjec
 			case kAudioDevicePropertyDeviceIsRunning: case kAudioDevicePropertyDeviceIsRunningSomewhere: return WriteUInt32(inMax, outSize, outData, gIsRunning ? 1 : 0);
 			case kAudioDevicePropertyNominalSampleRate: return WriteFloat64(inMax, outSize, outData, PloytecAudioDevice::Get().GetNominalSampleRate());
 			case kAudioDevicePropertyAvailableNominalSampleRates: if (outSize) *outSize = sizeof(AudioValueRange); if (outData) { if (inMax < sizeof(AudioValueRange)) return kAudioHardwareBadPropertySizeError; *(AudioValueRange*)outData = PloytecAudioDevice::Get().GetAvailableSampleRates(); } return kAudioHardwareNoError;
-			case kAudioDevicePropertyBufferFrameSize: return WriteUInt32(inMax, outSize, outData, PloytecAudioDevice::Get().GetBufferFrameSize());
-			case kAudioDevicePropertyBufferFrameSizeRange: if (inMax < sizeof(AudioValueRange)) return kAudioHardwareBadPropertySizeError; *(AudioValueRange*)outData = PloytecAudioDevice::Get().GetBufferFrameSizeRange(); if (outSize) *outSize = sizeof(AudioValueRange); return kAudioHardwareNoError;
 			case kAudioDevicePropertyStreams: {
 				UInt32 streamList[] = { kPloytecInputStreamID, kPloytecOutputStreamID };
 				if (inAddress->mScope == kAudioObjectPropertyScopeInput) return WriteObjectID(inMax, outSize, outData, kPloytecInputStreamID);
@@ -257,7 +254,7 @@ extern "C" HRESULT PloytecAbortDeviceConfigurationChange(AudioServerPlugInDriver
 extern "C" HRESULT PloytecStartIO(AudioServerPlugInDriverRef inDriver, AudioObjectID inDeviceObjectID, UInt32 inClientID) { gIsRunning = true; return PloytecAudioDevice::Get().StartIO(); }
 extern "C" HRESULT PloytecStopIO(AudioServerPlugInDriverRef inDriver, AudioObjectID inDeviceObjectID, UInt32 inClientID) { gIsRunning = false; return PloytecAudioDevice::Get().StopIO(); }
 extern "C" HRESULT PloytecGetZeroTimeStamp(AudioServerPlugInDriverRef inDriver, AudioObjectID inDeviceObjectID, UInt32 inClientID, Float64* outSampleTime, UInt64* outHostTime, UInt64* outSeed) { return PloytecAudioDevice::Get().GetZeroTimeStamp(inDriver, inDeviceObjectID, inClientID, outSampleTime, outHostTime, outSeed); }
-extern "C" OSStatus PloytecWillDoIOOperation(AudioServerPlugInDriverRef inDriver, AudioObjectID inDeviceObjectID, UInt32 inClientID, UInt32 inOperationID, Boolean* outWillDo, Boolean* outWillDoInPlace) { bool willDo=true; if(outWillDo) *outWillDo=willDo; if(outWillDoInPlace) *outWillDoInPlace=true; return 0; }
+extern "C" OSStatus PloytecWillDoIOOperation(AudioServerPlugInDriverRef inDriver, AudioObjectID inDeviceObjectID, UInt32 inClientID, UInt32 inOperationID, Boolean* outWillDo, Boolean* outWillDoInPlace) { bool willDo = false; bool willDoInPlace = true; switch (inOperationID) { case kAudioServerPlugInIOOperationWriteMix: case kAudioServerPlugInIOOperationReadInput: willDo = true; break; default: willDo = false; break; } if (outWillDo) *outWillDo = willDo; if (outWillDoInPlace) *outWillDoInPlace = willDoInPlace; return kAudioHardwareNoError; }
 extern "C" OSStatus PloytecBeginIOOperation(AudioServerPlugInDriverRef inDriver, AudioObjectID inDeviceObjectID, UInt32 inClientID, UInt32 inOperationID, UInt32 inIOBufferFrameSize, const AudioServerPlugInIOCycleInfo* inIOCycleInfo) { return 0; }
 extern "C" OSStatus PloytecDoIOOperation(AudioServerPlugInDriverRef inDriver, AudioObjectID inDeviceObjectID, UInt32 inStreamObjectID, UInt32 inClientID, UInt32 inOperationID, UInt32 inIOBufferFrameSize, const AudioServerPlugInIOCycleInfo* inIOCycleInfo, void* ioMainBuffer, void* ioSecondaryBuffer) { return PloytecAudioDevice::Get().ioOperationHandler(inDriver, inDeviceObjectID, inStreamObjectID, inClientID, inOperationID, inIOBufferFrameSize, inIOCycleInfo, ioMainBuffer, ioSecondaryBuffer); }
 extern "C" OSStatus PloytecEndIOOperation(AudioServerPlugInDriverRef inDriver, AudioObjectID inDeviceObjectID, UInt32 inClientID, UInt32 inOperationID, UInt32 inIOBufferFrameSize, const AudioServerPlugInIOCycleInfo* inIOCycleInfo) { return 0; }

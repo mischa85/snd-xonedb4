@@ -37,7 +37,6 @@ struct PloytecDriver_IVars {
 	uint8_t* usbRXBufferMIDI = nullptr;
 	uint32_t usbInputPacketSize = 0, usbOutputPacketSize = 0;
 	uint32_t rxSegCount = 0, txSegCount = 0;
-	std::atomic<uint32_t> rxSeg { 0 }, txSeg { 0 };
 	uint16_t usbVendorID = 0, usbProductID = 0;
 	uint8_t currentStatus = 0;
 	uint32_t currentHWFrameRate = 0;
@@ -375,7 +374,6 @@ void PloytecDriver::ClearOutputBuffer() {
 bool PloytecDriver::StartStreaming(uint8_t urbCount) {
 	if (!ivars->usbDevice) return false;
 	ivars->usbShutdownInProgress.store(false);
-	ivars->rxSeg.store(0); ivars->txSeg.store(0);
 	if(!ConfigureStreamingFormat(80, 80)) return false;
 	
 	memset(ivars->usbRXBufferPCM, 0, BUFFER_SIZE_IN);
@@ -413,8 +411,7 @@ void PloytecDriver::PCMinComplete(void* refCon, IOReturn result, void* arg0) {
 	auto* self = (PloytecDriver*)refCon;
 	if (self->ivars->usbShutdownInProgress.load() || result != kIOReturnSuccess) return;
 	uint16_t currentpos; self->GetAudioDevice()->Capture(currentpos, 80, mach_absolute_time());
-	uint32_t nextSeg = self->ivars->rxSeg.fetch_add(1) % self->ivars->rxSegCount;
-	self->SubmitPCMin(nextSeg);
+	self->SubmitPCMin(currentpos);
 }
 
 bool PloytecDriver::SubmitPCMout(uint32_t seg) {
@@ -439,8 +436,7 @@ void PloytecDriver::PCMoutComplete(void* refCon, IOReturn result, void* arg0) {
 	auto* self = (PloytecDriver*)refCon;
 	if (self->ivars->usbShutdownInProgress.load() || result != kIOReturnSuccess) return;
 	uint16_t currentpos; self->GetAudioDevice()->Playback(currentpos, 80, mach_absolute_time());
-	uint32_t nextSeg = self->ivars->txSeg.fetch_add(1) % self->ivars->txSegCount;
-	self->SubmitPCMout(nextSeg);
+	self->SubmitPCMout(currentpos);
 }
 
 bool PloytecDriver::SubmitMIDIin() {
