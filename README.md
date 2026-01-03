@@ -161,6 +161,22 @@ Your certificate relies on an Apple intermediate authority. If it's missing, you
 
 ---
 
+## 🐛 Reporting Bugs & Dropouts
+
+If you experience audio glitches, dropouts, or connection issues, we need logs to see what's happening under the hood. "It no worky!" is of no use; "Here's the log" gets my attention.
+
+**How to generate a debug log:**
+
+1.  Locate the `debug_logs.command` file in the downloaded folder.
+2.  Double-click it to run.
+3.  **Wait** for it to dump the history (it grabs the last 60 minutes).
+4.  Once it says **"LIVE LOGGING STARTED"**, try to make the glitch happen again (play audio, scratch, unplug/replug).
+5.  Press `Ctrl+C` to stop.
+6.  A text file will be saved to your **Desktop** (e.g., `Ploytec_Debug_Log_2026-01-03...txt`).
+7.  **Attach this file** to your GitHub issue.
+
+---
+
 ## 🛠️ For Developers
 
 The **HAL Plugin** implementation in this project is a rare example of a **User-Space USB Audio Driver** on macOS that *doesn't* use DriverKit. It utilizes:
