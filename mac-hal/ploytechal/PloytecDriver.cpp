@@ -14,7 +14,7 @@
 #include <errno.h>
 
 static constexpr uint8_t PCM_OUT_EP = 0x05, PCM_IN_EP = 0x86, MIDI_IN_EP = 0x83;
-static constexpr uint32_t MIDI_RX_SIZE = 512, DEFAULT_URBS = 2;
+static constexpr uint32_t MIDI_RX_SIZE = 512, DEFAULT_URBS = 4;
 
 struct PloytecDriver_IVars {
 	IOUSBDeviceInterface** usbDevice = nullptr;
@@ -40,6 +40,7 @@ struct PloytecDriver_IVars {
 	uint16_t usbVendorID = 0, usbProductID = 0;
 	uint8_t currentStatus = 0;
 	uint32_t currentHWFrameRate = 0;
+	uint64_t lastWakeTime = 0;
 };
 
 os_log_t gPloytecLog = nullptr;
@@ -50,13 +51,27 @@ static inline IOUSBInterfaceInterface** IfPtr(PloytecDriver_IVars* v, UInt8 idx)
 }
 
 static void PromoteToRealTime() {
-	mach_timebase_info_data_t timebase; mach_timebase_info(&timebase);
+	mach_timebase_info_data_t tb;
+	mach_timebase_info(&tb);
+	const uint64_t period_ns = 3333332ull;
+	const uint64_t computation_ns = 400000ull;
+	const uint64_t constraint_ns = 3333332ull;
+
+	uint64_t period_abs64 = (period_ns * (uint64_t)tb.denom) / (uint64_t)tb.numer;
+	uint64_t computation_abs64 = (computation_ns * (uint64_t)tb.denom) / (uint64_t)tb.numer;
+	uint64_t constraint_abs64 = (constraint_ns  * (uint64_t)tb.denom) / (uint64_t)tb.numer;
+
+	if (period_abs64 > UINT32_MAX) period_abs64 = UINT32_MAX;
+	if (computation_abs64 > UINT32_MAX) computation_abs64 = UINT32_MAX;
+	if (constraint_abs64 > UINT32_MAX) constraint_abs64 = UINT32_MAX;
+
 	thread_time_constraint_policy_data_t policy;
-	policy.period = (uint32_t)(1.0 * 1000000.0 * (timebase.denom / (double)timebase.numer));
-	policy.computation = (uint32_t)(0.5 * 1000000.0 * (timebase.denom / (double)timebase.numer));
-	policy.constraint = (uint32_t)(1.0 * 1000000.0 * (timebase.denom / (double)timebase.numer));
+	policy.period      = (uint32_t)period_abs64;
+	policy.computation = (uint32_t)computation_abs64;
+	policy.constraint  = (uint32_t)constraint_abs64;
 	policy.preemptible = 1;
-	thread_policy_set(mach_thread_self(), THREAD_TIME_CONSTRAINT_POLICY, (thread_policy_t)&policy, THREAD_TIME_CONSTRAINT_POLICY_COUNT);
+
+	(void)thread_policy_set(mach_thread_self(), THREAD_TIME_CONSTRAINT_POLICY, (thread_policy_t)&policy, THREAD_TIME_CONSTRAINT_POLICY_COUNT);
 }
 
 PloytecDriver::PloytecDriver() : mHost(nullptr), mIsConnected(false) { ivars = new PloytecDriver_IVars(); }
@@ -409,8 +424,19 @@ bool PloytecDriver::SubmitPCMin(uint32_t seg) {
 
 void PloytecDriver::PCMinComplete(void* refCon, IOReturn result, void* arg0) {
 	auto* self = (PloytecDriver*)refCon;
+	uint64_t now = mach_absolute_time();
+
+	// Drop measurement for wake latency, can be removed if proven stable
+	if (self->ivars->lastWakeTime != 0) {
+		uint64_t delta = now - self->ivars->lastWakeTime;
+		static mach_timebase_info_data_t tb; if (tb.denom == 0) mach_timebase_info(&tb);
+		uint64_t ns = (delta * tb.numer) / tb.denom;
+		if (ns > 3000000) os_log_error(GetLog(), "[PloytecHAL] Wake Late! Delta: %llu ns", ns);
+	}
+	self->ivars->lastWakeTime = now;
+
 	if (self->ivars->usbShutdownInProgress.load() || result != kIOReturnSuccess) return;
-	uint16_t currentpos; self->GetAudioDevice()->Capture(currentpos, 80, mach_absolute_time());
+	uint16_t currentpos; self->GetAudioDevice()->Capture(currentpos, 80, now);
 	self->SubmitPCMin(currentpos);
 }
 
