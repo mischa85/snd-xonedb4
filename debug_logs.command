@@ -15,6 +15,22 @@ LOGFILE="$HOME/Desktop/Ploytec_Debug_Log_$TIMESTAMP.txt"
 # 2. Define the search filter (HAL Audio, HAL MIDI, DriverKit)
 PREDICATE='subsystem == "hackerman.ploytechal" OR subsystem == "hackerman.ploytecmidi" OR sender == "sc.hackerman.ploytecdriver.dext" OR sender == "Ploytec Driver Extension"'
 
+# --- CLEANUP HANDLER ---
+# When user presses Ctrl+C, kill the background logger
+cleanup() {
+    echo ""
+    echo "-----------------------------------------------------"
+    echo "🛑 STOPPING LIVE LOGGING..."
+    if [ -n "$LOG_PID" ]; then
+        kill "$LOG_PID" 2>/dev/null
+        wait "$LOG_PID" 2>/dev/null
+    fi
+    echo "✅ Done. Log saved to Desktop:"
+    echo "   $LOGFILE"
+    exit
+}
+trap cleanup INT EXIT
+
 clear
 echo "====================================================="
 echo "      Ploytec Driver Debugger"
@@ -25,21 +41,26 @@ echo ""
 
 # 3. Dump History (Last 60 Minutes)
 echo "⏳ Retrieving log history (last 60 minutes)..."
-echo "-----------------------------------------------------" | tee -a "$LOGFILE"
-echo "HISTORY (Start)" | tee -a "$LOGFILE"
+echo "-----------------------------------------------------" >> "$LOGFILE"
+echo "HISTORY (Start - Last 60m)" >> "$LOGFILE"
 
-log show --style compact --info --debug --last 1h --predicate "$PREDICATE" | tee -a "$LOGFILE"
+log show --style compact --info --debug --last 1h --no-signpost --predicate "$PREDICATE" >> "$LOGFILE"
 
-echo "HISTORY (End)" | tee -a "$LOGFILE"
-echo "-----------------------------------------------------" | tee -a "$LOGFILE"
+echo "HISTORY (End)" >> "$LOGFILE"
+echo "-----------------------------------------------------" >> "$LOGFILE"
+echo "✅ History retrieved."
 echo ""
 
 # 4. Start Live Stream
 echo "🔴 LIVE LOGGING STARTED"
 echo "   Please reproduce your issue now."
 echo "   Press [Ctrl+C] when finished to stop."
-echo "-----------------------------------------------------" | tee -a "$LOGFILE"
-echo "LIVE STREAM (Start)" | tee -a "$LOGFILE"
+echo "-----------------------------------------------------" >> "$LOGFILE"
+echo "LIVE STREAM (Start)" >> "$LOGFILE"
 
-# 'tee -a' appends the live stream to the file while showing it on screen
-log stream --style compact --info --debug --predicate "$PREDICATE" | tee -a "$LOGFILE"
+log stream --style compact --info --debug --no-signpost --predicate "$PREDICATE" >> "$LOGFILE" &
+LOG_PID=$!
+
+echo "   (Monitoring file...)"
+echo "-----------------------------------------------------"
+tail -n +1 -f "$LOGFILE"
