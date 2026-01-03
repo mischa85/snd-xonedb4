@@ -437,7 +437,8 @@ void PloytecDriver::PCMinComplete(void* refCon, IOReturn result, void* arg0) {
 
 	if (self->ivars->usbShutdownInProgress.load() || result != kIOReturnSuccess) return;
 	uint16_t currentpos; self->GetAudioDevice()->Capture(currentpos, 80, now);
-	self->SubmitPCMin(currentpos);
+	uint32_t nextSeg = (currentpos + DEFAULT_URBS) % self->ivars->rxSegCount;
+	self->SubmitPCMin(nextSeg);
 }
 
 bool PloytecDriver::SubmitPCMout(uint32_t seg) {

@@ -69,7 +69,7 @@ public:
 	AudioStreamBasicDescription GetStreamFormat() const;
 	AudioStreamRangedDescription GetStreamRangedDescription() const;
 	UInt32 GetLatency() const { return 128; }
-	UInt32 GetSafetyOffset() const { return 80; }
+	UInt32 GetSafetyOffset() const { return 320; }
 	UInt32 GetZeroTimestampPeriod() const;
 	uint64_t GetTotalHardwareFrames() const { return mIvars.HWSampleTimeOut; }
 	AudioChannelLayout* GetPreferredChannelLayout(AudioObjectPropertyScope inScope);
