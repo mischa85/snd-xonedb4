@@ -1,0 +1,21 @@
+name: 💡 Feature Request
+description: Suggest an improvement, new device support, or optimization.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 🧠 Feature Request
+        Thanks for helping improve the driver!
+        
+        *Note: We are reverse-engineering closed hardware. Some things might be impossible. But ask anyway!*
+
+  - type: textarea
+    id: description
+    attributes:
+      label: The Pitch
+      description: What do you want to see added? Be specific.
+      placeholder: "I would like to see support for..."
+    validations:
+      required: true

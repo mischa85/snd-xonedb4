@@ -1,0 +1,72 @@
+name: 🐛 Bug Report (with Logs)
+description: Report audio dropouts, glitches, or connection issues.
+title: "[Bug]: "
+labels: ["bug", "triage"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## 🛑 STOP! READ THIS FIRST.
+        We cannot fix audio glitches without seeing what the driver is doing.
+        **"It no worky!" will be closed immediately.**
+        
+        ### ⚡️ How to get your logs:
+        1. Download the driver folder (or look on your Desktop if you ran the installer).
+        2. Double-click **`debug_logs.command`**.
+        3. Wait for it to dump history, then reproduce your glitch.
+        4. A text file will appear on your Desktop. **You must attach it below.**
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Describe the Bug
+      description: What happened? Did audio stop? Did it crackle?
+      placeholder: "I was playing a track in Traktor and..."
+    validations:
+      required: true
+
+  - type: dropdown
+    id: device
+    attributes:
+      label: Device Model
+      options:
+        - Allen & Heath Xone:DB4
+        - Allen & Heath Xone:DB2
+        - Allen & Heath Xone:DX
+        - Allen & Heath Xone:4D
+        - Other
+    validations:
+      required: true
+
+  - type: dropdown
+    id: os
+    attributes:
+      label: Operating System
+      options:
+        - Linux
+        - macOS 26 (Tahoe)
+        - macOS 15 (Sequoia)
+        - macOS 14 (Sonoma)
+        - macOS 13 (Ventura)
+        - macOS 12 (Monterey)
+        - macOS 11 (Big Sur)
+        - macOS 10.15 (Catalina)
+        - macOS 10.14 (Mojave)
+        - macOS 10.13 (High Sierra)
+        - macOS 10.12 (Sierra)
+        - macOS 10.11 (El Capitan)
+        - macOS 10.10 (Yosemite)
+        - Other
+    validations:
+      required: true
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 📎 Attach Debug Log (REQUIRED)
+      description: |
+        Run `debug_logs.command`, then **drag and drop the .txt file from your Desktop into this box**.
+        If you absolutely cannot run the script, explain why here.
+      placeholder: "Drag & Drop Ploytec_Debug_Log_2026...txt here"
+    validations:
+      required: true
