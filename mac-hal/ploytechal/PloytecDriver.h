@@ -19,100 +19,111 @@ class PloytecAudioDevice;
 struct PloytecDriver_IVars;
 
 struct FirmwareVersion {
-    uint8_t ID;
-    uint8_t major;
-    uint8_t minor;
-    uint8_t patch;
+	uint8_t ID;
+	uint8_t major;
+	uint8_t minor;
+	uint8_t patch;
 };
 
 enum TransferMode {
-    BULK = 0,
-    INTERRUPT = 1,
+	BULK = 0,
+	INTERRUPT = 1,
 };
 
 extern os_log_t gPloytecLog;
 inline os_log_t GetLog() {
-    if (!gPloytecLog) gPloytecLog = os_log_create("hackerman.ploytechal", "driver");
-    return gPloytecLog;
+	if (!gPloytecLog) gPloytecLog = os_log_create("hackerman.ploytechal", "driver");
+	return gPloytecLog;
 }
 
 class PloytecDriver {
 public:
-    static constexpr uint32_t BUFFER_SIZE_OUT = 131072;
-    static constexpr uint32_t BUFFER_SIZE_IN = 163840;
+	static constexpr uint32_t BUFFER_SIZE_OUT = 131072;
+	static constexpr uint32_t BUFFER_SIZE_IN = 163840;
 
-    static PloytecDriver& GetInstance();
-    PloytecAudioDevice* GetAudioDevice() const;
-    
-    void InitSharedMemory();
-    void CleanupSharedMemory();
+	static PloytecDriver& GetInstance();
+	PloytecAudioDevice* GetAudioDevice() const;
 
-    void SetHost(AudioServerPlugInHostRef inHost) { mHost = inHost; }
-    void Initialize();
+	void InitSharedMemory();
+	void CleanupSharedMemory();
 
-    bool IsConnected() const { return mIsConnected.load(std::memory_order_relaxed); }
-    UInt32 GetDeviceCount() const { return IsConnected() ? 1 : 0; }
+	void SetHost(AudioServerPlugInHostRef inHost) { mHost = inHost; }
+	void Initialize();
 
-    uint8_t* GetInputBuffer();
-    uint8_t* GetOutputBuffer();
-    TransferMode GetTransferMode();
+	bool IsConnected() const { return mIsConnected.load(std::memory_order_relaxed); }
+	UInt32 GetDeviceCount() const { return IsConnected() ? 1 : 0; }
 
-    void ClearOutputBuffer();
+	uint8_t* GetInputBuffer();
+	uint8_t* GetOutputBuffer();
+	TransferMode GetTransferMode();
 
-    CFStringRef GetManufacturerName() const;
-    CFStringRef GetProductName() const;
-    CFStringRef GetSerialNumber() const;
+	void ClearOutputBuffer();
 
-    void NotifyDeviceListChanged();
+	CFStringRef GetManufacturerName() const;
+	CFStringRef GetProductName() const;
+	CFStringRef GetSerialNumber() const;
+
+	void NotifyDeviceListChanged();
 
 private:
-    PloytecDriver();
-    ~PloytecDriver();
+	PloytecDriver();
+	~PloytecDriver();
 
-    PloytecDriver_IVars* ivars = nullptr;
+	PloytecDriver_IVars* ivars = nullptr;
 
-    static void* USBWorkLoop(void* arg);
-    static void DeviceAdded(void* refCon, io_iterator_t iterator);
-    static void DeviceRemoved(void* refCon, io_iterator_t iterator);
+	static void* USBWorkLoop(void* arg);
+	static void DeviceAdded(void* refCon, io_iterator_t iterator);
+	static void DeviceRemoved(void* refCon, io_iterator_t iterator);
 
-    bool CreateBuffers();
-    void DestroyBuffers();
+	bool CreateBuffers();
+	void DestroyBuffers();
 
-    bool OpenUSBDevice(io_service_t service);
-    void CloseUSBDevice();
-    bool CreateUSBPipes();
-    bool StartStreaming(uint8_t urbCount);
-    bool StopStreaming();
-    bool DetectTransferMode();
-    
-    bool ReadFirmwareVersion();
-    bool ReadHardwareStatus();
-    bool WriteHardwareStatus(uint16_t value);
-    bool GetHardwareFrameRate();
-    bool SetHardwareFrameRate(uint32_t framerate);
-    
-    io_service_t mUSBService = IO_OBJECT_NULL;
+	bool OpenUSBDevice(io_service_t service);
+	void CloseUSBDevice();
+	bool CreateUSBPipes();
+	bool StartStreaming(uint8_t urbCount);
+	bool StopStreaming();
+	bool DetectTransferMode();
 
-    static void PCMinComplete(void* refCon, IOReturn result, void* arg0);
-    static void PCMoutComplete(void* refCon, IOReturn result, void* arg0);
-    static void MIDIinComplete(void* refCon, IOReturn result, void* arg0);
+	bool ReadFirmwareVersion();
+	bool ReadHardwareStatus();
+	bool WriteHardwareStatus(uint16_t value);
+	bool GetHardwareFrameRate();
+	bool SetHardwareFrameRate(uint32_t framerate);
 
-    bool ConfigureStreamingFormat(uint16_t inputFrames, uint16_t outputFrames);
+	io_service_t mUSBService = IO_OBJECT_NULL;
 
-    bool SubmitPCMin(uint32_t seg);
-    bool SubmitPCMout(uint32_t seg);
-    bool SubmitMIDIin();
+	static void PCMinComplete(void* refCon, IOReturn result, void* arg0);
+	static void PCMoutComplete(void* refCon, IOReturn result, void* arg0);
+	static void MIDIinComplete(void* refCon, IOReturn result, void* arg0);
 
-    FirmwareVersion mFW;
-    void SetConnected(bool connected);
+	bool ConfigureStreamingFormat(uint16_t inputFrames, uint16_t outputFrames);
 
-    CFRunLoopRef mRunLoop = nullptr;
-    AudioServerPlugInHostRef mHost = nullptr;
-    std::atomic<bool> mIsConnected { false };
+	bool SubmitPCMin(uint32_t seg);
+	bool SubmitPCMout(uint32_t seg);
+	bool SubmitMIDIin();
 
-    IONotificationPortRef mNotifyPort = nullptr;
-    io_iterator_t mAddedIter = IO_OBJECT_NULL;
-    io_iterator_t mRemovedIter = IO_OBJECT_NULL;
+	FirmwareVersion mFW;
+	void SetConnected(bool connected);
+
+	CFRunLoopRef mRunLoop = nullptr;
+	AudioServerPlugInHostRef mHost = nullptr;
+	std::atomic<bool> mIsConnected { false };
+
+	IONotificationPortRef mNotifyPort = nullptr;
+	io_iterator_t mAddedIter = IO_OBJECT_NULL;
+	io_iterator_t mRemovedIter = IO_OBJECT_NULL;
+
+	void StartWatchdog();
+	void StopWatchdog();
+	void RecoverDevice();
+	void SendVendorReset();
+
+	dispatch_source_t mWatchdogTimer = nullptr;
+	std::atomic<bool> isRecovering { false };
+	std::atomic<uint64_t> lastInputTime { 0 };
+
+	IOReturn PingDevice();
 };
 
 #endif

@@ -72,7 +72,7 @@ kern_return_t PloytecAudioDevice::StartIO() {
 	os_log(GetLog(), "[PloytecHAL] >>> StartIO Called <<<");
 	mIvars.lastZeroReported = 0; mIvars.IOStarted = true;
 	mIvars.PCMinActive = false; mIvars.PCMoutActive = false;
-	mIvars.HWSampleTimeIn = 0; mIvars.HWSampleTimeOut = 0;
+	//mIvars.HWSampleTimeIn = 0; mIvars.HWSampleTimeOut = 0;
 	mIvars.lastZeroReported = UINT64_MAX;
 
 	mIvars.mTimestampSeed++;

@@ -41,6 +41,8 @@ struct PloytecDriver_IVars {
 	uint8_t currentStatus = 0;
 	uint32_t currentHWFrameRate = 0;
 	uint64_t lastWakeTime = 0;
+	std::atomic<bool> isResetting { false };
+	std::atomic<uint64_t> recoveryStartTime{0};
 };
 
 os_log_t gPloytecLog = nullptr;
@@ -71,7 +73,10 @@ static void PromoteToRealTime() {
 	policy.constraint  = (uint32_t)constraint_abs64;
 	policy.preemptible = 1;
 
-	(void)thread_policy_set(mach_thread_self(), THREAD_TIME_CONSTRAINT_POLICY, (thread_policy_t)&policy, THREAD_TIME_CONSTRAINT_POLICY_COUNT);
+	kern_return_t kr = thread_policy_set(mach_thread_self(), THREAD_TIME_CONSTRAINT_POLICY, (thread_policy_t)&policy, THREAD_TIME_CONSTRAINT_POLICY_COUNT);
+	if (kr != KERN_SUCCESS) {
+		os_log_error(gPloytecLog, "[PloytecHAL] Failed to set real-time thread policy: %{public}s", mach_error_string(kr));
+	}
 }
 
 PloytecDriver::PloytecDriver() : mHost(nullptr), mIsConnected(false) { ivars = new PloytecDriver_IVars(); }
@@ -158,35 +163,51 @@ void PloytecDriver::DeviceAdded(void* refCon, io_iterator_t iterator) {
 	auto* self = static_cast<PloytecDriver*>(refCon);
 	io_service_t obj;
 	bool openedAny = false;
-	
+
 	while ((obj = IOIteratorNext(iterator))) {
 		if (self->OpenUSBDevice(obj)) {
 			uint16_t pid = self->ivars->usbProductID;
 			bool supported = (pid == kPloytecPID_DB4 || pid == kPloytecPID_DB2 || pid == kPloytecPID_DX || pid == kPloytecPID_4D);
 			if (supported) {
 				os_log(GetLog(), "[PloytecHAL] >>> DEVICE FOUND (PID:0x%{public}04X) <<<", pid);
-				if (self->CreateBuffers()) {
+				bool buffersReady = false;
+				if (self->ivars->isResetting.load() && self->ivars->usbRXBufferPCM != nullptr) {
+					os_log(GetLog(), "[PloytecHAL] ♻️ Restoring session from surviving memory.");
+					buffersReady = true;
+					self->ivars->isResetting.store(false); // Reset flag
+				} else {
+					buffersReady = self->CreateBuffers();
+				}
+
+				if (buffersReady) {
 					self->ReadFirmwareVersion(); self->ReadHardwareStatus();
 					self->GetHardwareFrameRate(); self->SetHardwareFrameRate(96000); usleep(50000);
 					self->GetHardwareFrameRate(); self->ReadHardwareStatus(); self->WriteHardwareStatus(0xFFB2);
 					if (self->CreateUSBPipes() && self->DetectTransferMode()) {
+						if (!self->IsConnected()) {
 						CFStringRef vendor = self->GetManufacturerName();
 						CFStringRef product = self->GetProductName();
 						CFStringRef serial = self->GetSerialNumber();
 						CFStringRef uid = serial ? CFStringCreateWithFormat(kCFAllocatorDefault, NULL, CFSTR("hackerman.ploytechal.%@"), serial) : CFSTR("hackerman.ploytechal.device.1");
 						PloytecAudioDevice::Get().init(self, true, product, uid, vendor, 2560, 8, 8, self->GetInputBuffer(), BUFFER_SIZE_IN, self->GetOutputBuffer(), BUFFER_SIZE_OUT, self->GetTransferMode());
 						if (serial && uid) CFRelease(uid);
-						if (!self->StartStreaming(DEFAULT_URBS)) os_log_error(GetLog(), "[PloytecHAL] Failed to start streaming!"); else openedAny = true;
-					} else os_log_error(GetLog(), "[PloytecHAL] Pipe/Mode error");
-				} else { self->CloseUSBDevice(); os_log_error(GetLog(), "[PloytecHAL] Buffer alloc failed"); }
-			} else {
-				os_log(GetLog(), "[PloytecHAL] Unsupported PID 0x%{public}04X", pid);
-				self->CloseUSBDevice();
-			}
-		} else os_log_error(GetLog(), "[PloytecHAL] Failed to open USB device");
+					}
+
+					if (!self->StartStreaming(DEFAULT_URBS)) {
+						os_log_error(GetLog(), "[PloytecHAL] Failed to start streaming!");
+					} else {
+						openedAny = true;
+					}
+				} else os_log_error(GetLog(), "[PloytecHAL] Pipe/Mode error");
+				} else { self->CloseUSBDevice(); os_log_error(GetLog(), "[PloytecHAL] Buffer alloc/restore failed"); }
+				} else {
+					os_log(GetLog(), "[PloytecHAL] Unsupported PID 0x%{public}04X", pid);
+					self->CloseUSBDevice();
+				}
+			} else os_log_error(GetLog(), "[PloytecHAL] Failed to open USB device");
 		IOObjectRelease(obj);
 	}
-	if (openedAny) self->SetConnected(true);
+	if (openedAny && !self->IsConnected()) self->SetConnected(true);
 }
 
 static bool GetPipeInfo(IOUSBInterfaceInterface** intf, UInt8 pipeRef, UInt8* outTransferType, UInt16* outMaxPacketSize) {
@@ -237,16 +258,39 @@ void PloytecDriver::DeviceRemoved(void* refCon, io_iterator_t iterator) {
 	auto* self = static_cast<PloytecDriver*>(refCon);
 	io_service_t obj;
 	bool activeDeviceRemoved = false;
+
 	while ((obj = IOIteratorNext(iterator))) {
 		if (self->mUSBService != IO_OBJECT_NULL && IOObjectIsEqualTo(obj, self->mUSBService)) activeDeviceRemoved = true;
 		IOObjectRelease(obj);
 	}
+
 	if (activeDeviceRemoved) {
-		os_log(GetLog(), "[PloytecHAL] <<< DEVICE REMOVED <<<");
+		bool planningToReturn = self->ivars->isResetting.load();
+		os_log(GetLog(), "[PloytecHAL] <<< DEVICE REMOVED %{public}s<<<", planningToReturn ? "(TRANSPARENT) " : "");
+
 		self->StopStreaming(); 
 		self->CloseUSBDevice(); 
-		self->DestroyBuffers();
-		self->SetConnected(false);
+
+		if (planningToReturn) {
+			os_log(GetLog(), "[PloytecHAL] 🪄 Preserving CoreAudio/MIDI state for reboot.");
+
+			dispatch_after(dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC), dispatch_get_global_queue(QOS_CLASS_DEFAULT, 0), ^{
+				if (self->mRunLoop) {
+					CFRunLoopPerformBlock(self->mRunLoop, kCFRunLoopCommonModes, ^{
+						if (self->ivars->usbDevice == nullptr && self->ivars->isResetting.load()) {
+							os_log_error(GetLog(), "[PloytecHAL] ⚰️ Resurrection Timed Out (>10s). Killing Zombie State.");
+							self->DestroyBuffers();
+							self->SetConnected(false);
+							self->ivars->isResetting.store(false);
+						}
+					});
+				CFRunLoopWakeUp(self->mRunLoop);
+				}
+			});
+		} else {
+			self->DestroyBuffers();
+			self->SetConnected(false);
+		}
 	}
 }
 
@@ -399,27 +443,14 @@ bool PloytecDriver::StartStreaming(uint8_t urbCount) {
 		for (size_t i = 432; i + 1 < BUFFER_SIZE_OUT; i += 482) { ivars->usbTXBufferPCMandUART[i] = 0xFD; ivars->usbTXBufferPCMandUART[i + 1] = 0xFD; }
 	}
 
-	IOUSBInterfaceInterface** inIntf = IfPtr(ivars, ivars->pcmInIf);
-	if (inIntf && ivars->usbPCMinPipe) {
-		(*inIntf)->ClearPipeStallBothEnds(inIntf, ivars->usbPCMinPipe);
-	}
-
-	IOUSBInterfaceInterface** outIntf = IfPtr(ivars, ivars->pcmOutIf);
-	if (outIntf && ivars->usbPCMoutPipe) {
-		(*outIntf)->ClearPipeStallBothEnds(outIntf, ivars->usbPCMoutPipe);
-	}
-
-	IOUSBInterfaceInterface** midiIntf= IfPtr(ivars, ivars->midiInIf);
-	if (midiIntf && ivars->usbMIDIinPipe) {
-		(*midiIntf)->ClearPipeStallBothEnds(midiIntf, ivars->usbMIDIinPipe);
-	}
-	
 	SubmitMIDIin();
 	for(uint8_t i=0; i<urbCount; ++i) { SubmitPCMin(i); SubmitPCMout(i); }
+	StartWatchdog();
 	return true;
 }
 
 bool PloytecDriver::StopStreaming() {
+	StopWatchdog();
 	ivars->usbShutdownInProgress.store(true);
 	IOUSBInterfaceInterface** inIntf = IfPtr(ivars, ivars->pcmInIf);
 	IOUSBInterfaceInterface** outIntf = IfPtr(ivars, ivars->pcmOutIf);
@@ -433,12 +464,16 @@ bool PloytecDriver::StopStreaming() {
 bool PloytecDriver::SubmitPCMin(uint32_t seg) {
 	IOUSBInterfaceInterface** intf = IfPtr(ivars, ivars->pcmInIf);
 	if(!intf) return false;
-	(*intf)->ReadPipeAsync(intf, ivars->usbPCMinPipe, ivars->usbRXBufferPCM + (seg * ivars->usbInputPacketSize), ivars->usbInputPacketSize, PCMinComplete, this);
+	IOReturn ret = (*intf)->ReadPipeAsync(intf, ivars->usbPCMinPipe, ivars->usbRXBufferPCM + (seg * ivars->usbInputPacketSize), ivars->usbInputPacketSize, PCMinComplete, this);
+	if (ret != kIOReturnSuccess) { os_log_error(GetLog(), "[PloytecHAL] SubmitPCMin FAILED: 0x%{public}08X (Seg: %{public}u)", ret, seg);
+		return false;
+	}
 	return true;
 }
 
 void PloytecDriver::PCMinComplete(void* refCon, IOReturn result, void* arg0) {
 	auto* self = (PloytecDriver*)refCon;
+	self->lastInputTime.store(mach_absolute_time(), std::memory_order_relaxed);
 	uint64_t now = mach_absolute_time();
 
 	// Drop measurement for wake latency, can be removed if proven stable
@@ -470,7 +505,8 @@ bool PloytecDriver::SubmitPCMout(uint32_t seg) {
 		} else { txBuf[ivars->usbMIDIbyteNo] = 0xFD; }
 		txBuf[ivars->usbMIDIbyteNo + 1] = 0xFD; 
 	}
-	(*intf)->WritePipeAsync(intf, ivars->usbPCMoutPipe, txBuf, ivars->usbOutputPacketSize, PCMoutComplete, this);
+	IOReturn ret = (*intf)->WritePipeAsync(intf, ivars->usbPCMoutPipe, txBuf, ivars->usbOutputPacketSize, PCMoutComplete, this);
+	if (ret != kIOReturnSuccess) { os_log_error(GetLog(), "[PloytecHAL] SubmitPCMout FAILED: 0x%{public}08X (Seg: %{public}u)", ret, seg); return false; }
 	return true;
 }
 
@@ -485,17 +521,13 @@ bool PloytecDriver::SubmitMIDIin() {
 	IOUSBInterfaceInterface** intf = IfPtr(ivars, ivars->midiInIf);
 	if(!intf) return false;
 	IOReturn ret = (*intf)->ReadPipeAsync(intf, ivars->usbMIDIinPipe, ivars->usbRXBufferMIDI, MIDI_RX_SIZE, MIDIinComplete, this);
-	if (ret != kIOReturnSuccess) { os_log_error(GetLog(), "[PloytecHAL] MIDIin Submit Failed 0x%{public}08X", ret); return false; }
+	if (ret != kIOReturnSuccess) { os_log_error(GetLog(), "[PloytecHAL] SubmitMIDIin FAILED: 0x%{public}08X", ret); return false; }
 	return true;
 }
 
 void PloytecDriver::MIDIinComplete(void* refCon, IOReturn result, void* arg0) {
 	auto* self = (PloytecDriver*)refCon;
 	if (self->ivars->usbShutdownInProgress.load()) return;
-	if (result != kIOReturnSuccess) {
-		os_log_error(GetLog(), "[PloytecHAL] MIDIin Fail 0x%{public}08X", result);
-		self->SubmitMIDIin(); return;
-	}
 	uint32_t len = (uint32_t)(uintptr_t)arg0;
 	if (len > 0) {
 		if (gSharedMem) {
@@ -553,11 +585,13 @@ bool PloytecDriver::GetHardwareFrameRate() {
 	IOUSBDevRequest req = {}; req.bmRequestType = 0xA2; req.bRequest = 0x81; req.wValue = 0x0100; req.wLength = 0x03; req.pData = ivars->usbRXBufferCONTROLAddr;
 	if ((*ivars->usbDevice)->DeviceRequest(ivars->usbDevice, &req) != kIOReturnSuccess || req.wLenDone < 3) return false;
 	ivars->currentHWFrameRate = ((uint32_t)ivars->usbRXBufferCONTROLAddr[0]) | ((uint32_t)ivars->usbRXBufferCONTROLAddr[1] << 8) | ((uint32_t)ivars->usbRXBufferCONTROLAddr[2] << 16);
+	os_log(GetLog(), "[PloytecHAL] Current Hardware Frame Rate: %{public}u Hz", ivars->currentHWFrameRate);
 	return true;
 }
 
 bool PloytecDriver::SetHardwareFrameRate(uint32_t framerate) {
 	if (!ivars->usbDevice) return false;
+	os_log(GetLog(), "[PloytecHAL] Setting Hardware Frame Rate to: %{public}u Hz", framerate);
 	ivars->usbTXBufferCONTROLAddr[0] = (uint8_t)(framerate & 0xFF);
 	ivars->usbTXBufferCONTROLAddr[1] = (uint8_t)((framerate >> 8) & 0xFF);
 	ivars->usbTXBufferCONTROLAddr[2] = (uint8_t)((framerate >> 16) & 0xFF);
@@ -568,4 +602,148 @@ bool PloytecDriver::SetHardwareFrameRate(uint32_t framerate) {
 	req.wIndex = 0x0005; (*ivars->usbDevice)->DeviceRequest(ivars->usbDevice, &req);
 	req.wIndex = 0x0086; if ((*ivars->usbDevice)->DeviceRequest(ivars->usbDevice, &req) != kIOReturnSuccess) return false;
 	return true;
+}
+
+IOReturn PloytecDriver::PingDevice() {
+	if (!ivars->usbDevice) return kIOReturnNoDevice;
+
+	IOUSBDevRequest req = {};
+	req.bmRequestType = USBmakebmRequestType(kUSBIn, kUSBStandard, kUSBDevice);
+	req.bRequest = kUSBRqGetDescriptor;
+	req.wValue = (kUSBDeviceDesc << 8);
+	req.wIndex = 0;
+	req.wLength = 18;
+	req.pData = ivars->usbRXBufferCONTROLAddr;
+
+	return ((*ivars->usbDevice)->DeviceRequest(ivars->usbDevice, &req));
+}
+
+void PloytecDriver::StartWatchdog() {
+	if (mWatchdogTimer) return;
+
+	lastInputTime.store(mach_absolute_time());
+	isRecovering.store(false);
+	ivars->recoveryStartTime.store(0);
+
+	dispatch_queue_t queue = dispatch_get_global_queue(QOS_CLASS_UTILITY, 0);
+	mWatchdogTimer = dispatch_source_create(DISPATCH_SOURCE_TYPE_TIMER, 0, 0, queue);
+
+	if (mWatchdogTimer) {
+		uint64_t interval = 25 * NSEC_PER_MSEC;
+		dispatch_source_set_timer(mWatchdogTimer, dispatch_time(DISPATCH_TIME_NOW, interval), interval, 5 * NSEC_PER_MSEC);
+		dispatch_source_set_event_handler(mWatchdogTimer, ^{
+			if (this->ivars->usbShutdownInProgress.load()) return;
+			if (this->isRecovering.load()) {
+				uint64_t start = this->ivars->recoveryStartTime.load();
+				if (start == 0) return;
+				uint64_t now = mach_absolute_time();
+				static mach_timebase_info_data_t tb;
+				if (tb.denom == 0) mach_timebase_info(&tb);
+				if (start > now) return;
+				uint64_t delta = ((now - start) * tb.numer) / tb.denom;
+				if (delta > 30000000000ULL) {
+					os_log_error(GetLog(), "[PloytecHAL] ⚠️ Recovery timed out (>30s). Retrying...");
+					this->isRecovering.store(false);
+					this->ivars->recoveryStartTime.store(0);
+				}
+				return;
+			}
+			uint64_t last = this->lastInputTime.load(std::memory_order_relaxed);
+			if (last == 0) return;
+			uint64_t now = mach_absolute_time();
+			if (last > now) return;
+			static mach_timebase_info_data_t tb;
+			if (tb.denom == 0) mach_timebase_info(&tb);
+			uint64_t ns = ((now - last) * tb.numer) / tb.denom;
+			if (ns > 500000000) { // 500ms silence threshold
+				bool expected = false;
+				if (this->isRecovering.compare_exchange_strong(expected, true)) {
+					this->ivars->recoveryStartTime.store(mach_absolute_time());
+					CFRunLoopPerformBlock(this->mRunLoop, kCFRunLoopCommonModes, ^{
+						this->RecoverDevice();
+					});
+					CFRunLoopWakeUp(this->mRunLoop);
+				}
+			}
+		});
+		dispatch_resume(mWatchdogTimer);
+	}
+}
+
+void PloytecDriver::StopWatchdog() {
+	if (mWatchdogTimer) {
+		dispatch_source_cancel(mWatchdogTimer);
+		dispatch_release(mWatchdogTimer);
+		mWatchdogTimer = nullptr;
+	}
+}
+
+static void ResetCallback(void* refcon, IOReturn result, void* arg0) {
+	IOUSBDevRequest* req = (IOUSBDevRequest*)refcon;
+	delete req;
+}
+
+void PloytecDriver::SendVendorReset() {
+	if (!ivars->usbDevice) return;
+
+	IOUSBDeviceInterface** dev = ivars->usbDevice;
+	(*dev)->AddRef(dev); 
+
+	dispatch_async(dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+		IOUSBDevRequest req = {};
+		req.bmRequestType = 0x40; 
+		req.bRequest = 'R';
+		req.wValue = 0;
+		req.wIndex = 0;
+		req.wLength = 0;
+		req.pData = nullptr;
+
+	os_log_error(GetLog(), "[PloytecHAL] ☢️ SENDING VENDOR RESET");
+
+	IOReturn ret = (*dev)->DeviceRequest(dev, &req);
+
+	bool success = (ret == kIOReturnSuccess || ret == kIOReturnNotResponding || ret == kIOReturnAborted || ret == kIOReturnNoDevice);
+	if (!success) {
+		os_log_error(GetLog(), "[PloytecHAL] ❌ Reset Failed: 0x%08X. Unlocking for Retry.", ret);
+		uint64_t oneSec;
+		static mach_timebase_info_data_t tb;
+		if (tb.denom == 0) mach_timebase_info(&tb);
+		oneSec = (1000000000ULL * tb.denom) / tb.numer;
+		this->lastInputTime.store(mach_absolute_time() + oneSec);
+		this->isRecovering.store(false);
+	} else {
+		os_log(GetLog(), "[PloytecHAL] ✅ Reset Dispatched (Status: 0x%08X). Waiting for detach...", ret);
+	}
+
+	(*dev)->Release(dev);
+	});
+}
+
+void PloytecDriver::RecoverDevice() {
+	if (ivars->usbShutdownInProgress.load()) {
+		isRecovering.store(false);
+		return;
+	}
+	os_log_error(GetLog(), "[PloytecHAL] 🚑 WATCHDOG: Audio stalled >100ms. Checking Presence...");
+
+	IOReturn ping = PingDevice();
+		if (ping != kIOReturnSuccess) {
+			os_log_error(GetLog(), "[PloytecHAL] 💀 Ping Failed (0x%08X). Device Gone. Aborting Reset.", ping);
+			isRecovering.store(false);
+			return;
+	}
+
+	os_log_error(GetLog(), "[PloytecHAL] ☢️ Device Present but Hung. TRIGGERING TRANSPARENT RESET.");
+
+	ivars->isResetting.store(true);
+
+	IOUSBInterfaceInterface** inIntf = IfPtr(ivars, ivars->pcmInIf);
+	IOUSBInterfaceInterface** outIntf = IfPtr(ivars, ivars->pcmOutIf);
+	IOUSBInterfaceInterface** midiIntf = IfPtr(ivars, ivars->midiInIf);
+
+	if (ivars->usbPCMinPipe && inIntf)   (*inIntf)->AbortPipe(inIntf, ivars->usbPCMinPipe);
+	if (ivars->usbPCMoutPipe && outIntf) (*outIntf)->AbortPipe(outIntf, ivars->usbPCMoutPipe);
+	if (ivars->usbMIDIinPipe && midiIntf) (*midiIntf)->AbortPipe(midiIntf, ivars->usbMIDIinPipe);
+
+	SendVendorReset(); 
 }
