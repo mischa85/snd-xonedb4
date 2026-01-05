@@ -67,7 +67,7 @@ This gives you the lowest latency and works **without** disabling system securit
 
 1.  **Download** the latest release.
 2.  **Run the Installer:**
-    * Right-click `install_hal.command` and select **Open**.
+    * Right-click `install-mac.command` and select **Open**.
     * *Note:* If you double-click and get a "Developer cannot be verified" or "Permission Denied" error, go to **System Settings** -> **Privacy & Security** and look for the "Open Anyway" button near the bottom, or just right-click and Open again.
 3.  **Authenticate:** Type your password (we need `sudo` to copy files to `/Library/Audio`).
 4.  The script will:
@@ -91,7 +91,7 @@ This gives you the lowest latency and works **without** disabling system securit
 **Installation:**
 1.  **Download** the release.
 2.  **Run the Installer:**
-    * Right-click `install_dext.command` and select **Open**.
+    * Right-click `install-mac-driverkit.command` and select **Open**.
     * *Note:* If you double-click and get a "Developer cannot be verified" or "Permission Denied" error, go to **System Settings** -> **Privacy & Security** and look for the "Open Anyway" button near the bottom, or just right-click and Open again.
 3.  The script will copy the "Ploytec Driver Extension.app" to `/Applications` and launch it.
 4.  **Activate:** Click "Activate" in the window that appears.
@@ -125,7 +125,7 @@ You do not need a paid Apple Developer program membership ($99/yr). A free Apple
 
 ### 2. Build & Install
 Run the build script. It will auto-detect your new certificate:
-```bash ./install_hal.command```
+```bash ./install-mac.command```
 
 ---
 
@@ -155,9 +155,9 @@ Your certificate relies on an Apple intermediate authority. If it's missing, you
 
 ### 🛠 Uninstalling
 
-* **HAL:** Run `uninstall_hal.command`.
-* **DriverKit:** Run `uninstall_dext.command`.
-* **Linux:** Run `uninstall_linux.sh`.
+* **HAL:** Run `uninstall-mac.command`.
+* **DriverKit:** Run `uninstall-mac-driverkit.command`.
+* **Linux:** Run `uninstall-linux.sh`.
 
 ---
 
@@ -167,7 +167,7 @@ If you experience audio glitches, dropouts, or connection issues, we need logs t
 
 **How to generate a debug log:**
 
-1.  Locate the `debug_logs.command` file in the downloaded folder.
+1.  Locate the `debuglogs-mac.command` file in the downloaded folder.
 2.  Double-click it to run.
 3.  **Wait** for it to dump the history (it grabs the last 60 minutes).
 4.  Once it says **"LIVE LOGGING STARTED"**, try to make the glitch happen again (play audio, scratch, unplug/replug).
