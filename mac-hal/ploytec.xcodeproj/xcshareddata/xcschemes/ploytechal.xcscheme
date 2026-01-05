@@ -16,8 +16,8 @@
             <BuildableReference
                BuildableIdentifier = "primary"
                BlueprintIdentifier = "1FC985C62F05B43000668435"
-               BuildableName = "ploytechal.driver"
-               BlueprintName = "ploytechal"
+               BuildableName = "ploytecaudio.driver"
+               BlueprintName = "ploytecaudio"
                ReferencedContainer = "container:ploytec.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -51,8 +51,8 @@
          <BuildableReference
             BuildableIdentifier = "primary"
             BlueprintIdentifier = "1FC985C62F05B43000668435"
-            BuildableName = "ploytechal.driver"
-            BlueprintName = "ploytechal"
+            BuildableName = "ploytecaudio.driver"
+            BlueprintName = "ploytecaudio"
             ReferencedContainer = "container:ploytec.xcodeproj">
          </BuildableReference>
       </MacroExpansion>

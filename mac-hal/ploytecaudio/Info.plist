@@ -2,18 +2,18 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
-	<key>CFBundleIdentifier</key>
-	<string>hackerman.ploytechal</string>
+	<key>AudioServerPlugIn_FactoryFunction</key>
+	<string>PloytecPluginFactory</string>
 	<key>CFBundleExecutable</key>
 	<string>ploytechal</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundlePackageType</key>
 	<string>BNDL</string>
 	<key>CFBundleShortVersionString</key>
 	<string>1.0.0</string>
 	<key>CFBundleVersion</key>
 	<string>1</string>
-	<key>AudioServerPlugIn_FactoryFunction</key>
-	<string>PloytecPluginFactory</string>
 	<key>CFPlugInFactories</key>
 	<dict>
 		<key>F8BB1C28-BAE8-11D6-9C31-00039315CD46</key>
