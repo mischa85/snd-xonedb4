@@ -5,7 +5,7 @@
 	<key>AudioServerPlugIn_FactoryFunction</key>
 	<string>PloytecPluginFactory</string>
 	<key>CFBundleExecutable</key>
-	<string>ploytechal</string>
+	<string>ploytecaudio</string>
 	<key>CFBundleIdentifier</key>
 	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundlePackageType</key>

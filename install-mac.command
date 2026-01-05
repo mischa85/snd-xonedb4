@@ -68,14 +68,14 @@ fi
 # --- 3. Build Audio & MIDI Plugins ---
 echo "🏗️  Building PloytecAudio (HAL)..."
 xcodebuild -project "mac-hal/ploytec.xcodeproj" \
-           -scheme "PloytecAudio" \
+           -scheme "ploytecaudio" \
            -configuration Release \
            SYMROOT="$DIR/build" \
            build > /dev/null
 
 echo "🏗️  Building PloytecMIDI (Plugin)..."
 xcodebuild -project "mac-hal/ploytec.xcodeproj" \
-           -scheme "PloytecMIDI" \
+           -scheme "ploytecmidi" \
            -configuration Release \
            SYMROOT="$DIR/build" \
            build > /dev/null

@@ -13,7 +13,7 @@ TIMESTAMP=$(date "+%Y-%m-%d_%H-%M-%S")
 LOGFILE="$HOME/Desktop/Ploytec_Debug_Log_$TIMESTAMP.txt"
 
 # 2. Define the search filter (HAL Audio, HAL MIDI, DriverKit)
-PREDICATE='subsystem == "hackerman.ploytechal" OR subsystem == "hackerman.ploytecmidi" OR sender == "sc.hackerman.ploytecdriver.dext" OR sender == "Ploytec Driver Extension"'
+PREDICATE='subsystem == "hackerman.ploytecaudio" OR subsystem == "hackerman.ploytecmidi" OR subsystem == "hackerman.ploytecusb" OR sender == "sc.hackerman.ploytecdriver.dext" OR sender == "Ploytec Driver Extension"'
 
 # --- CLEANUP HANDLER ---
 # When user presses Ctrl+C, kill the background logger
