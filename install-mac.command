@@ -9,6 +9,21 @@ set -e
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$DIR"
 
+if [ -d "/Applications/Ploytec Driver Extension.app" ]; then
+    clear
+    echo "====================================================="
+    echo "❌ CONFLICT DETECTED"
+    echo "====================================================="
+    echo "You have the DriverKit App installed at:"
+    echo "  /Applications/Ploytec Driver Extension.app"
+    echo ""
+    echo "You cannot have both. Please delete the app from Applications"
+    echo "and reboot before installing the HAL driver."
+    echo ""
+    read -p "Press [Enter] to exit..."
+    exit 1
+fi
+
 clear
 echo "====================================================="
 echo "      Ploytec Audio Engine: Build & Install"
