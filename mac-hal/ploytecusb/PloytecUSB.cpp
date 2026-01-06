@@ -531,6 +531,8 @@ bool PloytecUSB::ReadFirmwareVersion() {
 	if (!mUsbDevice) return false;
 	IOUSBDevRequest req = {}; req.bmRequestType = 0xC0; req.bRequest = 'V'; req.wLength = 0x0F; req.pData = mRxBufferControl;
 	if ((*mUsbDevice)->DeviceRequest(mUsbDevice, &req) != kIOReturnSuccess) return false;
+	mFW.ID = mRxBufferControl[0]; mFW.major = 1; mFW.minor = (uint8_t)(mRxBufferControl[2] / 10); mFW.patch = (uint8_t)(mRxBufferControl[2] % 10);
+	os_log(GetLog(), "[PloytecUSB] Firmware ID=0x%{public}02x Version=%{public}u.%{public}u.%{public}u", mFW.ID, mFW.major, mFW.minor, mFW.patch);
 	return true;
 }
 
