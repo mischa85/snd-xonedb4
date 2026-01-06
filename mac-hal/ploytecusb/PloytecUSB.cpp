@@ -105,7 +105,7 @@ void PloytecUSB::SetupSharedMemory() {
 	mSHM->version = 1;
 	srand((unsigned int)time(NULL));
 	mSHM->sessionID = rand();
-	mSHM->audio.hardwarePresent.store(true);
+	mSHM->audio.hardwarePresent.store(false, std::memory_order_release);
 	
 	if (mVendorName) CFStringGetCString(mVendorName, mSHM->manufacturerName, 64, kCFStringEncodingUTF8);
 	if (mProductName) CFStringGetCString(mProductName, mSHM->productName, 64, kCFStringEncodingUTF8);
@@ -189,6 +189,8 @@ void PloytecUSB::DeviceAdded(void* refCon, io_iterator_t iterator) {
 
 				if (!self->StartStreaming(kDefaultUrbs)) {
 					os_log_error(GetLog(), "[PloytecUSB] Failed to start streaming!");
+				} else {
+					if (self->mSHM) self->mSHM->audio.hardwarePresent.store(true, std::memory_order_release);
 				}
 			} else {
 				os_log_error(GetLog(), "[PloytecUSB] Pipe/Mode error");
