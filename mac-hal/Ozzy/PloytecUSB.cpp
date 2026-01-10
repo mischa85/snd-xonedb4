@@ -176,47 +176,69 @@ static bool FindPipe(IOUSBInterfaceInterface** intf, UInt8 addr, UInt8* p) {
 
 bool PloytecUSB::CreatePipes() {
 	os_log(GetLog(), "[PloytecUSB] Creating USB Pipes...");
-	(*mDevice)->SetConfiguration(mDevice, 1);
-	
-	IOUSBFindInterfaceRequest req = { kIOUSBFindInterfaceDontCare, kIOUSBFindInterfaceDontCare, kIOUSBFindInterfaceDontCare, kIOUSBFindInterfaceDontCare };
-	io_iterator_t it; 
-	if ((*mDevice)->CreateInterfaceIterator(mDevice, &req, &it) != 0) return false;
-	
-	io_service_t svc;
-	int count = 0;
-	while((svc = IOIteratorNext(it))) {
-		IOUSBInterfaceInterface** intf = OpenInterface(svc); IOObjectRelease(svc);
-		if(!intf) continue;
-		(*intf)->SetAlternateInterface(intf, 1);
-		
-		UInt8 pM=0, pO=0, pI=0;
-		FindPipe(intf, kMidiInEp, &pM); FindPipe(intf, kPcmOutEp, &pO); FindPipe(intf, kPcmInEp, &pI);
 
-		if (pM || pO || pI) {
-			os_log(GetLog(), "[PloytecUSB] Interface %{public}d:", count);
-			if (pM) os_log(GetLog(), "   -> Found MIDI In (0x%{public}02X) at Pipe Index %{public}d", kMidiInEp, pM);
-			if (pO) os_log(GetLog(), "   -> Found PCM/MIDI Out (0x%{public}02X) at Pipe Index %{public}d", kPcmOutEp, pO);
-			if (pI) os_log(GetLog(), "   -> Found PCM In (0x%{public}02X) at Pipe Index %{public}d", kPcmInEp, pI);
-
-			if (!mInterface0) mInterface0 = intf; else mInterface1 = intf;
-			if(pM) { mMidiInPipe=pM; mMidiInIf=(mInterface0==intf)?0:1; }
-			if(pO) { mPcmOutPipe=pO; mPcmOutIf=(mInterface0==intf)?0:1; }
-			if(pI) { mPcmInPipe=pI;  mPcmInIf=(mInterface0==intf)?0:1; }
-		} else {
-			(*intf)->USBInterfaceClose(intf); (*intf)->Release(intf);
-		}
-		count++;
+	uint8_t c = 0;
+	(*mDevice)->GetConfiguration(mDevice, &c);
+	if (c != 1) {
+		os_log(GetLog(), "[PloytecUSB] Device unconfigured. Setting Config 1...");
+		(*mDevice)->SetConfiguration(mDevice, 1);
+		usleep(200000);
+	} else {
+		os_log(GetLog(), "[PloytecUSB] Config is already 1. Checking registry...");
 	}
-	IOObjectRelease(it);
-	
-	if (count == 0) os_log_error(GetLog(), "[PloytecUSB] ❌ No Interfaces Found!");
 
-	if (mInterface0) (*mInterface0)->CreateInterfaceAsyncEventSource(mInterface0, &mIf0Src);
-	if (mInterface1) (*mInterface1)->CreateInterfaceAsyncEventSource(mInterface1, &mIf1Src);
-	if (mIf0Src) CFRunLoopAddSource(mThreadRunLoop, mIf0Src, kCFRunLoopDefaultMode);
-	if (mIf1Src) CFRunLoopAddSource(mThreadRunLoop, mIf1Src, kCFRunLoopDefaultMode);
-	
-	return (mMidiInPipe && mPcmOutPipe && mPcmInPipe);
+	for (int i = 1; i <= 15; i++) {
+		if (i == 2) {
+			os_log(GetLog(), "[PloytecUSB] ⚠️ Interfaces missing (Zombie). Forcing Reset...");
+			(*mDevice)->SetConfiguration(mDevice, 1);
+			usleep(200000);
+		}
+
+		IOUSBFindInterfaceRequest req = { kIOUSBFindInterfaceDontCare, kIOUSBFindInterfaceDontCare, kIOUSBFindInterfaceDontCare, kIOUSBFindInterfaceDontCare };
+		io_iterator_t it;
+		if ((*mDevice)->CreateInterfaceIterator(mDevice, &req, &it) != 0) return false;
+
+		io_service_t svc;
+		bool found = false;
+		while((svc = IOIteratorNext(it))) {
+			found = true;
+			IOUSBInterfaceInterface** intf = OpenInterface(svc); IOObjectRelease(svc);
+			if(!intf) continue;
+
+			(*intf)->SetAlternateInterface(intf, 1);
+			UInt8 pM=0, pO=0, pI=0;
+			FindPipe(intf, kMidiInEp, &pM); FindPipe(intf, kPcmOutEp, &pO); FindPipe(intf, kPcmInEp, &pI);
+
+			if (pM || pO || pI) {
+				if (!mInterface0) mInterface0 = intf; else mInterface1 = intf;
+				if(pM) { mMidiInPipe=pM; mMidiInIf=(mInterface0==intf)?0:1; }
+				if(pO) { mPcmOutPipe=pO; mPcmOutIf=(mInterface0==intf)?0:1; }
+				if(pI) { mPcmInPipe=pI;  mPcmInIf=(mInterface0==intf)?0:1; }
+			} else {
+				(*intf)->USBInterfaceClose(intf); (*intf)->Release(intf);
+			}
+		}
+		IOObjectRelease(it);
+
+		if (mMidiInPipe && mPcmOutPipe && mPcmInPipe) {
+			os_log(GetLog(), "[PloytecUSB] ✅ Pipes Created on Attempt %d", i);
+			if (mInterface0) (*mInterface0)->CreateInterfaceAsyncEventSource(mInterface0, &mIf0Src);
+			if (mInterface1) (*mInterface1)->CreateInterfaceAsyncEventSource(mInterface1, &mIf1Src);
+			if (mIf0Src) CFRunLoopAddSource(mThreadRunLoop, mIf0Src, kCFRunLoopDefaultMode);
+			if (mIf1Src) CFRunLoopAddSource(mThreadRunLoop, mIf1Src, kCFRunLoopDefaultMode);
+			return true;
+		}
+
+		if (mInterface0) { (*mInterface0)->USBInterfaceClose(mInterface0); (*mInterface0)->Release(mInterface0); mInterface0=nullptr; }
+		if (mInterface1) { (*mInterface1)->USBInterfaceClose(mInterface1); (*mInterface1)->Release(mInterface1); mInterface1=nullptr; }
+
+		if (found) os_log(GetLog(), "[PloytecUSB] ⚠️ Attempt %d: Locked. Retrying...", i);
+		else os_log(GetLog(), "[PloytecUSB] ⚠️ Attempt %d: Registry empty. Retrying...", i);
+		usleep(100000);
+	}
+
+	os_log_error(GetLog(), "[PloytecUSB] ❌ Failed to create pipes after 15 attempts.");
+	return false;
 }
 
 bool PloytecUSB::DetectTransferMode() {
