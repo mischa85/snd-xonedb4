@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # ==========================================
-#  Ploytec Debug Logger
+#  Ozzy Debug Logger
 #  "The Black Box Recorder"
 # ==========================================
 
@@ -10,10 +10,10 @@ cd "$DIR"
 
 # 1. Setup Log File on Desktop
 TIMESTAMP=$(date "+%Y-%m-%d_%H-%M-%S")
-LOGFILE="$HOME/Desktop/Ploytec_Debug_Log_$TIMESTAMP.txt"
+LOGFILE="$HOME/Desktop/Ozzy_Debug_Log_$TIMESTAMP.txt"
 
 # 2. Define the search filter (HAL Audio, HAL MIDI, DriverKit)
-PREDICATE='subsystem == "hackerman.ploytecaudio" OR subsystem == "hackerman.ploytecmidi" OR subsystem == "hackerman.ploytecusb" OR sender == "sc.hackerman.ploytecdriver.dext" OR sender == "Ploytec Driver Extension"'
+PREDICATE='subsystem == "OzzyHAL" OR subsystem == "OzzyMIDI" OR subsystem == "PloytecUSB" OR subsystem == "Ozzy" OR sender == "sc.hackerman.ploytecdriver.dext" OR sender == "Ploytec Driver Extension"'
 
 # --- CLEANUP HANDLER ---
 # When user presses Ctrl+C, kill the background logger
@@ -33,7 +33,7 @@ trap cleanup INT EXIT
 
 clear
 echo "====================================================="
-echo "      Ploytec Driver Debugger"
+echo "      Ozzy Driver Debugger"
 echo "====================================================="
 echo ""
 echo "📝 Writing logs to: $LOGFILE"

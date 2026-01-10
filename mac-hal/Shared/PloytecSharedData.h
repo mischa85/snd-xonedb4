@@ -10,7 +10,7 @@
 #define kPloytecPID_DX              0xFFDD
 #define kPloytecPID_4D              0xFF4D
 
-#define kPloytecSharedMemName       "/hackerman.ploytecsharedmem"
+#define kPloytecSharedMemName       "/ploytecsharedmem"
 #define kMidiRingSize               1024 
 #define kMidiRingMask               (kMidiRingSize - 1)
 
@@ -22,6 +22,11 @@
 #define kNumPackets                 128
 #define kPacketMask                 (kNumPackets - 1)
 #define kZeroTimestampPeriod        640
+
+static constexpr uint8_t kPcmOutEp = 0x05;
+static constexpr uint8_t kPcmInEp = 0x86;
+static constexpr uint8_t kMidiInEp = 0x83;
+static constexpr uint32_t kDefaultUrbs = 2;
 
 #define CACHE_ALIGN alignas(64)
 
@@ -59,7 +64,9 @@ struct PloytecSharedMemory {
 	uint32_t magic;
 	uint32_t version;
 	uint32_t sessionID; 
-	
+
+	std::atomic<uint32_t> heartbeat { 0 };
+
 	char manufacturerName[64];
 	char productName[64];
 	char serialNumber[64];

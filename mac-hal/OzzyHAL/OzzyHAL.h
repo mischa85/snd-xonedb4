@@ -1,5 +1,5 @@
-#ifndef PloytecAudio_h
-#define PloytecAudio_h
+#ifndef OzzyHAL_h
+#define OzzyHAL_h
 
 #include <CoreAudio/AudioServerPlugIn.h>
 #include <CoreAudioTypes/CoreAudioBaseTypes.h>
@@ -11,18 +11,18 @@
 #include <sys/stat.h>
 #include <fcntl.h>
 #include <pthread.h>
-#include "../shared/PloytecSharedData.h"
+#include "../Shared/PloytecSharedData.h"
 
 #define kPloytecDeviceID 100
 #define kPloytecInputStreamID 150
 #define kPloytecOutputStreamID 200
 
-class PloytecAudio;
-typedef OSStatus (PloytecAudio::*IOHandler)(AudioServerPlugInDriverRef, AudioObjectID, UInt32, UInt32, UInt32, UInt32, const AudioServerPlugInIOCycleInfo*, void*, void*);
+class OzzyHAL;
+typedef OSStatus (OzzyHAL::*IOHandler)(AudioServerPlugInDriverRef, AudioObjectID, UInt32, UInt32, UInt32, UInt32, const AudioServerPlugInIOCycleInfo*, void*, void*);
 
-class PloytecAudio {
+class OzzyHAL {
 public:
-	static PloytecAudio& Get();
+	static OzzyHAL& Get();
 	
 	void Init(AudioServerPlugInHostRef host);
 	void Cleanup();
@@ -55,15 +55,15 @@ public:
 	AudioStreamRangedDescription GetStreamRangedDescription() const;
 	
 	UInt32 GetLatency() const { return 0; }
-	UInt32 GetSafetyOffset() const { return 0; }
+	UInt32 GetSafetyOffset() const { return kDefaultUrbs * kFramesPerPacket; }
 	UInt32 GetZeroTimestampPeriod() const;
 	
 	AudioChannelLayout* GetPreferredChannelLayout(AudioObjectPropertyScope inScope);
 	UInt32 GetPreferredChannelLayoutSize(AudioObjectPropertyScope inScope) const;
 
 private:
-	PloytecAudio() = default;
-	~PloytecAudio() = default;
+	OzzyHAL() = default;
+	~OzzyHAL() = default;
 
 	CFStringRef mDeviceUID = nullptr;
 	CFStringRef mModelUID = nullptr;
@@ -94,14 +94,13 @@ private:
 
 	void MapSharedMemory();
 	void UnmapSharedMemory();
-	bool CheckSharedMemoryValidity();
 	static void* MonitorEntry(void* arg);
 	void MonitorLoop();
 	void RebuildStreamConfigs();
 
 	void ClearOutputBuffer();
 
-	IOHandler mActiveIOHandler = &PloytecAudio::ioOperationBulk;
+	IOHandler mActiveIOHandler = &OzzyHAL::ioOperationBulk;
 	
 	OSStatus ioOperationBulk(AudioServerPlugInDriverRef inDriver, AudioObjectID inDeviceObjectID, UInt32 inStreamObjectID, UInt32 inClientID, UInt32 inOperationID, UInt32 inIOBufferFrameSize, const AudioServerPlugInIOCycleInfo* inIOCycleInfo, void* ioMainBuffer, void* ioSecondaryBuffer);
 	OSStatus ioOperationInterrupt(AudioServerPlugInDriverRef inDriver, AudioObjectID inDeviceObjectID, UInt32 inStreamObjectID, UInt32 inClientID, UInt32 inOperationID, UInt32 inIOBufferFrameSize, const AudioServerPlugInIOCycleInfo* inIOCycleInfo, void* ioMainBuffer, void* ioSecondaryBuffer);

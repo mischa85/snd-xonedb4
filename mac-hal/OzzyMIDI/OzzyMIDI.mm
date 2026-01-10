@@ -1,5 +1,5 @@
-#include "PloytecMIDI.h"
-#include "../shared/PloytecSharedData.h"
+#include "OzzyMIDI.h"
+#include "../Shared/PloytecSharedData.h"
 #include <CoreFoundation/CoreFoundation.h>
 #include <CoreMIDI/CoreMIDI.h>
 #include <mach/mach_time.h>
@@ -23,7 +23,7 @@ static uint32_t gLastSessionID = 0;
 static uint32_t gErrorLogCounter = 0;
 
 static os_log_t GetLog() {
-	static os_log_t log = os_log_create("hackerman.ploytecmidi", "driver");
+	static os_log_t log = os_log_create("OzzyMIDI", "driver");
 	return log;
 }
 
@@ -65,7 +65,7 @@ static void EnsureMIDIDeviceCreated() {
 		if (vendorName) MIDIObjectSetStringProperty(gMidiDeviceRef, kMIDIPropertyManufacturer, vendorName);
 		SetDeviceOnline(true);
 	} else {
-		os_log_info(GetLog(), "[PloytecMIDI] Creating Device: '%{public}s'", nameBuf);
+		os_log_info(GetLog(), "[OzzyMIDI] Creating Device: '%{public}s'", nameBuf);
 		OSStatus err = MIDIDeviceCreate(gDriverRef, deviceName, vendorName, deviceName, &gMidiDeviceRef);
 		
 		if (err == noErr) {
@@ -76,7 +76,7 @@ static void EnsureMIDIDeviceCreated() {
 			MIDIObjectSetIntegerProperty(gMidiDeviceRef, kMIDIPropertyDriverOwner, val);
 			SetDeviceOnline(true);
 		} else {
-			os_log_error(GetLog(), "[PloytecMIDI] Failed to create device: %{public}d", (int)err);
+			os_log_error(GetLog(), "[OzzyMIDI] Failed to create device: %{public}d", (int)err);
 		}
 	}
 	
@@ -88,7 +88,7 @@ static void DisconnectSharedMemory() {
 	if (gSharedMem) {
 		munmap(gSharedMem, sizeof(PloytecSharedMemory));
 		gSharedMem = nullptr;
-		os_log_info(GetLog(), "[PloytecMIDI] Disconnected from HAL");
+		os_log_info(GetLog(), "[OzzyMIDI] Disconnected from HAL");
 		SetDeviceOnline(false);
 	}
 }
@@ -96,12 +96,12 @@ static void DisconnectSharedMemory() {
 static bool UpdateConnectionState() {
 	if (gSharedMem) {
 		if (gSharedMem->magic != 0x504C4F59) {
-			os_log_error(GetLog(), "[PloytecMIDI] Bad Magic. Disconnecting.");
+			os_log_error(GetLog(), "[OzzyMIDI] Bad Magic. Disconnecting.");
 			DisconnectSharedMemory();
 			return false;
 		}
 		if (gSharedMem->sessionID != gLastSessionID) {
-			os_log_info(GetLog(), "[PloytecMIDI] RAM Session Changed. Reconnecting.");
+			os_log_info(GetLog(), "[OzzyMIDI] RAM Session Changed. Reconnecting.");
 			DisconnectSharedMemory();
 			return false;
 		}
@@ -133,7 +133,7 @@ static bool UpdateConnectionState() {
 
 	gLastSessionID = gSharedMem->sessionID;
 	
-	os_log_info(GetLog(), "[PloytecMIDI] Connected (Session: 0x%{public}08X)", gLastSessionID);
+	os_log_info(GetLog(), "[OzzyMIDI] Connected (Session: 0x%{public}08X)", gLastSessionID);
 	EnsureMIDIDeviceCreated();
 	return true;
 }
@@ -152,11 +152,14 @@ static int GetExpectedDataLength(uint8_t status) {
 }
 
 static void* MidiInputPollThread(void* arg) {
-	os_log_info(GetLog(), "[PloytecMIDI] Poll Thread Started");
+	os_log_info(GetLog(), "[OzzyMIDI] Poll Thread Started");
 	Byte msgBuffer[16];
 	int msgIndex = 0;
 	int msgExpected = 0;
+
 	int checkCounter = 0;
+	uint32_t lastHeartbeat = 0;
+	int deadCounter = 0;
 	
 	while (gThreadShouldRun.load()) {
 		if (!gSharedMem) {
@@ -164,29 +167,28 @@ static void* MidiInputPollThread(void* arg) {
 				usleep(50000);
 				continue;
 			}
+			if (gSharedMem) lastHeartbeat = gSharedMem->heartbeat.load(std::memory_order_relaxed);
+			deadCounter = 0;
 		} else {
 			if (++checkCounter > 400) {
 				checkCounter = 0;
-				int fd = shm_open(kPloytecSharedMemName, O_RDONLY, 0666);
-				if (fd == -1) {
-					DisconnectSharedMemory();
-					continue;
-				}
-				void* t = mmap(NULL, sizeof(PloytecSharedMemory), PROT_READ, MAP_SHARED, fd, 0);
-				close(fd);
-				if (t != MAP_FAILED) {
-					PloytecSharedMemory* tm = (PloytecSharedMemory*)t;
-					if (tm->magic == 0x504C4F59 && tm->sessionID != gSharedMem->sessionID) {
-						os_log_info(GetLog(), "[PloytecMIDI] Disk SessionID changed. Reconnecting.");
+				uint32_t currentHb = gSharedMem->heartbeat.load(std::memory_order_relaxed);
+				
+				if (currentHb == lastHeartbeat) {
+					if (++deadCounter > 10) {
+						os_log_error(GetLog(), "[OzzyMIDI] 💀 Daemon Heartbeat Died. Disconnecting.");
 						DisconnectSharedMemory();
+						continue;
 					}
-					munmap(t, sizeof(PloytecSharedMemory));
+				} else {
+					lastHeartbeat = currentHb;
+					deadCounter = 0;
 				}
 			}
 		}
 
 		if (!gSharedMem) continue;
-		
+
 		uint32_t r = std::atomic_load_explicit(&gSharedMem->midiIn.readIndex, std::memory_order_relaxed);
 		uint32_t w = std::atomic_load_explicit(&gSharedMem->midiIn.writeIndex, std::memory_order_acquire);
 		bool didWork = false;
@@ -304,15 +306,15 @@ static HRESULT QueryInterface(void* self, REFIID iid, void** out) {
 	CFUUIDBytes interfaceBytes = CFUUIDGetUUIDBytes(kPloytecInterfaceUUID);
 	if (memcmp(&iid, &interfaceBytes, sizeof(REFIID)) == 0) {
 		*out = self;
-		((PloytecMIDIDriver*)self)->_refCount++;
+		((OzzyMIDIDriver*)self)->_refCount++;
 		return 0;
 	}
 	*out = NULL;
 	return 0x80004002;
 }
-static ULONG AddRef(void* self) { return ++((PloytecMIDIDriver*)self)->_refCount; }
+static ULONG AddRef(void* self) { return ++((OzzyMIDIDriver*)self)->_refCount; }
 static ULONG Release(void* self) {
-	PloytecMIDIDriver* driver = (PloytecMIDIDriver*)self;
+	OzzyMIDIDriver* driver = (OzzyMIDIDriver*)self;
 	if (--driver->_refCount == 0) { free(driver); return 0; }
 	return driver->_refCount;
 }
@@ -323,9 +325,9 @@ static MIDIDriverInterface gPloytecInterfaceTable = {
 
 extern "C" {
 	__attribute__((visibility("default")))
-	void* PloytecMIDIFactory(CFAllocatorRef allocator, CFUUIDRef typeID) {
-		if (CFEqual(typeID, kPloytecMIDIDriverTypeID)) {
-			PloytecMIDIDriver* driver = (PloytecMIDIDriver*)calloc(1, sizeof(PloytecMIDIDriver));
+	void* OzzyMIDIFactory(CFAllocatorRef allocator, CFUUIDRef typeID) {
+		if (CFEqual(typeID, kOzzyMIDIDriverTypeID)) {
+			OzzyMIDIDriver* driver = (OzzyMIDIDriver*)calloc(1, sizeof(OzzyMIDIDriver));
 			driver->_vtbl = &gPloytecInterfaceTable;
 			driver->_refCount = 1;
 			return driver;

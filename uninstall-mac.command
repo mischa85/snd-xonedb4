@@ -9,10 +9,10 @@ echo "====================================================="
 echo ""
 
 echo "This will remove:"
-echo "   - /usr/local/bin/ploytecusb (Daemon)"
-echo "   - /Library/LaunchDaemons/hackerman.ploytecusb.plist"
-echo "   - /Library/Audio/Plug-Ins/HAL/PloytecAudio.driver"
-echo "   - /Library/Audio/MIDI Drivers/PloytecMIDI.plugin"
+echo "   - /usr/local/bin/Ozzy (Daemon)"
+echo "   - /Library/LaunchDaemons/Ozzy.plist"
+echo "   - /Library/Audio/Plug-Ins/HAL/OzzyHAL.driver"
+echo "   - /Library/Audio/MIDI Drivers/OzzyMIDI.plugin"
 echo ""
 
 sudo -v
@@ -22,27 +22,21 @@ if [ $? -ne 0 ]; then
 fi
 
 echo ""
-echo "🛑 Stopping USB Service..."
-sudo launchctl unload /Library/LaunchDaemons/hackerman.ploytecusb.plist 2>/dev/null || true
+echo "🛑 Stopping Ozzy Service..."
+sudo launchctl unload /Library/LaunchDaemons/Ozzy.plist 2>/dev/null || true
 
 echo "🗑️  Removing Files..."
-sudo rm -f /usr/local/bin/ploytecusb
-sudo rm -f /Library/LaunchDaemons/hackerman.ploytecusb.plist
+sudo rm -f /usr/local/bin/Ozzy
+sudo rm -f /Library/LaunchDaemons/Ozzy.plist
 
-if [ -d "/Library/Audio/Plug-Ins/HAL/PloytecAudio.driver" ]; then
-    sudo rm -rf "/Library/Audio/Plug-Ins/HAL/PloytecAudio.driver"
+if [ -d "/Library/Audio/Plug-Ins/HAL/OzzyHAL.driver" ]; then
+    sudo rm -rf "/Library/Audio/Plug-Ins/HAL/OzzyHAL.driver"
     echo "   - Removed Audio Driver"
 fi
 
-if [ -d "/Library/Audio/MIDI Drivers/PloytecMIDI.plugin" ]; then
-    sudo rm -rf "/Library/Audio/MIDI Drivers/PloytecMIDI.plugin"
+if [ -d "/Library/Audio/MIDI Drivers/OzzyMIDI.plugin" ]; then
+    sudo rm -rf "/Library/Audio/MIDI Drivers/OzzyMIDI.plugin"
     echo "   - Removed MIDI Driver"
-fi
-
-# Also clean up old legacy names if present
-if [ -d "/Library/Audio/Plug-Ins/HAL/ploytechal.driver" ]; then
-    sudo rm -rf "/Library/Audio/Plug-Ins/HAL/ploytechal.driver"
-    echo "   - Removed Legacy Audio Driver"
 fi
 
 echo "🔄 Restarting Audio Services..."

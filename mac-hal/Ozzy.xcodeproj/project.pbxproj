@@ -7,22 +7,22 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		1FB396AA2F0AECA200073667 /* PloytecAudio.mm in Sources */ = {isa = PBXBuildFile; fileRef = 1FB396A92F0AECA200073667 /* PloytecAudio.mm */; };
-		1FC985E22F05B4B700668435 /* PloytecMIDI.mm in Sources */ = {isa = PBXBuildFile; fileRef = 1FC985DF2F05B4B700668435 /* PloytecMIDI.mm */; };
+		1FB396AA2F0AECA200073667 /* OzzyHAL.mm in Sources */ = {isa = PBXBuildFile; fileRef = 1FB396A92F0AECA200073667 /* OzzyHAL.mm */; };
+		1FC985E22F05B4B700668435 /* OzzyMIDI.mm in Sources */ = {isa = PBXBuildFile; fileRef = 1FC985DF2F05B4B700668435 /* OzzyMIDI.mm */; };
 		1FE242542F05D730004C729F /* CoreMIDI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1FC985E62F05B63100668435 /* CoreMIDI.framework */; };
 		1FF6DC902F06F1F00061482F /* CoreAudio.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 1FC985EA2F05B64A00668435 /* CoreAudio.framework */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		1FADCD2B2F05C8AC0059FC84 /* PloytecMIDI.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PloytecMIDI.h; sourceTree = "<group>"; };
+		1FADCD2B2F05C8AC0059FC84 /* OzzyMIDI.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OzzyMIDI.h; sourceTree = "<group>"; };
 		1FADCD2E2F05C9960059FC84 /* CoreFoundation.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreFoundation.framework; path = System/Library/Frameworks/CoreFoundation.framework; sourceTree = SDKROOT; };
-		1FB396A82F0AECA200073667 /* PloytecAudio.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PloytecAudio.h; sourceTree = "<group>"; };
-		1FB396A92F0AECA200073667 /* PloytecAudio.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = PloytecAudio.mm; sourceTree = "<group>"; };
-		1FC985C72F05B43000668435 /* ploytecaudio.driver */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ploytecaudio.driver; sourceTree = BUILT_PRODUCTS_DIR; };
-		1FC985CF2F05B44B00668435 /* ploytecmidi.plugin */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = ploytecmidi.plugin; sourceTree = BUILT_PRODUCTS_DIR; };
+		1FB396A82F0AECA200073667 /* OzzyHAL.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = OzzyHAL.h; sourceTree = "<group>"; };
+		1FB396A92F0AECA200073667 /* OzzyHAL.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = OzzyHAL.mm; sourceTree = "<group>"; };
+		1FC985C72F05B43000668435 /* OzzyHAL.driver */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OzzyHAL.driver; sourceTree = BUILT_PRODUCTS_DIR; };
+		1FC985CF2F05B44B00668435 /* OzzyMIDI.plugin */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = OzzyMIDI.plugin; sourceTree = BUILT_PRODUCTS_DIR; };
 		1FC985D32F05B4AE00668435 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		1FC985DE2F05B4B700668435 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		1FC985DF2F05B4B700668435 /* PloytecMIDI.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = PloytecMIDI.mm; sourceTree = "<group>"; };
+		1FC985DF2F05B4B700668435 /* OzzyMIDI.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = OzzyMIDI.mm; sourceTree = "<group>"; };
 		1FC985E32F05B55100668435 /* PloytecSharedData.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = PloytecSharedData.h; sourceTree = "<group>"; };
 		1FC985E62F05B63100668435 /* CoreMIDI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = CoreMIDI.framework; path = System/Library/Frameworks/CoreMIDI.framework; sourceTree = SDKROOT; };
 		1FC985E82F05B64300668435 /* IOKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = IOKit.framework; path = System/Library/Frameworks/IOKit.framework; sourceTree = SDKROOT; };
@@ -53,9 +53,9 @@
 			isa = PBXGroup;
 			children = (
 				1FA268792EF990B700378831 /* Products */,
-				1FC985D92F05B4AE00668435 /* ploytecaudio */,
-				1FC985E02F05B4B700668435 /* ploytecmidi */,
-				1FC985E42F05B55100668435 /* shared */,
+				1FC985D92F05B4AE00668435 /* OzzyHAL */,
+				1FC985E02F05B4B700668435 /* OzzyMIDI */,
+				1FC985E42F05B55100668435 /* Shared */,
 				1FC985E52F05B63000668435 /* Frameworks */,
 			);
 			sourceTree = "<group>";
@@ -63,38 +63,38 @@
 		1FA268792EF990B700378831 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				1FC985C72F05B43000668435 /* ploytecaudio.driver */,
-				1FC985CF2F05B44B00668435 /* ploytecmidi.plugin */,
+				1FC985C72F05B43000668435 /* OzzyHAL.driver */,
+				1FC985CF2F05B44B00668435 /* OzzyMIDI.plugin */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		1FC985D92F05B4AE00668435 /* ploytecaudio */ = {
+		1FC985D92F05B4AE00668435 /* OzzyHAL */ = {
 			isa = PBXGroup;
 			children = (
 				1FC985D32F05B4AE00668435 /* Info.plist */,
-				1FB396A92F0AECA200073667 /* PloytecAudio.mm */,
-				1FB396A82F0AECA200073667 /* PloytecAudio.h */,
+				1FB396A92F0AECA200073667 /* OzzyHAL.mm */,
+				1FB396A82F0AECA200073667 /* OzzyHAL.h */,
 			);
-			path = ploytecaudio;
+			path = OzzyHAL;
 			sourceTree = "<group>";
 		};
-		1FC985E02F05B4B700668435 /* ploytecmidi */ = {
+		1FC985E02F05B4B700668435 /* OzzyMIDI */ = {
 			isa = PBXGroup;
 			children = (
 				1FC985DE2F05B4B700668435 /* Info.plist */,
-				1FC985DF2F05B4B700668435 /* PloytecMIDI.mm */,
-				1FADCD2B2F05C8AC0059FC84 /* PloytecMIDI.h */,
+				1FC985DF2F05B4B700668435 /* OzzyMIDI.mm */,
+				1FADCD2B2F05C8AC0059FC84 /* OzzyMIDI.h */,
 			);
-			path = ploytecmidi;
+			path = OzzyMIDI;
 			sourceTree = "<group>";
 		};
-		1FC985E42F05B55100668435 /* shared */ = {
+		1FC985E42F05B55100668435 /* Shared */ = {
 			isa = PBXGroup;
 			children = (
 				1FC985E32F05B55100668435 /* PloytecSharedData.h */,
 			);
-			path = shared;
+			path = Shared;
 			sourceTree = "<group>";
 		};
 		1FC985E52F05B63000668435 /* Frameworks */ = {
@@ -111,9 +111,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		1FC985C62F05B43000668435 /* ploytecaudio */ = {
+		1FC985C62F05B43000668435 /* OzzyHAL */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 1FC985C82F05B43000668435 /* Build configuration list for PBXNativeTarget "ploytecaudio" */;
+			buildConfigurationList = 1FC985C82F05B43000668435 /* Build configuration list for PBXNativeTarget "OzzyHAL" */;
 			buildPhases = (
 				1FC985C32F05B43000668435 /* Sources */,
 				1FC985C52F05B43000668435 /* Resources */,
@@ -123,16 +123,16 @@
 			);
 			dependencies = (
 			);
-			name = ploytecaudio;
+			name = OzzyHAL;
 			packageProductDependencies = (
 			);
 			productName = ploytechal;
-			productReference = 1FC985C72F05B43000668435 /* ploytecaudio.driver */;
+			productReference = 1FC985C72F05B43000668435 /* OzzyHAL.driver */;
 			productType = "com.apple.product-type.bundle";
 		};
-		1FC985CE2F05B44B00668435 /* ploytecmidi */ = {
+		1FC985CE2F05B44B00668435 /* OzzyMIDI */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 1FC985D02F05B44B00668435 /* Build configuration list for PBXNativeTarget "ploytecmidi" */;
+			buildConfigurationList = 1FC985D02F05B44B00668435 /* Build configuration list for PBXNativeTarget "OzzyMIDI" */;
 			buildPhases = (
 				1FC985CB2F05B44B00668435 /* Sources */,
 				1FC985CD2F05B44B00668435 /* Resources */,
@@ -142,11 +142,11 @@
 			);
 			dependencies = (
 			);
-			name = ploytecmidi;
+			name = OzzyMIDI;
 			packageProductDependencies = (
 			);
 			productName = ploytecmidi;
-			productReference = 1FC985CF2F05B44B00668435 /* ploytecmidi.plugin */;
+			productReference = 1FC985CF2F05B44B00668435 /* OzzyMIDI.plugin */;
 			productType = "com.apple.product-type.bundle";
 		};
 /* End PBXNativeTarget section */
@@ -166,7 +166,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 1FA268732EF990B700378831 /* Build configuration list for PBXProject "ploytec" */;
+			buildConfigurationList = 1FA268732EF990B700378831 /* Build configuration list for PBXProject "Ozzy" */;
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -180,8 +180,8 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				1FC985C62F05B43000668435 /* ploytecaudio */,
-				1FC985CE2F05B44B00668435 /* ploytecmidi */,
+				1FC985C62F05B43000668435 /* OzzyHAL */,
+				1FC985CE2F05B44B00668435 /* OzzyMIDI */,
 			);
 		};
 /* End PBXProject section */
@@ -208,7 +208,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1FB396AA2F0AECA200073667 /* PloytecAudio.mm in Sources */,
+				1FB396AA2F0AECA200073667 /* OzzyHAL.mm in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -216,7 +216,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				1FC985E22F05B4B700668435 /* PloytecMIDI.mm in Sources */,
+				1FC985E22F05B4B700668435 /* OzzyMIDI.mm in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -352,12 +352,12 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = ploytecaudio/Info.plist;
+				INFOPLIST_FILE = OzzyHAL/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSPrincipalClass = "";
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Bundles";
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = hackerman.ploytecaudio;
+				PRODUCT_BUNDLE_IDENTIFIER = OzzyHAL;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SKIP_INSTALL = YES;
@@ -376,12 +376,12 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = ploytecaudio/Info.plist;
+				INFOPLIST_FILE = OzzyHAL/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSPrincipalClass = "";
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Bundles";
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = hackerman.ploytecaudio;
+				PRODUCT_BUNDLE_IDENTIFIER = OzzyHAL;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SKIP_INSTALL = YES;
@@ -399,12 +399,12 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = ploytecmidi/Info.plist;
+				INFOPLIST_FILE = OzzyMIDI/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSPrincipalClass = "";
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Bundles";
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = hackerman.ploytecmidi;
+				PRODUCT_BUNDLE_IDENTIFIER = OzzyMIDI;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SKIP_INSTALL = YES;
@@ -422,12 +422,12 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = "";
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = ploytecmidi/Info.plist;
+				INFOPLIST_FILE = OzzyMIDI/Info.plist;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				INFOPLIST_KEY_NSPrincipalClass = "";
 				INSTALL_PATH = "$(LOCAL_LIBRARY_DIR)/Bundles";
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = hackerman.ploytecmidi;
+				PRODUCT_BUNDLE_IDENTIFIER = OzzyMIDI;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				PROVISIONING_PROFILE_SPECIFIER = "";
 				SKIP_INSTALL = YES;
@@ -440,7 +440,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		1FA268732EF990B700378831 /* Build configuration list for PBXProject "ploytec" */ = {
+		1FA268732EF990B700378831 /* Build configuration list for PBXProject "Ozzy" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				1FA2687A2EF990B700378831 /* Debug */,
@@ -449,7 +449,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		1FC985C82F05B43000668435 /* Build configuration list for PBXNativeTarget "ploytecaudio" */ = {
+		1FC985C82F05B43000668435 /* Build configuration list for PBXNativeTarget "OzzyHAL" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				1FC985C92F05B43000668435 /* Debug */,
@@ -458,7 +458,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		1FC985D02F05B44B00668435 /* Build configuration list for PBXNativeTarget "ploytecmidi" */ = {
+		1FC985D02F05B44B00668435 /* Build configuration list for PBXNativeTarget "OzzyMIDI" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				1FC985D12F05B44B00668435 /* Debug */,

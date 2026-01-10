@@ -3,15 +3,15 @@
 <plist version="1.0">
 <dict>
 	<key>CFBundleIdentifier</key>
-	<string>hackerman.ploytecmidi</string>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
 	<key>CFBundleName</key>
 	<string>Ploytec MIDI Driver</string>
 	<key>CFBundleExecutable</key>
-	<string>ploytecmidi</string>
+	<string>OzzyMIDI</string>
 	<key>CFPlugInFactories</key>
 	<dict>
 		<key>43A67C89-12F5-4076-92F7-8975306B8F82</key>
-		<string>PloytecMIDIFactory</string>
+		<string>OzzyMIDIFactory</string>
 	</dict>
 	<key>CFPlugInTypes</key>
 	<dict>

@@ -1,4 +1,4 @@
-#include "PloytecAudio.h"
+#include "OzzyHAL.h"
 #include <CoreAudio/CoreAudio.h>
 #include <CoreAudioTypes/CoreAudioBaseTypes.h>
 #include <mach/mach_time.h>
@@ -12,8 +12,19 @@
 #define PLOYTEC_PCM_IN_FRAME_SIZE 64
 
 static os_log_t GetLog() {
-	static os_log_t log = os_log_create("hackerman.ploytecaudio", "plugin");
+	static os_log_t log = os_log_create("OzzyHAL", "plugin");
 	return log;
+}
+
+static CFStringRef SafeCreateString(const char* str) {
+	if (!str || str[0] == 0) return nullptr;
+	// Try UTF-8 first
+	CFStringRef s = CFStringCreateWithCString(NULL, str, kCFStringEncodingUTF8);
+	// Fallback to MacRoman (common for older USB descriptors)
+	if (!s) s = CFStringCreateWithCString(NULL, str, kCFStringEncodingMacRoman);
+	// Fallback to ASCII
+	if (!s) s = CFStringCreateWithCString(NULL, str, kCFStringEncodingASCII);
+	return s;
 }
 
 static UInt32 GetAudioBufferListSize(UInt32 numBuffers) {
@@ -59,16 +70,16 @@ static OSStatus WriteObjectID(UInt32 inMax, UInt32* outSize, void* outData, Audi
 	return kAudioHardwareNoError;
 }
 
-PloytecAudio& PloytecAudio::Get() {
-	static PloytecAudio instance;
+OzzyHAL& OzzyHAL::Get() {
+	static OzzyHAL instance;
 	return instance;
 }
 
-void PloytecAudio::Init(AudioServerPlugInHostRef host) {
-	os_log(GetLog(), "[PloytecAudio] Init");
+void OzzyHAL::Init(AudioServerPlugInHostRef host) {
+	os_log(GetLog(), "[OzzyHAL] Init");
 	mHost = host;
 
-	mDeviceUID = CFSTR("hackerman.ploytecaudio.device");
+	mDeviceUID = CFSTR("OzzyHAL.device");
 	mModelUID = CFSTR("Ploytec Audio Device");
 	mManufacturerUID = CFSTR("Ploytec");
 	mZeroTimestampPeriod = kZeroTimestampPeriod;
@@ -91,13 +102,13 @@ void PloytecAudio::Init(AudioServerPlugInHostRef host) {
 	pthread_create(&mMonitorThread, NULL, MonitorEntry, this);
 }
 
-void PloytecAudio::Cleanup() {
+void OzzyHAL::Cleanup() {
 	mMonitorRunning = false;
 	pthread_join(mMonitorThread, NULL);
 	UnmapSharedMemory();
 }
 
-void PloytecAudio::ClearOutputBuffer() {
+void OzzyHAL::ClearOutputBuffer() {
 	if (!mOutputBufferAddr || !mSHM) return;
 	const bool bulk = mSHM->audio.isBulkMode.load(std::memory_order_relaxed);
 	const uint32_t stride = bulk ? 512 : 482, pcm1 = bulk ? 480 : 432;
@@ -108,7 +119,7 @@ void PloytecAudio::ClearOutputBuffer() {
 	}
 }
 
-void PloytecAudio::RebuildStreamConfigs() {
+void OzzyHAL::RebuildStreamConfigs() {
 	const uint32_t kDefaultIOFrames = 512;
 	const uint32_t kBytesPerFrame = mCurrentStreamFormat.mBytesPerFrame;
 
@@ -123,7 +134,7 @@ void PloytecAudio::RebuildStreamConfigs() {
 	mOutputConfig.mBuffers[0].mData = nullptr;
 }
 
-void PloytecAudio::MapSharedMemory() {
+void OzzyHAL::MapSharedMemory() {
 	if (mSHM) return;
 	
 	mSHMFd = shm_open(kPloytecSharedMemName, O_RDWR, 0666);
@@ -141,7 +152,7 @@ void PloytecAudio::MapSharedMemory() {
 
 	mSHM = (PloytecSharedMemory*)ptr;
 	if (mSHM->magic != 0x504C4F59) {
-		os_log_error(GetLog(), "[PloytecAudio] SHM Magic Mismatch!");
+		os_log_error(GetLog(), "[OzzyHAL] SHM Magic Mismatch!");
 		UnmapSharedMemory();
 		return;
 	}
@@ -150,19 +161,18 @@ void PloytecAudio::MapSharedMemory() {
 	mInputBufferAddr = mSHM->audio.inputBuffer;
 	mOutputBufferAddr = mSHM->audio.outputBuffer;
 	
-	// Determine IO Handler based on Mode Flag
 	if (mSHM->audio.isBulkMode.load(std::memory_order_relaxed)) {
-		mActiveIOHandler = &PloytecAudio::ioOperationBulk;
-		os_log(GetLog(), "[PloytecAudio] Mode: BULK");
+		mActiveIOHandler = &OzzyHAL::ioOperationBulk;
+		os_log(GetLog(), "[OzzyHAL] Mode: BULK");
 	} else {
-		mActiveIOHandler = &PloytecAudio::ioOperationInterrupt;
-		os_log(GetLog(), "[PloytecAudio] Mode: INTERRUPT");
+		mActiveIOHandler = &OzzyHAL::ioOperationInterrupt;
+		os_log(GetLog(), "[OzzyHAL] Mode: INTERRUPT");
 	}
 	
-	os_log(GetLog(), "[PloytecAudio] Attached (Session: 0x%08X)", mSHM->sessionID);
+	os_log(GetLog(), "[OzzyHAL] Attached (Session: 0x%08X)", mSHM->sessionID);
 }
 
-void PloytecAudio::UnmapSharedMemory() {
+void OzzyHAL::UnmapSharedMemory() {
 	if (mSHM) { munmap(mSHM, sizeof(PloytecSharedMemory)); mSHM = nullptr; }
 	if (mSHMFd != -1) { close(mSHMFd); mSHMFd = -1; }
 	mSHMInode = 0;
@@ -170,57 +180,74 @@ void PloytecAudio::UnmapSharedMemory() {
 	mOutputBufferAddr = nullptr;
 }
 
-bool PloytecAudio::CheckSharedMemoryValidity() {
-	if (!mSHM) return false;
-	int tempFd = shm_open(kPloytecSharedMemName, O_RDONLY, 0666);
-	if (tempFd == -1) return false;
-
-	struct stat sb;
-	if (fstat(tempFd, &sb) != 0 || sb.st_ino != mSHMInode) {
-		close(tempFd); return false;
-	}
-
-	void* tempPtr = mmap(NULL, sizeof(PloytecSharedMemory), PROT_READ, MAP_SHARED, tempFd, 0);
-	close(tempFd); 
-
-	if (tempPtr == MAP_FAILED) return false;
-	PloytecSharedMemory* tempSHM = (PloytecSharedMemory*)tempPtr;
-	bool sessionMatch = (tempSHM->sessionID == mLastSessionID);
-	munmap(tempPtr, sizeof(PloytecSharedMemory));
-	return sessionMatch;
-}
-
-void* PloytecAudio::MonitorEntry(void* arg) {
-	((PloytecAudio*)arg)->MonitorLoop();
+void* OzzyHAL::MonitorEntry(void* arg) {
+	((OzzyHAL*)arg)->MonitorLoop();
 	return NULL;
 }
 
-void PloytecAudio::MonitorLoop() {
+void OzzyHAL::MonitorLoop() {
+	uint32_t lastHeartbeat = 0;
+	int deadCounter = 0;
+
 	while (mMonitorRunning) {
 		if (!mSHM) {
 			MapSharedMemory();
+			if (mSHM) {
+				lastHeartbeat = mSHM->heartbeat.load(std::memory_order_relaxed);
+				deadCounter = 0;
+			}
 		} else {
-			if (!CheckSharedMemoryValidity()) {
-				UnmapSharedMemory();
-				mLastConnectedState = false; 
-				usleep(100000); 
-				continue;
+			uint32_t currentHeartbeat = mSHM->heartbeat.load(std::memory_order_relaxed);
+			
+			if (currentHeartbeat == lastHeartbeat) {
+				if (++deadCounter > 6) { 
+					os_log_error(GetLog(), "[OzzyHAL] 💀 Daemon Heartbeat Died (Disconnecting).");
+					UnmapSharedMemory();
+					continue;
+				}
+			} else {
+				lastHeartbeat = currentHeartbeat;
+				deadCounter = 0;
 			}
 		}
 
-		bool currentlyConnected = (mSHM && mSHM->audio.hardwarePresent.load());
+		bool hwReady = (mSHM && mSHM->audio.hardwarePresent.load());
+		bool metaReady = (mSHM && mSHM->productName[0] != 0);
+		bool currentlyConnected = (hwReady && metaReady);
 
 		if (currentlyConnected != mLastConnectedState) {
+			if (currentlyConnected) {
+				if (mSHM->productName[0] != 0) {
+					if (mModelUID) CFRelease(mModelUID);
+					mModelUID = SafeCreateString(mSHM->productName);
+				}
+				if (mSHM->manufacturerName[0] != 0) {
+					if (mManufacturerUID) CFRelease(mManufacturerUID);
+					mManufacturerUID = SafeCreateString(mSHM->manufacturerName);
+				}
+				if (mSHM->serialNumber[0] != 0) {
+					if (mDeviceUID) CFRelease(mDeviceUID);
+					char uidBuf[128];
+					snprintf(uidBuf, sizeof(uidBuf), "OzzyHAL.%s", mSHM->serialNumber);
+					mDeviceUID = SafeCreateString(uidBuf);
+				}
+				os_log(GetLog(), "[OzzyHAL] Device Ready: '%{public}s'", mSHM->productName);
+			}
+
 			mLastConnectedState = currentlyConnected;
-			os_log(GetLog(), "[PloytecAudio] Connection: %s", currentlyConnected ? "UP" : "DOWN");
+			os_log(GetLog(), "[OzzyHAL] Connection: %{public}s", currentlyConnected ? "UP" : "DOWN");
 			
 			if (mHost) {
 				AudioObjectPropertyAddress addr = { kAudioPlugInPropertyDeviceList, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
 				mHost->PropertiesChanged(mHost, kAudioObjectPlugInObject, 1, &addr);
 				
-				if (currentlyConnected && mSHM->productName[0] != 0) {
-					if (mModelUID) CFRelease(mModelUID);
-					mModelUID = CFStringCreateWithCString(NULL, mSHM->productName, kCFStringEncodingUTF8);
+				if (currentlyConnected) {
+					AudioObjectPropertyAddress devAddr = { kAudioObjectPropertyName, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain };
+					mHost->PropertiesChanged(mHost, kPloytecDeviceID, 1, &devAddr);
+					devAddr.mSelector = kAudioObjectPropertyManufacturer;
+					mHost->PropertiesChanged(mHost, kPloytecDeviceID, 1, &devAddr);
+					devAddr.mSelector = kAudioDevicePropertyDeviceUID;
+					mHost->PropertiesChanged(mHost, kPloytecDeviceID, 1, &devAddr);
 				}
 			}
 		}
@@ -228,34 +255,33 @@ void PloytecAudio::MonitorLoop() {
 	}
 }
 
-bool PloytecAudio::IsConnected() { return mLastConnectedState; }
+bool OzzyHAL::IsConnected() { return mLastConnectedState; }
 
-kern_return_t PloytecAudio::StartIO() {
+kern_return_t OzzyHAL::StartIO() {
 	if (!IsConnected()) return kAudioHardwareNotRunningError;
 	if (mSHM) {
 		mSHM->audio.halWritePosition.store(0, std::memory_order_relaxed);
-		// Update Handler Pointer just in case mode changed across reconnects
 		if (mSHM->audio.isBulkMode.load(std::memory_order_relaxed)) {
-			mActiveIOHandler = &PloytecAudio::ioOperationBulk;
+			mActiveIOHandler = &OzzyHAL::ioOperationBulk;
 		} else {
-			mActiveIOHandler = &PloytecAudio::ioOperationInterrupt;
+			mActiveIOHandler = &OzzyHAL::ioOperationInterrupt;
 		}
 	}
-	os_log(GetLog(), "[PloytecAudio] StartIO");
+	os_log(GetLog(), "[OzzyHAL] StartIO");
 	mIOStarted = true;
 	mTimestampSeed++;
 	return kIOReturnSuccess;
 }
 
-kern_return_t PloytecAudio::StopIO() {
-	os_log(GetLog(), "[PloytecAudio] StopIO");
+kern_return_t OzzyHAL::StopIO() {
+	os_log(GetLog(), "[OzzyHAL] StopIO");
 	mIOStarted = false;
 	mTimestampSeed++;
 	ClearOutputBuffer();
 	return kIOReturnSuccess;
 }
 
-HRESULT PloytecAudio::GetZeroTimeStamp(AudioServerPlugInDriverRef inDriver, AudioObjectID inDeviceObjectID, UInt32 inClientID, Float64* outSampleTime, UInt64* outHostTime, UInt64* outSeed) {
+HRESULT OzzyHAL::GetZeroTimeStamp(AudioServerPlugInDriverRef inDriver, AudioObjectID inDeviceObjectID, UInt32 inClientID, Float64* outSampleTime, UInt64* outHostTime, UInt64* outSeed) {
 	if (!mSHM) return kAudioHardwareNotRunningError;
 
 	auto& ts = mSHM->audio.timestamp;
@@ -282,11 +308,7 @@ HRESULT PloytecAudio::GetZeroTimeStamp(AudioServerPlugInDriverRef inDriver, Audi
 	return kAudioHardwareNoError;
 }
 
-// -----------------------------------------------------------------------------
-// OPTIMIZED IO HANDLERS
-// -----------------------------------------------------------------------------
-
-OSStatus PloytecAudio::ioOperationBulk(AudioServerPlugInDriverRef inDriver, AudioObjectID inDeviceObjectID, UInt32 inStreamObjectID, UInt32 inClientID, UInt32 inOperationID, UInt32 inIOBufferFrameSize, const AudioServerPlugInIOCycleInfo* inIOCycleInfo, void* ioMainBuffer, void* ioSecondaryBuffer) {
+OSStatus OzzyHAL::ioOperationBulk(AudioServerPlugInDriverRef inDriver, AudioObjectID inDeviceObjectID, UInt32 inStreamObjectID, UInt32 inClientID, UInt32 inOperationID, UInt32 inIOBufferFrameSize, const AudioServerPlugInIOCycleInfo* inIOCycleInfo, void* ioMainBuffer, void* ioSecondaryBuffer) {
 	if (!mSHM || !mInputBufferAddr) return kAudioHardwareNoError;
 	const uint32_t ringSize = kNumPackets * kFramesPerPacket;
 
@@ -315,7 +337,7 @@ OSStatus PloytecAudio::ioOperationBulk(AudioServerPlugInDriverRef inDriver, Audi
 	return kAudioHardwareNoError;
 }
 
-OSStatus PloytecAudio::ioOperationInterrupt(AudioServerPlugInDriverRef inDriver, AudioObjectID inDeviceObjectID, UInt32 inStreamObjectID, UInt32 inClientID, UInt32 inOperationID, UInt32 inIOBufferFrameSize, const AudioServerPlugInIOCycleInfo* inIOCycleInfo, void* ioMainBuffer, void* ioSecondaryBuffer) {
+OSStatus OzzyHAL::ioOperationInterrupt(AudioServerPlugInDriverRef inDriver, AudioObjectID inDeviceObjectID, UInt32 inStreamObjectID, UInt32 inClientID, UInt32 inOperationID, UInt32 inIOBufferFrameSize, const AudioServerPlugInIOCycleInfo* inIOCycleInfo, void* ioMainBuffer, void* ioSecondaryBuffer) {
 	if (!mSHM || !mInputBufferAddr) return kAudioHardwareNoError;
 	const uint32_t ringSize = kNumPackets * kFramesPerPacket;
 
@@ -344,7 +366,7 @@ OSStatus PloytecAudio::ioOperationInterrupt(AudioServerPlugInDriverRef inDriver,
 	return kAudioHardwareNoError;
 }
 
-void PloytecAudio::EncodePloytecPCM(uint8_t *dst, const float *src) {
+void OzzyHAL::EncodePloytecPCM(uint8_t *dst, const float *src) {
 	int32_t s[8];
 	for(int i=0; i<8; i++) {
 		s[i] = (int32_t)(src[i] * 8388608.0f);
@@ -414,7 +436,7 @@ void PloytecAudio::EncodePloytecPCM(uint8_t *dst, const float *src) {
 	dst[0x2F] = ((c2_L & 0x01) >> 0x00) | ((c4_L & 0x01) << 0x01) | ((c6_L & 0x01) << 0x02) | ((c8_L & 0x01) << 0x03);
 }
 
-void PloytecAudio::DecodePloytecPCM(float *dst, const uint8_t *src) {
+void OzzyHAL::DecodePloytecPCM(float *dst, const uint8_t *src) {
 	uint8_t c[8][3];
 	c[0][2] = ((src[0x00] & 0x01) << 7) | ((src[0x01] & 0x01) << 6) | ((src[0x02] & 0x01) << 5) | ((src[0x03] & 0x01) << 4) | ((src[0x04] & 0x01) << 3) | ((src[0x05] & 0x01) << 2) | ((src[0x06] & 0x01) << 1) | ((src[0x07] & 0x01));
 	c[0][1] = ((src[0x08] & 0x01) << 7) | ((src[0x09] & 0x01) << 6) | ((src[0x0A] & 0x01) << 5) | ((src[0x0B] & 0x01) << 4) | ((src[0x0C] & 0x01) << 3) | ((src[0x0D] & 0x01) << 2) | ((src[0x0E] & 0x01) << 1) | ((src[0x0F] & 0x01));
@@ -448,27 +470,27 @@ void PloytecAudio::DecodePloytecPCM(float *dst, const uint8_t *src) {
 	}
 }
 
-CFStringRef PloytecAudio::GetDeviceName() const { return mModelUID; }
-CFStringRef PloytecAudio::GetManufacturer() const { return mManufacturerUID; }
-CFStringRef PloytecAudio::GetDeviceUID() const { return mDeviceUID; }
-CFStringRef PloytecAudio::GetModelUID() const { return mModelUID; }
-UInt32 PloytecAudio::GetTransportType() const { return kAudioDeviceTransportTypeUSB; }
-UInt32 PloytecAudio::GetClockDomain() const { return 0x504C4F59; }
-Float64 PloytecAudio::GetNominalSampleRate() const { return 96000.0; }
-AudioValueRange PloytecAudio::GetAvailableSampleRates() const { return mAvailableSampleRates; }
-AudioBufferList* PloytecAudio::GetInputStreamConfiguration() const { return const_cast<AudioBufferList*>(&mInputConfig); }
-AudioBufferList* PloytecAudio::GetOutputStreamConfiguration() const { return const_cast<AudioBufferList*>(&mOutputConfig); }
-AudioObjectID PloytecAudio::GetInputStreamID() const { return kPloytecInputStreamID; }
-AudioObjectID PloytecAudio::GetOutputStreamID() const { return kPloytecOutputStreamID; }
-AudioStreamBasicDescription PloytecAudio::GetStreamFormat() const { return mCurrentStreamFormat; }
-AudioStreamRangedDescription PloytecAudio::GetStreamRangedDescription() const {
+CFStringRef OzzyHAL::GetDeviceName() const { return mModelUID; }
+CFStringRef OzzyHAL::GetManufacturer() const { return mManufacturerUID; }
+CFStringRef OzzyHAL::GetDeviceUID() const { return mDeviceUID; }
+CFStringRef OzzyHAL::GetModelUID() const { return mModelUID; }
+UInt32 OzzyHAL::GetTransportType() const { return kAudioDeviceTransportTypeUSB; }
+UInt32 OzzyHAL::GetClockDomain() const { return 0x504C4F59; }
+Float64 OzzyHAL::GetNominalSampleRate() const { return 96000.0; }
+AudioValueRange OzzyHAL::GetAvailableSampleRates() const { return mAvailableSampleRates; }
+AudioBufferList* OzzyHAL::GetInputStreamConfiguration() const { return const_cast<AudioBufferList*>(&mInputConfig); }
+AudioBufferList* OzzyHAL::GetOutputStreamConfiguration() const { return const_cast<AudioBufferList*>(&mOutputConfig); }
+AudioObjectID OzzyHAL::GetInputStreamID() const { return kPloytecInputStreamID; }
+AudioObjectID OzzyHAL::GetOutputStreamID() const { return kPloytecOutputStreamID; }
+AudioStreamBasicDescription OzzyHAL::GetStreamFormat() const { return mCurrentStreamFormat; }
+AudioStreamRangedDescription OzzyHAL::GetStreamRangedDescription() const {
 	AudioStreamRangedDescription outDesc; outDesc.mFormat = GetStreamFormat();
 	outDesc.mSampleRateRange.mMinimum = 96000.0; outDesc.mSampleRateRange.mMaximum = 96000.0;
 	return outDesc;
 }
-UInt32 PloytecAudio::GetZeroTimestampPeriod() const { return mZeroTimestampPeriod; }
+UInt32 OzzyHAL::GetZeroTimestampPeriod() const { return mZeroTimestampPeriod; }
 
-AudioChannelLayout* PloytecAudio::GetPreferredChannelLayout(AudioObjectPropertyScope inScope) {
+AudioChannelLayout* OzzyHAL::GetPreferredChannelLayout(AudioObjectPropertyScope inScope) {
 	AudioChannelLayout* layout = (AudioChannelLayout*)mChannelLayoutBuffer;
 	layout->mChannelLayoutTag = kAudioChannelLayoutTag_UseChannelDescriptions;
 	layout->mChannelBitmap = 0;
@@ -480,12 +502,12 @@ AudioChannelLayout* PloytecAudio::GetPreferredChannelLayout(AudioObjectPropertyS
 	return layout;
 }
 
-UInt32 PloytecAudio::GetPreferredChannelLayoutSize(AudioObjectPropertyScope inScope) const {
+UInt32 OzzyHAL::GetPreferredChannelLayoutSize(AudioObjectPropertyScope inScope) const {
 	return offsetof(AudioChannelLayout, mChannelDescriptions) + (8 * sizeof(AudioChannelDescription));
 }
 
 extern "C" HRESULT PloytecInitialize(AudioServerPlugInDriverRef, AudioServerPlugInHostRef inHost) {
-	PloytecAudio::Get().Init(inHost);
+	OzzyHAL::Get().Init(inHost);
 	return kAudioHardwareNoError;
 }
 
@@ -546,7 +568,7 @@ extern "C" HRESULT PloytecGetPropertyDataSize(AudioServerPlugInDriverRef, AudioO
 	if (inObjectID == kAudioObjectPlugInObject) {
 		switch (inAddress->mSelector) {
 			case kAudioPlugInPropertyDeviceList: case kAudioObjectPropertyOwnedObjects:
-				*outDataSize = PloytecAudio::Get().IsConnected() ? sizeof(AudioObjectID) : 0; return kAudioHardwareNoError;
+				*outDataSize = OzzyHAL::Get().IsConnected() ? sizeof(AudioObjectID) : 0; return kAudioHardwareNoError;
 			case kAudioObjectPropertyControlList: *outDataSize = 0; return kAudioHardwareNoError;
 			case kAudioObjectPropertyName: case kAudioObjectPropertyManufacturer: *outDataSize = sizeof(CFStringRef); return kAudioHardwareNoError;
 			case kAudioObjectPropertyBaseClass: case kAudioObjectPropertyClass: *outDataSize = sizeof(AudioClassID); return kAudioHardwareNoError;
@@ -573,10 +595,10 @@ extern "C" HRESULT PloytecGetPropertyDataSize(AudioServerPlugInDriverRef, AudioO
 				else *outDataSize = 0;
 				return kAudioHardwareNoError;
 			case kAudioDevicePropertyStreamConfiguration:
-				*outDataSize = GetAudioBufferListSize((IsOutputScope(inAddress->mScope) ? PloytecAudio::Get().GetOutputStreamConfiguration() : PloytecAudio::Get().GetInputStreamConfiguration())->mNumberBuffers);
+				*outDataSize = GetAudioBufferListSize((IsOutputScope(inAddress->mScope) ? OzzyHAL::Get().GetOutputStreamConfiguration() : OzzyHAL::Get().GetInputStreamConfiguration())->mNumberBuffers);
 				return kAudioHardwareNoError;
 			case kAudioDevicePropertySafetyOffset: case kAudioDevicePropertyLatency: case kAudioDevicePropertyZeroTimeStampPeriod: *outDataSize = sizeof(UInt32); return kAudioHardwareNoError;
-			case kAudioDevicePropertyPreferredChannelLayout: *outDataSize = PloytecAudio::Get().GetPreferredChannelLayoutSize(inAddress->mScope); return kAudioHardwareNoError;
+			case kAudioDevicePropertyPreferredChannelLayout: *outDataSize = OzzyHAL::Get().GetPreferredChannelLayoutSize(inAddress->mScope); return kAudioHardwareNoError;
 			default: return kAudioHardwareUnknownPropertyError;
 		}
 	}
@@ -599,7 +621,7 @@ extern "C" HRESULT PloytecGetPropertyData(AudioServerPlugInDriverRef, AudioObjec
 	if (inObjectID == kAudioObjectPlugInObject) {
 		switch (inAddress->mSelector) {
 			case kAudioPlugInPropertyDeviceList: case kAudioObjectPropertyOwnedObjects:
-				if (!PloytecAudio::Get().IsConnected()) { if (outSize) *outSize = 0; return kAudioHardwareNoError; }
+				if (!OzzyHAL::Get().IsConnected()) { if (outSize) *outSize = 0; return kAudioHardwareNoError; }
 				return WriteObjectID(inMax, outSize, outData, kPloytecDeviceID);
 			case kAudioObjectPropertyControlList: if (outSize) *outSize = 0; return kAudioHardwareNoError;
 			case kAudioObjectPropertyName: return WriteCFString(inMax, outSize, outData, CFSTR("Ploytec HAL"));
@@ -615,16 +637,16 @@ extern "C" HRESULT PloytecGetPropertyData(AudioServerPlugInDriverRef, AudioObjec
 			case kAudioObjectPropertyClass: return WriteClassID(inMax, outSize, outData, kAudioDeviceClassID);
 			case kAudioObjectPropertyControlList: if (outSize) *outSize = 0; return kAudioHardwareNoError;
 			case kAudioObjectPropertyOwner: return WriteObjectID(inMax, outSize, outData, kAudioObjectPlugInObject);
-			case kAudioObjectPropertyName: return WriteCFString(inMax, outSize, outData, PloytecAudio::Get().GetDeviceName());
-			case kAudioObjectPropertyManufacturer: return WriteCFString(inMax, outSize, outData, PloytecAudio::Get().GetManufacturer());
-			case kAudioDevicePropertyDeviceUID: return WriteCFString(inMax, outSize, outData, PloytecAudio::Get().GetDeviceUID());
-			case kAudioDevicePropertyModelUID: return WriteCFString(inMax, outSize, outData, PloytecAudio::Get().GetModelUID());
-			case kAudioDevicePropertyTransportType: return WriteUInt32(inMax, outSize, outData, PloytecAudio::Get().GetTransportType());
+			case kAudioObjectPropertyName: return WriteCFString(inMax, outSize, outData, OzzyHAL::Get().GetDeviceName());
+			case kAudioObjectPropertyManufacturer: return WriteCFString(inMax, outSize, outData, OzzyHAL::Get().GetManufacturer());
+			case kAudioDevicePropertyDeviceUID: return WriteCFString(inMax, outSize, outData, OzzyHAL::Get().GetDeviceUID());
+			case kAudioDevicePropertyModelUID: return WriteCFString(inMax, outSize, outData, OzzyHAL::Get().GetModelUID());
+			case kAudioDevicePropertyTransportType: return WriteUInt32(inMax, outSize, outData, OzzyHAL::Get().GetTransportType());
 			case kAudioDevicePropertyIsHidden: return WriteUInt32(inMax, outSize, outData, 0);
-			case kAudioDevicePropertyDeviceIsAlive: return WriteUInt32(inMax, outSize, outData, PloytecAudio::Get().IsConnected() ? 1 : 0);
-			case kAudioDevicePropertyDeviceIsRunning: case kAudioDevicePropertyDeviceIsRunningSomewhere: return WriteUInt32(inMax, outSize, outData, PloytecAudio::Get().IsRunning() ? 1 : 0);
-			case kAudioDevicePropertyNominalSampleRate: return WriteFloat64(inMax, outSize, outData, PloytecAudio::Get().GetNominalSampleRate());
-			case kAudioDevicePropertyAvailableNominalSampleRates: if (outSize) *outSize = sizeof(AudioValueRange); if (outData) { if (inMax < sizeof(AudioValueRange)) return kAudioHardwareBadPropertySizeError; *(AudioValueRange*)outData = PloytecAudio::Get().GetAvailableSampleRates(); } return kAudioHardwareNoError;
+			case kAudioDevicePropertyDeviceIsAlive: return WriteUInt32(inMax, outSize, outData, OzzyHAL::Get().IsConnected() ? 1 : 0);
+			case kAudioDevicePropertyDeviceIsRunning: case kAudioDevicePropertyDeviceIsRunningSomewhere: return WriteUInt32(inMax, outSize, outData, OzzyHAL::Get().IsRunning() ? 1 : 0);
+			case kAudioDevicePropertyNominalSampleRate: return WriteFloat64(inMax, outSize, outData, OzzyHAL::Get().GetNominalSampleRate());
+			case kAudioDevicePropertyAvailableNominalSampleRates: if (outSize) *outSize = sizeof(AudioValueRange); if (outData) { if (inMax < sizeof(AudioValueRange)) return kAudioHardwareBadPropertySizeError; *(AudioValueRange*)outData = OzzyHAL::Get().GetAvailableSampleRates(); } return kAudioHardwareNoError;
 			case kAudioDevicePropertyStreams: {
 				UInt32 streamList[] = { kPloytecInputStreamID, kPloytecOutputStreamID };
 				if (inAddress->mScope == kAudioObjectPropertyScopeInput) return WriteObjectID(inMax, outSize, outData, kPloytecInputStreamID);
@@ -637,18 +659,18 @@ extern "C" HRESULT PloytecGetPropertyData(AudioServerPlugInDriverRef, AudioObjec
 				if (outSize) *outSize = 2 * sizeof(AudioObjectID); return kAudioHardwareNoError;
 			}
 			case kAudioDevicePropertyStreamConfiguration: {
-				AudioBufferList* config = (inAddress->mScope == kAudioObjectPropertyScopeInput) ? PloytecAudio::Get().GetInputStreamConfiguration() : PloytecAudio::Get().GetOutputStreamConfiguration();
+				AudioBufferList* config = (inAddress->mScope == kAudioObjectPropertyScopeInput) ? OzzyHAL::Get().GetInputStreamConfiguration() : OzzyHAL::Get().GetOutputStreamConfiguration();
 				UInt32 actualSize = GetAudioBufferListSize(config->mNumberBuffers); if (outSize) *outSize = actualSize;
 				if (outData) { if (inMax < actualSize) return kAudioHardwareBadPropertySizeError; memcpy(outData, config, actualSize); } return kAudioHardwareNoError;
 			}
-			case kAudioDevicePropertyClockDomain: return WriteUInt32(inMax, outSize, outData, PloytecAudio::Get().GetClockDomain());
-			case kAudioDevicePropertyLatency: return WriteUInt32(inMax, outSize, outData, PloytecAudio::Get().GetLatency());
-			case kAudioDevicePropertySafetyOffset: return WriteUInt32(inMax, outSize, outData, PloytecAudio::Get().GetSafetyOffset());
-			case kAudioDevicePropertyZeroTimeStampPeriod: return WriteUInt32(inMax, outSize, outData, PloytecAudio::Get().GetZeroTimestampPeriod());
+			case kAudioDevicePropertyClockDomain: return WriteUInt32(inMax, outSize, outData, OzzyHAL::Get().GetClockDomain());
+			case kAudioDevicePropertyLatency: return WriteUInt32(inMax, outSize, outData, OzzyHAL::Get().GetLatency());
+			case kAudioDevicePropertySafetyOffset: return WriteUInt32(inMax, outSize, outData, OzzyHAL::Get().GetSafetyOffset());
+			case kAudioDevicePropertyZeroTimeStampPeriod: return WriteUInt32(inMax, outSize, outData, OzzyHAL::Get().GetZeroTimestampPeriod());
 			case kAudioDevicePropertyPreferredChannelLayout: {
-				UInt32 size = PloytecAudio::Get().GetPreferredChannelLayoutSize(inAddress->mScope);
+				UInt32 size = OzzyHAL::Get().GetPreferredChannelLayoutSize(inAddress->mScope);
 				if (outSize) *outSize = size;
-				if (outData) { if (inMax < size) return kAudioHardwareBadPropertySizeError; memcpy(outData, PloytecAudio::Get().GetPreferredChannelLayout(inAddress->mScope), size); }
+				if (outData) { if (inMax < size) return kAudioHardwareBadPropertySizeError; memcpy(outData, OzzyHAL::Get().GetPreferredChannelLayout(inAddress->mScope), size); }
 				return kAudioHardwareNoError;
 			}
 			default: return kAudioHardwareUnknownPropertyError;
@@ -663,14 +685,14 @@ extern "C" HRESULT PloytecGetPropertyData(AudioServerPlugInDriverRef, AudioObjec
 			case kAudioStreamPropertyDirection: return WriteUInt32(inMax, outSize, outData, (inObjectID == kPloytecOutputStreamID ? 0 : 1));
 			case kAudioStreamPropertyTerminalType: return WriteUInt32(inMax, outSize, outData, kAudioStreamTerminalTypeSpeaker);
 			case kAudioStreamPropertyStartingChannel: return WriteUInt32(inMax, outSize, outData, 1);
-			case kAudioStreamPropertyLatency: return WriteUInt32(inMax, outSize, outData, PloytecAudio::Get().GetLatency());
+			case kAudioStreamPropertyLatency: return WriteUInt32(inMax, outSize, outData, OzzyHAL::Get().GetLatency());
 			case kAudioStreamPropertyVirtualFormat: case kAudioStreamPropertyPhysicalFormat:
 				if (outData && inMax < sizeof(AudioStreamBasicDescription)) return kAudioHardwareBadPropertySizeError;
-				if (outData) *(AudioStreamBasicDescription*)outData = PloytecAudio::Get().GetStreamFormat();
+				if (outData) *(AudioStreamBasicDescription*)outData = OzzyHAL::Get().GetStreamFormat();
 				if (outSize) *outSize = sizeof(AudioStreamBasicDescription); return kAudioHardwareNoError;
 			case kAudioStreamPropertyAvailableVirtualFormats: case kAudioStreamPropertyAvailablePhysicalFormats:
 				if (outData && inMax < sizeof(AudioStreamRangedDescription)) return kAudioHardwareBadPropertySizeError;
-				if (outData) *(AudioStreamRangedDescription*)outData = PloytecAudio::Get().GetStreamRangedDescription();
+				if (outData) *(AudioStreamRangedDescription*)outData = OzzyHAL::Get().GetStreamRangedDescription();
 				if (outSize) *outSize = sizeof(AudioStreamRangedDescription); return kAudioHardwareNoError;
 			default: return kAudioHardwareUnknownPropertyError;
 		}
@@ -679,12 +701,12 @@ extern "C" HRESULT PloytecGetPropertyData(AudioServerPlugInDriverRef, AudioObjec
 }
 
 extern "C" HRESULT PloytecSetPropertyData(AudioServerPlugInDriverRef, AudioObjectID, pid_t, const AudioObjectPropertyAddress*, UInt32, const void*, UInt32, const void*) { return kAudioHardwareUnsupportedOperationError; }
-extern "C" HRESULT PloytecStartIO(AudioServerPlugInDriverRef, AudioObjectID, UInt32) { return PloytecAudio::Get().StartIO(); }
-extern "C" HRESULT PloytecStopIO(AudioServerPlugInDriverRef, AudioObjectID, UInt32) { return PloytecAudio::Get().StopIO(); }
-extern "C" HRESULT PloytecGetZeroTimeStamp(AudioServerPlugInDriverRef inDriver, AudioObjectID inDeviceObjectID, UInt32 inClientID, Float64* outSampleTime, UInt64* outHostTime, UInt64* outSeed) { return PloytecAudio::Get().GetZeroTimeStamp(inDriver, inDeviceObjectID, inClientID, outSampleTime, outHostTime, outSeed); }
+extern "C" HRESULT PloytecStartIO(AudioServerPlugInDriverRef, AudioObjectID, UInt32) { return OzzyHAL::Get().StartIO(); }
+extern "C" HRESULT PloytecStopIO(AudioServerPlugInDriverRef, AudioObjectID, UInt32) { return OzzyHAL::Get().StopIO(); }
+extern "C" HRESULT PloytecGetZeroTimeStamp(AudioServerPlugInDriverRef inDriver, AudioObjectID inDeviceObjectID, UInt32 inClientID, Float64* outSampleTime, UInt64* outHostTime, UInt64* outSeed) { return OzzyHAL::Get().GetZeroTimeStamp(inDriver, inDeviceObjectID, inClientID, outSampleTime, outHostTime, outSeed); }
 extern "C" OSStatus PloytecWillDoIOOperation(AudioServerPlugInDriverRef, AudioObjectID, UInt32, UInt32 inOperationID, Boolean* outWillDo, Boolean* outWillDoInPlace) { bool willDo = false; bool willDoInPlace = true; switch (inOperationID) { case kAudioServerPlugInIOOperationWriteMix: case kAudioServerPlugInIOOperationReadInput: willDo = true; break; default: willDo = false; break; } if (outWillDo) *outWillDo = willDo; if (outWillDoInPlace) *outWillDoInPlace = willDoInPlace; return kAudioHardwareNoError; }
 extern "C" OSStatus PloytecBeginIOOperation(AudioServerPlugInDriverRef, AudioObjectID, UInt32, UInt32, UInt32, const AudioServerPlugInIOCycleInfo*) { return 0; }
-extern "C" OSStatus PloytecDoIOOperation(AudioServerPlugInDriverRef inDriver, AudioObjectID inDeviceObjectID, UInt32 inStreamObjectID, UInt32 inClientID, UInt32 inOperationID, UInt32 inIOBufferFrameSize, const AudioServerPlugInIOCycleInfo* inIOCycleInfo, void* ioMainBuffer, void* ioSecondaryBuffer) { return PloytecAudio::Get().ioOperationHandler(inDriver, inDeviceObjectID, inStreamObjectID, inClientID, inOperationID, inIOBufferFrameSize, inIOCycleInfo, ioMainBuffer, ioSecondaryBuffer); }
+extern "C" OSStatus PloytecDoIOOperation(AudioServerPlugInDriverRef inDriver, AudioObjectID inDeviceObjectID, UInt32 inStreamObjectID, UInt32 inClientID, UInt32 inOperationID, UInt32 inIOBufferFrameSize, const AudioServerPlugInIOCycleInfo* inIOCycleInfo, void* ioMainBuffer, void* ioSecondaryBuffer) { return OzzyHAL::Get().ioOperationHandler(inDriver, inDeviceObjectID, inStreamObjectID, inClientID, inOperationID, inIOBufferFrameSize, inIOCycleInfo, ioMainBuffer, ioSecondaryBuffer); }
 extern "C" OSStatus PloytecEndIOOperation(AudioServerPlugInDriverRef, AudioObjectID, UInt32, UInt32, UInt32, const AudioServerPlugInIOCycleInfo*) { return 0; }
 extern "C" HRESULT PloytecQueryInterface(void*, REFIID inREFIID, LPVOID* outInterface) { extern AudioServerPlugInDriverRef gPloytecDriverRef; CFUUIDBytes bytes = CFUUIDGetUUIDBytes(kAudioServerPlugInDriverInterfaceUUID); if (outInterface && memcmp(&inREFIID, &bytes, sizeof(REFIID)) == 0) { *outInterface = gPloytecDriverRef; return kAudioHardwareNoError; } return kAudioHardwareUnknownPropertyError; }
 extern "C" ULONG PloytecAddRef(void*) { return 1; }

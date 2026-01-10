@@ -3,11 +3,11 @@
 <plist version="1.0">
 <dict>
 	<key>Label</key>
-	<string>hackerman.ploytecusb</string>
+	<string>Ozzy</string>
 
 	<key>ProgramArguments</key>
 	<array>
-		<string>/usr/local/bin/ploytecusb</string>
+		<string>/usr/local/bin/Ozzy</string>
 	</array>
 
 	<key>UserName</key>
@@ -26,8 +26,8 @@
 	<string>Interactive</string>
 
 	<key>StandardOutPath</key>
-	<string>/var/log/ploytecusb.log</string>
+	<string>/var/log/Ozzy.log</string>
 	<key>StandardErrorPath</key>
-	<string>/var/log/ploytecusb.err</string>
+	<string>/var/log/Ozzy.err</string>
 </dict>
 </plist>

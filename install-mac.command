@@ -2,13 +2,14 @@
 set -e
 
 # ==========================================
-#  Ploytec Audio Engine: Build & Install
-#  (USB Daemon + HAL Plugin + MIDI Plugin)
+#  Ozzy Audio Engine: Build & Install
+#  (Ozzy Daemon + HAL Plugin + MIDI Plugin)
 # ==========================================
 
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$DIR"
 
+# Conflict Check
 if [ -d "/Applications/Ploytec Driver Extension.app" ]; then
     clear
     echo "====================================================="
@@ -47,47 +48,47 @@ else
 fi
 echo ""
 
-# --- 2. Build USB Engine (Daemon) ---
-echo "🔥 Compiling PloytecUSB Daemon..."
-# Assuming source is in mac-hal/ploytecusb/
-SRC_USB="mac-hal/ploytecusb/PloytecUSB.cpp"
-BIN_USB="$DIR/build/Release/ploytecusb"
+# --- 2. Build Daemon (Ozzy) ---
+echo "🔥 Compiling Ozzy Daemon..."
+SRC_DAEMON="mac-hal/Ozzy/Ozzy.cpp"
+SRC_DRIVER="mac-hal/Ozzy/PloytecUSB.cpp"
+BIN_DAEMON="$DIR/build/Release/Ozzy"
 
 mkdir -p "$DIR/build/Release"
 
-clang++ -o "$BIN_USB" "$SRC_USB" \
+clang++ -o "$BIN_DAEMON" "$SRC_DAEMON" "$SRC_DRIVER" \
     -framework CoreFoundation \
     -framework IOKit \
-    -std=c++17 -O3
+    -std=c++17 -O3 \
+    -Wno-deprecated-declarations
 
-if [ ! -f "$BIN_USB" ]; then
-    echo "❌ USB Engine compilation failed."
+if [ ! -f "$BIN_DAEMON" ]; then
+    echo "❌ Daemon compilation failed."
     exit 1
 fi
 
 # --- 3. Build Audio & MIDI Plugins ---
-echo "🏗️  Building PloytecAudio (HAL)..."
-xcodebuild -project "mac-hal/ploytec.xcodeproj" \
-           -scheme "ploytecaudio" \
+echo "🏗️  Building OzzyHAL (HAL)..."
+xcodebuild -project "mac-hal/Ozzy.xcodeproj" \
+           -scheme "OzzyHAL" \
            -configuration Release \
            SYMROOT="$DIR/build" \
            build > /dev/null
 
-echo "🏗️  Building PloytecMIDI (Plugin)..."
-xcodebuild -project "mac-hal/ploytec.xcodeproj" \
-           -scheme "ploytecmidi" \
+echo "🏗️  Building OzzyMIDI (Plugin)..."
+xcodebuild -project "mac-hal/Ozzy.xcodeproj" \
+           -scheme "OzzyMIDI" \
            -configuration Release \
            SYMROOT="$DIR/build" \
            build > /dev/null
 
 # --- 4. Sign Artifacts ---
 echo "🔐 Signing Binaries..."
-HAL_PATH="$DIR/build/Release/PloytecAudio.driver"
-MIDI_PATH="$DIR/build/Release/PloytecMIDI.plugin"
+HAL_PATH="$DIR/build/Release/OzzyHAL.driver"
+MIDI_PATH="$DIR/build/Release/OzzyMIDI.plugin"
 
 codesign --sign "$CODE_SIGN_IDENTITY" --force --options runtime "$HAL_PATH"
 codesign --sign "$CODE_SIGN_IDENTITY" --force --options runtime "$MIDI_PATH"
-codesign --sign "$CODE_SIGN_IDENTITY" --force --options runtime "$BIN_USB"
 
 # --- 5. Install (Sudo) ---
 echo ""
@@ -96,43 +97,44 @@ sudo -v
 
 echo "🚀 Installing Plugins & Service..."
 
-# 5a. Install USB Daemon
-echo "   - Installing USB Service..."
-sudo launchctl unload /Library/LaunchDaemons/hackerman.ploytecusb.plist 2>/dev/null || true
-sudo cp "$BIN_USB" /usr/local/bin/
-sudo chown root:wheel /usr/local/bin/ploytecusb
-sudo chmod 755 /usr/local/bin/ploytecusb
+# 5a. Install Daemon (Ozzy)
+echo "   - Installing Ozzy Service..."
 
-# Using the existing plist from source
-sudo cp "$DIR/mac-hal/ploytecusb/hackerman.ploytecusb.plist" /Library/LaunchDaemons/
-sudo chown root:wheel /Library/LaunchDaemons/hackerman.ploytecusb.plist
-sudo chmod 644 /Library/LaunchDaemons/hackerman.ploytecusb.plist
+# Copy binary
+sudo cp "$BIN_DAEMON" /usr/local/bin/
+sudo chown root:wheel /usr/local/bin/Ozzy
+sudo chmod 755 /usr/local/bin/Ozzy
+
+# Copy existing plist from source
+sudo cp "$DIR/mac-hal/Ozzy/Ozzy.plist" /Library/LaunchDaemons/
+sudo chown root:wheel /Library/LaunchDaemons/Ozzy.plist
+sudo chmod 644 /Library/LaunchDaemons/Ozzy.plist
 
 # 5b. Install HAL Driver
 echo "   - Installing HAL Driver..."
-if [ -d "/Library/Audio/Plug-Ins/HAL/PloytecAudio.driver" ]; then
-    sudo rm -rf "/Library/Audio/Plug-Ins/HAL/PloytecAudio.driver"
+if [ -d "/Library/Audio/Plug-Ins/HAL/OzzyHAL.driver" ]; then
+    sudo rm -rf "/Library/Audio/Plug-Ins/HAL/OzzyHAL.driver"
 fi
 sudo cp -R "$HAL_PATH" "/Library/Audio/Plug-Ins/HAL/"
-sudo chown -R root:wheel "/Library/Audio/Plug-Ins/HAL/PloytecAudio.driver"
-sudo chmod -R 755 "/Library/Audio/Plug-Ins/HAL/PloytecAudio.driver"
+sudo chown -R root:wheel "/Library/Audio/Plug-Ins/HAL/OzzyHAL.driver"
+sudo chmod -R 755 "/Library/Audio/Plug-Ins/HAL/OzzyHAL.driver"
 
 # 5c. Install MIDI Driver
 echo "   - Installing MIDI Driver..."
-if [ -d "/Library/Audio/MIDI Drivers/PloytecMIDI.plugin" ]; then
-    sudo rm -rf "/Library/Audio/MIDI Drivers/PloytecMIDI.plugin"
+if [ -d "/Library/Audio/MIDI Drivers/OzzyMIDI.plugin" ]; then
+    sudo rm -rf "/Library/Audio/MIDI Drivers/OzzyMIDI.plugin"
 fi
 sudo cp -R "$MIDI_PATH" "/Library/Audio/MIDI Drivers/"
-sudo chown -R root:wheel "/Library/Audio/MIDI Drivers/PloytecMIDI.plugin"
-sudo chmod -R 755 "/Library/Audio/MIDI Drivers/PloytecMIDI.plugin"
+sudo chown -R root:wheel "/Library/Audio/MIDI Drivers/OzzyMIDI.plugin"
+sudo chmod -R 755 "/Library/Audio/MIDI Drivers/OzzyMIDI.plugin"
 
 # --- 6. Load & Restart ---
 echo "🔄 Reloading Services..."
-sudo launchctl load /Library/LaunchDaemons/hackerman.ploytecusb.plist
+sudo launchctl load /Library/LaunchDaemons/Ozzy.plist
 sudo killall coreaudiod
 sudo killall MIDIServer 2>/dev/null || true
 sudo touch "/Library/Audio/MIDI Drivers"
 
 echo ""
-echo "✅ Build & Install Complete! USB Engine is running."
+echo "✅ Build & Install Complete! Ozzy is running."
 read -p "Press [Enter] to exit..."

@@ -8,14 +8,13 @@ set -e
 DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
 cd "$DIR"
 
-# --- 0. Conflict Check (ADDED) ---
-if [ -d "/Library/Audio/Plug-Ins/HAL/ploytechal.driver" ]; then
+if [ -d "/Library/Audio/Plug-Ins/HAL/OzzyHAL.driver" ]; then
     clear
     echo "====================================================="
     echo "❌ CONFLICT DETECTED"
     echo "====================================================="
     echo "You already have the HAL driver installed at:"
-    echo "  /Library/Audio/Plug-Ins/HAL/ploytechal.driver"
+    echo "  /Library/Audio/Plug-Ins/HAL/OzzyHAL.driver"
     echo ""
     echo "You cannot have both the HAL driver and DriverKit (Dext) installed."
     echo "Please delete the HAL driver and reboot before running this script."
