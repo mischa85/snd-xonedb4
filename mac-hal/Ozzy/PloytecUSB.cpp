@@ -268,7 +268,7 @@ void PloytecUSB::PCMinComplete(void* r, IOReturn res, void*) {
 
 bool PloytecUSB::SubmitPCMout(uint32_t idx) {
 	IOUSBInterfaceInterface** i = (mPcmOutIf==0)?mInterface0:mInterface1;
-	uint8_t* buf = mSHM->audio.outputBuffer + ((idx&kPacketMask)*kBulkPacketSizeOut);
+	uint8_t* buf = mSHM->audio.outputBuffer + ((idx&kPacketMask)*mPacketSizeOut);
 	if (mTransferMode == kTransferModeBulk) {
 		uint32_t r = std::atomic_load_explicit(&mSHM->midiOut.readIndex, std::memory_order_relaxed);
 		uint32_t w = std::atomic_load_explicit(&mSHM->midiOut.writeIndex, std::memory_order_acquire);
