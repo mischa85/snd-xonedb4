@@ -100,7 +100,7 @@ echo "🚀 Installing Plugins & Service..."
 # 5a. Install Daemon (Ozzy)
 echo "   - Installing Ozzy Service..."
 
-mkdir -p /usr/local/bin
+sudo mkdir -p /usr/local/bin
 
 # Copy binary
 sudo cp "$BIN_DAEMON" /usr/local/bin/
