@@ -198,8 +198,21 @@ IOReturn OzzyKext::message(UInt32 type, IOService* provider, void* argument) {
             mSHM->audio.hardwarePresent = false;
             mSHM->audio.driverReady = false;
         }
+        
+        // CRITICAL: Stop engine and abort transfers NOW to prevent callback deadlocks
+        if (mEngine) {
+            mEngine->Stop();
+        }
+        
+        // Abort all USB pipes immediately (don't wait for stop())
+        for (int i = 0; i < kMaxPipes; i++) {
+            if (mPipes[i]) {
+                mPipes[i]->abort();
+            }
+        }
     }
     
+    // MUST call super - failure to do so causes termination timeout and kernel panic
     return IOService::message(type, provider, argument);
 }
 
