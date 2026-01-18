@@ -1,103 +1,122 @@
-# 🎛️ Ploytec USB Audio & MIDI Driver
+# 🎛️ Ozzy - USB Audio & MIDI Driver for Non-Class Compliant Devices
 
-**Resurrecting the best DJ mixers ever made.**
+**Bringing legacy professional audio hardware back to life.**
 
-This repository contains an open-source, reverse-engineered driver for **Ploytec-based USB interfaces**. If you own an **Allen & Heath Xone:DB4**, **DB2**, or **DX**, you probably noticed that the official drivers died years ago.
+Modern operating systems dropped support for non-class compliant USB audio devices—hardware that doesn't follow the standard USB Audio Class specification. These devices require vendor-specific drivers, and when manufacturers abandon them, perfectly good professional equipment becomes unusable.
 
-We fixed that.
+Ozzy fixes that.
+
+This is an open-source, reverse-engineered driver supporting non-class compliant USB audio interfaces—high-end DJ mixers and audio processors that were left behind when official driver support ended.
+
+**Currently Supported Devices:**
+* **Allen & Heath Xone:DB4, DB2, DX, 4D** (Ploytec-based protocol)
+
+More devices can be added—the architecture separates the audio engine from device protocols.
 
 ---
 
-## 🚀 The Philosophy
+## 🚀 What Makes These Devices Non-Class Compliant?
 
-We provide two ways to run this.
+Standard USB Audio Class devices work automatically with any modern OS—they follow a universal protocol. But professional hardware often needs:
 
-1.  **CoreAudio HAL Plug-in (Recommended):**
-    This uses **Classic IOKit** to punch a hole directly to the USB bus from userspace.
-    * **SIP Compatible:** Works perfectly with System Integrity Protection (SIP) and AMFI **enabled**.
-    * **Zero-Copy:** Audio doesn't bounce around user-space unnecessarily.
-    * **Zero-Latency:** (Well, near zero). We use direct ring-buffers in shared memory.
-    * **Robust:** No "System Extension Blocked" loops. It just works.
+* **Custom audio routing** beyond simple stereo in/out
+* **Hardware-specific DSP control** and mixer integration  
+* **Proprietary USB protocols** for low-latency performance
+* **Special MIDI implementations** for controller integration
 
-2.  **DriverKit System Extension:**
-    The "modern" Apple way using a **System Extension (dext)**.
-    * **Sandboxed:** Runs in the DriverKit environment.
-    * **Requires SIP Disabled:** Because we do not yet have the specific DriverKit entitlements from Apple, you must disable SIP and AMFI to load this driver. One day, if Apple grants us the entitlements, this will be the signed, secure standard.
+These devices never worked with generic OS drivers. They **require** vendor-specific drivers. When vendors stop supporting them, the hardware stops working on new OS versions.
+
+Ozzy reverses the protocol and provides modern drivers—so your equipment keeps working.
 
 ---
 
 ## 🎚️ Supported Devices
 
-| Device | Status | Notes |
-| :--- | :--- | :--- |
-| **Allen & Heath Xone:DB4** | ✅ **Perfect** | The beast works. 8-in/8-out. |
-| **Allen & Heath Xone:DB2** | ✅ **Perfect** | Your effects unit is back online. |
-| **Allen & Heath Xone:DX** | ✅ **Perfect** | 2010 called, it wants its Serato controller back. |
-| **Allen & Heath Xone:4D** | ✅ **Verified** | Analog filters meet digital routing. |
-| **Allen & Heath WZ4:USB** | 🚧 *WIP* | We are still teaching it how to count channels. |
-| **Smyth Research A16** | ⚪ *Planned* | Audioholics, we see you. |
+| Device | Channels | Sample Rates | Status |
+| :--- | :--- | :--- | :--- |
+| **Allen & Heath Xone:DB4** | 8×8 | 44.1/48/88.2/96 kHz | ✅ Perfect |
+| **Allen & Heath Xone:DB2** | 8×8 | 44.1/48/88.2/96 kHz | ✅ Perfect |
+| **Allen & Heath Xone:DX** | 8×8 | 44.1/48/88.2/96 kHz | ✅ Perfect |
+| **Allen & Heath Xone:4D** | 8×8 | 44.1/48/88.2/96 kHz | ✅ Perfect |
 
 ---
 
 ## 🖥️ Platform Support
 
-### 🐧 Linux (The "Just Works" Kernel Module)
-If you run Linux, you are already cool. This is a standard ALSA kernel module.
-* **Audio:** 8x8 Channels (PCM)
-* **MIDI:** In/Out fully supported via ALSA Sequencer.
-* **Modes:** Supports both **BULK** and **INTERRUPT** transfer modes automatically.
+Ozzy provides **native kernel-mode drivers** for maximum performance and compatibility.
 
-### 🍎 macOS (HAL Plugin)
-We bypass the generic class drivers to give you raw performance.
-* **Audio:** 8x8 Channels (CoreAudio HAL).
-* **MIDI:** CoreMIDI driver utilizing a lock-free ring buffer in shared memory.
+### 🍎 macOS (Multiple Backend Options)
+Flexible architecture supporting three backend implementations:
 
-### 🍎 macOS (DriverKit Extension)
-The modern, sandboxed implementation.
-* **Audio:** Standard CoreAudio integration via `AudioDriverKit`.
-* **Security:** Runs entirely in DriverKit.
+**Current: Kernel Extension (Kext)** - *Recommended*
+* **Audio:** 8×8 channels via CoreAudio HAL
+* **MIDI:** Full CoreMIDI support with lock-free ring buffers
+* **Latency:** Sub-millisecond performance via zero-copy ring buffers
+* **Requirements:** macOS 11+, SIP modified for kext loading (`csrutil enable --without kext`)
+* **Status:** ✅ Fully implemented and stable
+
+**Planned: DriverKit Extension (Dext)**
+* Modern sandboxed system extension
+* Requires Apple entitlements for production use
+* Same performance as kext, future-proof architecture
+* **Status:** 🚧 In development (legacy prototype in `legacy/mac-coreaudio/`)
+
+**Planned: Userspace Daemon**
+* No kernel extension required
+* Works with full SIP enabled
+* Slightly higher latency but maximum compatibility
+* **Status:** 🚧 Planned
+
+All backends share the same CoreAudio HAL and CoreMIDI drivers—only the USB communication layer changes. Choose the backend that fits your security and performance requirements.
+
+**Location:** [`macos/`](macos/)
+
+### 🐧 Linux (ALSA Kernel Module)
+Standard ALSA kernel module with automatic transfer mode detection.
+* **Audio:** 8×8 channels (PCM)
+* **MIDI:** ALSA Sequencer In/Out
+* **Modes:** Automatic BULK/INTERRUPT transfer detection
+* **Integration:** Works seamlessly with JACK, PulseAudio, PipeWire
+* **Location:** [`linux/`](linux/)
+
+### 🪟 Windows
+*Coming soon.* WASAPI kernel-mode driver in development.
+
+**Why kernel mode?**  
+Non-class compliant devices need direct USB pipe access and precise timing that's only possible in kernel space. User-space solutions add latency and complexity—kernel drivers provide the clean, low-latency performance these professional devices were designed for.
 
 ---
 
 ## 💿 Installation
 
-### 🍎 macOS: Option A - HAL Plugin (Recommended)
+### 🍎 macOS
 
-This gives you the lowest latency and works **without** disabling system security.
+**Quick Install:**
+1. Open Terminal and navigate to the `macos/` directory
+2. Run: `./install.command`
+3. Enter your password when prompted
+4. Plug in your mixer
 
-1.  **Download** the latest release.
-2.  **Run the Installer:**
-    * Right-click `install-mac.command` and select **Open**.
-    * *Note:* If you double-click and get a "Developer cannot be verified" or "Permission Denied" error, go to **System Settings** -> **Privacy & Security** and look for the "Open Anyway" button near the bottom, or just right-click and Open again.
-3.  **Authenticate:** Type your password (we need `sudo` to copy files to `/Library/Audio`).
-4.  The script will:
-    * Install the drivers.
-    * Nuke the "Gatekeeper Quarantine" (Apple doesn't like fun).
-    * Restart `coreaudiod`. **(Your audio will glitch for 2 seconds. Relax.)**
-5.  Plug in your mixer. Rock on.
+The installer automatically:
+- ✅ Checks SIP configuration
+- ✅ Compiles the kernel extension
+- ✅ Builds HAL and MIDI drivers
+- ✅ Installs to system directories
+- ✅ Configures auto-loading at boot
+- ✅ Starts drivers immediately
 
-### 🍎 macOS: Option B - DriverKit (System Extension)
+**Requirements:**
+- macOS 11+ (Big Sur or later)
+- SIP modification: Run `csrutil enable --without kext` in Recovery Mode
+- Apple Developer certificate in Keychain (free Apple ID works)
 
-**⚠️ Important:** To run this extension without an official Apple entitlement, you **must** disable System Integrity Protection (SIP) and Apple Mobile File Integrity (AMFI).
+**Uninstall:** Run `macos/uninstall.command`
 
-**Prerequisites:**
-1.  Boot into **Recovery Mode** (Hold Cmd+R on Intel, or Power Button on Apple Silicon).
-2.  Open Utilities -> Terminal.
-3.  Run: `csrutil disable`
-4.  Reboot normally.
-5.  Open Terminal and run: `sudo boot-args="amfi_get_out_of_my_way=0x1"`
-6.  Reboot again.
+**Troubleshooting:** Run `macos/debuglogs.command` to collect diagnostic logs
 
-**Installation:**
-1.  **Download** the release.
-2.  **Run the Installer:**
-    * Right-click `install-mac-driverkit.command` and select **Open**.
-    * *Note:* If you double-click and get a "Developer cannot be verified" or "Permission Denied" error, go to **System Settings** -> **Privacy & Security** and look for the "Open Anyway" button near the bottom, or just right-click and Open again.
-3.  The script will copy the "Ploytec Driver Extension.app" to `/Applications` and launch it.
-4.  **Activate:** Click "Activate" in the window that appears.
-5.  **Allow:** Go to **System Settings** -> **Privacy & Security** and allow the extension.
+For detailed information, see [macos/README.md](macos/README.md)
 
-### 🐧 Linux (Power User Mode)
+### 🐧 Linux
 
 1.  Clone and build:
     ```bash
@@ -113,85 +132,129 @@ This gives you the lowest latency and works **without** disabling system securit
 
 If you are a developer or want to build the latest code, you **must** code-sign the binaries.
 
-### 1. Get a Free Signing Identity
-You do not need a paid Apple Developer program membership ($99/yr). A free Apple ID works fine.
-1.  Open **Xcode**.
-2.  Go to **Settings (Cmd+,)** -> **Accounts**.
-3.  Click the **`+`** button and add your Apple ID.
-4.  Select your Personal Team.
-5.  Click **Manage Certificates...**.
-6.  Click the **`+`** in the bottom left and select **Apple Development**.
-7.  Wait for it to say "Created". You now have a valid certificate in your Keychain.
+```bash
+cd linux
+make
+sudo make install
+sudo modprobe snd-xonedb4
+```
 
-### 2. Build & Install
-Run the build script. It will auto-detect your new certificate:
-```bash ./install-mac.command```
+**Uninstall:** Run `linux/uninstall.sh`
 
 ---
 
-## 🕵️ Troubleshooting
+## 🏗️ Architecture
 
-### 🔑 Signing & Build Issues
+### macOS Shared Memory Model
 
-**"The build script says '0 valid identities found'."**
-This is the most common error. It means `security find-identity -v -p codesigning` returns nothing, even if you added your account in Xcode.
+```
+┌─────────────────┐
+│  Audio Apps     │
+│  (Logic, etc)   │
+└────────┬────────┘
+         │ CoreAudio
+┌────────▼────────┐      Shared Memory      ┌─────────────┐
+│   OzzyHAL       │◄────────────────────────►│  OzzyKext   │
+│  (HAL Driver)   │      Ring Buffers        │   (Kernel)  │
+└─────────────────┘                          └──────┬──────┘
+                                                    │ USB
+                                             ┌──────▼──────┐
+                                             │  Hardware   │
+                                             │  (Xone:DB4) │
+                                             └─────────────┘
+```
 
-**Fix 1: The "Trust" Trap (Most Likely)**
-Did you manually change the certificate trust settings in Keychain Access?
+**Components:**
+- **OzzyKext** - Kernel extension handling USB communication
+- **OzzyHAL** - CoreAudio HAL driver for audio I/O
+- **OzzyMIDI** - CoreMIDI driver for MIDI I/O
 
-1. Open **Keychain Access**.
-2. Find your **"Apple Development: [Your Name]"** certificate.
-3. Right-click -> **Get Info**.
-4. Expand the **Trust** section.
-5. **CRITICAL:** Set everything to **"Use System Defaults"**.
-* *Why?* If you set this to "Always Trust", macOS adds a custom trust policy that breaks the codesign toolchain. It must stay on "System Defaults".
-
-**Fix 2: Missing WWDR Intermediate Certificate**
-Your certificate relies on an Apple intermediate authority. If it's missing, your cert is invalid.
-
-1. Open Keychain Access.
-2. Select "System Roots" or "Login" and look for **"Apple Worldwide Developer Relations Certification Authority"**.
-3. If missing or expired, download the [Worldwide Developer Relations - G3 (Intermediate)](https://www.apple.com/certificateauthority/) from Apple and double-click to install.
-
-### 🛠 Uninstalling
-
-* **HAL:** Run `uninstall-mac.command`.
-* **DriverKit:** Run `uninstall-mac-driverkit.command`.
-* **Linux:** Run `uninstall-linux.sh`.
-
----
-
-## 🐛 Reporting Bugs & Dropouts
-
-If you experience audio glitches, dropouts, or connection issues, we need logs to see what's happening under the hood. "It no worky!" is of no use; "Here's the log" gets my attention.
-
-**How to generate a debug log:**
-
-1.  Locate the `debuglogs-mac.command` file in the downloaded folder.
-2.  Double-click it to run.
-3.  **Wait** for it to dump the history (it grabs the last 60 minutes).
-4.  Once it says **"LIVE LOGGING STARTED"**, try to make the glitch happen again (play audio, scratch, unplug/replug).
-5.  Press `Ctrl+C` to stop.
-6.  A text file will be saved to your **Desktop** (e.g., `Ploytec_Debug_Log_2026-01-03...txt`).
-7.  **Attach this file** to your GitHub issue.
+Zero-copy architecture with lock-free ring buffers in shared memory for minimal latency.
 
 ---
 
 ## 🛠️ For Developers
 
-The **HAL Plugin** implementation in this project is a rare example of a **User-Space USB Audio Driver** on macOS that *doesn't* use DriverKit. It utilizes:
+Ozzy is designed as a **reference implementation** for supporting non-class compliant USB audio devices.
 
-1. **IOUSBLib:** For raw pipe access directly from the HAL plugin.
-2. **AudioServerPlugIn:** To talk to CoreAudio.
-3. **POSIX Shared Memory:** To tunnel MIDI data between the Audio driver and the MIDI driver.
+### Why This Matters
 
-Feel free to steal our code for your own obscure hardware projects.
+Most USB audio driver examples you'll find online are either:
+- **Class-compliant only** - They work with standard UAC devices but can't handle vendor protocols
+- **User-space hacks** - They add latency and complexity to work around kernel restrictions
+- **Closed source** - Manufacturers don't share how their protocols work
+
+Ozzy provides a **clean, open-source example** of how to:
+
+* **Reverse engineer** vendor-specific USB audio protocols
+* **Implement kernel drivers** for direct USB pipe access
+* **Build zero-copy architectures** with shared memory ring buffers
+* **Support multiple platforms** with a shared protocol layer
+
+### Architecture Highlights
+
+- **Device-agnostic core:** The audio engine (`OzzyCore`) is separated from device protocol implementations, making it easy to support additional vendors
+- **Platform-portable:** Linux and macOS implementations share the USB protocol code
+- **Performance-first:** No unnecessary data copies, context switches, or latency-inducing abstractions
+- **Lock-free design:** Ring buffers use atomic operations for thread-safe, real-time audio
+
+### Repository Structure
+
+```
+Ozzy/
+├── linux/          # Linux ALSA kernel module
+├── macos/          # macOS kext + HAL/MIDI drivers
+│   ├── OzzyCore/   # Device-agnostic audio engine
+│   ├── Devices/    # Device-specific protocol implementations
+│   └── Backends/   # Platform backends (Kext, future Dext)
+├── windows/        # Windows WASAPI driver (WIP)
+└── legacy/         # Archived experiments and old implementations
+```
+
+Whether you need to support your own legacy hardware or understand how professional audio drivers work, this codebase provides a solid foundation.
 
 ---
 
-## ☕ Fuel the Project
+## 🐛 Troubleshooting & Bug Reports
 
-If this driver saved your $2000 mixer from becoming a doorstop, consider buying me a coffee. It fuels the late-night reverse engineering sessions.
+**macOS driver won't load?**
+- Check SIP status: `csrutil status` (should show "Kext Signing: disabled")
+- View kernel logs: `sudo dmesg | grep Ozzy`
+- Collect debug logs: Run `macos/debuglogs.command`
+
+**No audio device appearing?**
+- Ensure hardware is connected
+- Restart CoreAudio: `sudo killall coreaudiod`
+- Check Audio MIDI Setup app
+
+**Linux module issues?**
+- Check kernel logs: `dmesg | grep xonedb4`
+- Verify module loaded: `lsmod | grep snd_xonedb4`
+
+**Reporting Issues:**
+When filing a bug report, please include:
+1. Platform and OS version
+2. Device model
+3. Debug logs (use `macos/debuglogs.command` on macOS)
+4. Steps to reproduce
+
+---
+
+## 📜 Legacy Implementations
+
+The [`legacy/`](legacy/) directory contains archived driver implementations:
+
+- **mac-coreaudio/** - DriverKit-based system extension (requires SIP disabled)
+- **mac-hal/** - Early user-space HAL plugin experiments
+- Old installation scripts and utilities
+
+These are kept for reference but are not actively maintained.
+
+---
+
+## ☕ Support the Project
+
+If this driver saved your mixer from the e-waste bin, consider supporting the development.
 
 <a href="https://www.buymeacoffee.com/mischa85" target="_blank">
 <img src="https://cdn.buymeacoffee.com/buttons/default-orange.png" alt="Buy Me A Coffee" height="41" width="174">
@@ -199,7 +262,8 @@ If this driver saved your $2000 mixer from becoming a doorstop, consider buying 
 
 ---
 
-## License
+## 📄 License
 
-MIT License.
-*Do whatever you want*
+MIT License. Do whatever you want with it.
+
+See [LICENSE](LICENSE) for details.
