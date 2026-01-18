@@ -79,7 +79,11 @@ void PloytecUSB::InitSharedMemory() {
 	ftruncate(mShmFd, sizeof(PloytecSharedMemory));
 	mSHM = (PloytecSharedMemory*)mmap(NULL, sizeof(PloytecSharedMemory), PROT_READ | PROT_WRITE, MAP_SHARED, mShmFd, 0);
 	memset(mSHM, 0, sizeof(PloytecSharedMemory));
-	mSHM->magic = 0x504C4F59; mSHM->version = 1; mSHM->sessionID = (uint32_t)time(NULL);
+	mSHM->magic = 0x504C4F59; mSHM->version = 1; 
+	
+	// Generate random session ID
+	mSHM->sessionID = arc4random();
+	
 	mSHM->audio.hardwarePresent.store(false);
 }
 

@@ -1,0 +1,28 @@
+# Build artifacts
+Build/
+*.o
+*.kext
+*.driver
+*.plugin
+
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Xcode
+*.xcuserdata
+*.xcuserdatad
+xcuserdata/
+DerivedData/
+*.xcworkspace/xcuserdata/
+
+# Temporary files
+*.swp
+*.swo
+*~
+.*.sw?
+
+# Log files
+*.log
+/tmp/

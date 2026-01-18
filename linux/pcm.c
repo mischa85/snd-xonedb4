@@ -4,7 +4,7 @@
 #include "pcm.h"
 #include "chip.h"
 #include "midi.h"
-#include "../common/ploytec.h"
+#include "../legacy/common/ploytec.h"
 
 #define PCM_OUT_EP						5
 #define PCM_IN_EP						6

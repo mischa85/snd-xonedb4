@@ -1,36 +1,6 @@
 #!/bin/bash
 set -e
 
-# ==========================================
-#  Ozzy Audio Engine: Build & Install
-#  (Ozzy Daemon + HAL Plugin + MIDI Plugin)
-# ==========================================
-
-DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
-cd "$DIR"
-
-# Conflict Check
-if [ -d "/Applications/Ploytec Driver Extension.app" ]; then
-    clear
-    echo "====================================================="
-    echo "❌ CONFLICT DETECTED"
-    echo "====================================================="
-    echo "You have the DriverKit App installed at:"
-    echo "  /Applications/Ploytec Driver Extension.app"
-    echo ""
-    echo "You cannot have both. Please delete the app from Applications"
-    echo "and reboot before installing the HAL driver."
-    echo ""
-    read -p "Press [Enter] to exit..."
-    exit 1
-fi
-
-clear
-echo "====================================================="
-echo "      Ploytec Audio Engine: Build & Install"
-echo "====================================================="
-echo ""
-
 # --- 1. Identity Detection ---
 echo "🔍 Finding Apple Developer Identity..."
 IDENTITY_LINE="$(security find-identity -v -p codesigning | grep "Apple Development" | head -n 1)"
@@ -47,25 +17,6 @@ else
     exit 1
 fi
 echo ""
-
-# --- 2. Build Daemon (Ozzy) ---
-echo "🔥 Compiling Ozzy Daemon..."
-SRC_DAEMON="mac-hal/Ozzy/Ozzy.cpp"
-SRC_DRIVER="mac-hal/Ozzy/PloytecUSB.cpp"
-BIN_DAEMON="$DIR/build/Release/Ozzy"
-
-mkdir -p "$DIR/build/Release"
-
-clang++ -o "$BIN_DAEMON" "$SRC_DAEMON" "$SRC_DRIVER" \
-    -framework CoreFoundation \
-    -framework IOKit \
-    -std=c++17 -O3 \
-    -Wno-deprecated-declarations
-
-if [ ! -f "$BIN_DAEMON" ]; then
-    echo "❌ Daemon compilation failed."
-    exit 1
-fi
 
 # --- 3. Build Audio & MIDI Plugins ---
 echo "🏗️  Building OzzyHAL (HAL)..."

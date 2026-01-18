@@ -1,0 +1,37 @@
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+*.swp
+
+# Build artifacts
+Build/
+build/
+*.o
+*.a
+*.so
+*.dylib
+*.kext
+*.dSYM/
+*.sdk/
+
+# Xcode
+xcuserdata/
+*.xcworkspace/xcuserdata/
+DerivedData/
+*.moved-aside
+*.pbxuser
+!default.pbxuser
+*.mode1v3
+!default.mode1v3
+*.mode2v3
+!default.mode2v3
+*.perspectivev3
+!default.perspectivev3
+
+# IDE
+.vscode/
+.idea/
+
+# Logs
+*.log

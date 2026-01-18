@@ -1,9 +1,25 @@
 #ifndef PloytecSharedData_h
 #define PloytecSharedData_h
 
-#include <atomic>
-#include <cstdint>
+#include <stdint.h>
 
+// --- KERNEL COMPATIBILITY SHIM ---
+// The Kernel does not have <atomic>. We map std::atomic to volatile 
+// to preserve the memory layout and binary compatibility with User Space.
+#ifdef KERNEL
+    typedef volatile uint32_t AtomicU32;
+    typedef volatile uint64_t AtomicU64;
+    typedef volatile bool     AtomicBool;
+    #define CACHE_ALIGN __attribute__((aligned(64)))
+#else
+    #include <atomic>
+    typedef std::atomic<uint32_t> AtomicU32;
+    typedef std::atomic<uint64_t> AtomicU64;
+    typedef std::atomic<bool>     AtomicBool;
+    #define CACHE_ALIGN alignas(64)
+#endif
+
+// --- YOUR CONTRACT ---
 #define kPloytecVendorID            0x0A4A
 #define kPloytecPID_DB4             0xFFDB
 #define kPloytecPID_DB2             0xFFD2
@@ -23,28 +39,26 @@
 #define kPacketMask                 (kNumPackets - 1)
 #define kZeroTimestampPeriod        640
 
-static constexpr uint8_t kPcmOutEp = 0x05;
-static constexpr uint8_t kPcmInEp = 0x86;
-static constexpr uint8_t kMidiInEp = 0x83;
-static constexpr uint32_t kDefaultUrbs = 2;
-
-#define CACHE_ALIGN alignas(64)
+static const uint8_t kPcmOutEp = 0x05;
+static const uint8_t kPcmInEp = 0x86;
+static const uint8_t kMidiInEp = 0x83;
+static const uint32_t kDefaultUrbs = 2;
 
 struct AudioRingBuffer {
-	std::atomic<bool> hardwarePresent;
-	std::atomic<bool> driverReady;
-	std::atomic<uint32_t> sampleRate;
-	std::atomic<bool> isBulkMode;
+	AtomicBool hardwarePresent;
+	AtomicBool driverReady;
+	AtomicU32  sampleRate;
+	AtomicBool isBulkMode;
 
 	struct {
-		std::atomic<uint32_t> sequence; 
-		std::atomic<uint64_t> sampleTime; 
-		std::atomic<uint64_t> hostTime;   
+		AtomicU32 sequence; 
+		AtomicU64 sampleTime; 
+		AtomicU64 hostTime;   
 	} timestamp;
 
 	uint8_t _pad1[64]; 
 
-	CACHE_ALIGN std::atomic<uint64_t> halWritePosition;
+	CACHE_ALIGN AtomicU64 halWritePosition;
 	
 	uint8_t _pad2[64];
 
@@ -53,9 +67,9 @@ struct AudioRingBuffer {
 };
 
 struct MidiRingBuffer {
-	CACHE_ALIGN std::atomic<uint32_t> writeIndex;
+	CACHE_ALIGN AtomicU32 writeIndex;
 	uint8_t _pad1[64];
-	CACHE_ALIGN std::atomic<uint32_t> readIndex;
+	CACHE_ALIGN AtomicU32 readIndex;
 	uint8_t _pad2[64];
 	uint8_t buffer[kMidiRingSize];
 };
@@ -65,7 +79,12 @@ struct PloytecSharedMemory {
 	uint32_t version;
 	uint32_t sessionID; 
 
-	std::atomic<uint32_t> heartbeat { 0 };
+	// Kernel cannot use C++ initializers like { 0 }
+#ifdef KERNEL
+	AtomicU32 heartbeat;
+#else
+	AtomicU32 heartbeat { 0 };
+#endif
 
 	char manufacturerName[64];
 	char productName[64];
