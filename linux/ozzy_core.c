@@ -23,6 +23,7 @@
 #include "ozzy_pcm.h"
 #include "ozzy_midi.h"
 #include "devices/ploytec.h"
+#include "devices/reloop_dj2.h"
 
 MODULE_AUTHOR("Marcel Bierling <marcel@hackerman.art>");
 MODULE_DESCRIPTION("Ozzy USB Audio Driver");
@@ -48,12 +49,18 @@ static const struct ozzy_device_desc ploytec_desc = {
 	.ops  = &ploytec_ops,
 };
 
+static const struct ozzy_device_desc reloop_dj2_desc = {
+	.info = &reloop_dj2_info,
+	.ops  = &reloop_dj2_ops,
+};
+
 static const struct usb_device_id ozzy_id_table[] = {
 	{ USB_DEVICE(0x0a4a, 0xffdb), .driver_info = (kernel_ulong_t)&ploytec_desc }, /* Xone:DB4 */
 	{ USB_DEVICE(0x0a4a, 0xffd2), .driver_info = (kernel_ulong_t)&ploytec_desc }, /* Xone:DB2 */
 	{ USB_DEVICE(0x0a4a, 0xffdd), .driver_info = (kernel_ulong_t)&ploytec_desc }, /* Xone:DX */
 	{ USB_DEVICE(0x0a4a, 0xff4d), .driver_info = (kernel_ulong_t)&ploytec_desc }, /* Xone:4D */
 	{ USB_DEVICE(0x0a4a, 0xffad), .driver_info = (kernel_ulong_t)&ploytec_desc }, /* Wizard 4 */
+	{ USB_DEVICE(0x200c, 0x1009), .driver_info = (kernel_ulong_t)&reloop_dj2_desc }, /* Reloop Digital Jockey 2 Master Edition */
 	{}
 };
 MODULE_DEVICE_TABLE(usb, ozzy_id_table);
@@ -104,7 +111,6 @@ static int ozzy_probe(struct usb_interface *intf,
 			desc->info->alt_setting);
 		return -EIO;
 	}
-
 	/* Find a free card slot */
 	mutex_lock(&register_mutex);
 	for (i = 0; i < SNDRV_CARDS; i++) {
