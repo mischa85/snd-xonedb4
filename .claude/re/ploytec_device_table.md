@@ -65,13 +65,51 @@ The `setFrequency` function retries the SET_CUR request up to 200 times for thes
 |---------|-------------|-------|
 | 0x0019  | ?           | `setFreqOnOutPipe` support only |
 
-## VID 0x200C (unknown vendor)
+## VID 0x200C (Reloop / Hanpin)
 
-| USB PID | Device Name | Notes |
-|---------|-------------|-------|
-| 0x1007–0x1027 | ? | Range with bitmask in `setFreqOnOutPipe` |
-| 0x1019  | ?           | Returns early from `updateAjInputSelector` with status 0x12 |
-| 0x1030  | ?           | Uses SET_INTERFACE (bRequest 0x0B) in `configurationDone` |
+| USB PID | Device Name | Channels | Rate | Notes |
+|---------|-------------|----------|------|-------|
+| 0x1005  | ?           | 4 in / 4 out | 96000 | From `findInterfacesInConfig` fallback table |
+| 0x1006  | ?           | 6 in / 6 out | 44100 | HS=6in+6out, FS=2in+2out |
+| 0x1009  | **Reloop Digital Jockey 2 Master Edition** | **6 in / 4 out** | **44100** | Confirmed on hardware, see below |
+| 0x1019  | ?           | 6 in / 4 out | 44100 | Same config block as 0x1009. Returns early from `updateAjInputSelector` with status 0x12 |
+| 0x1037  | ?           | 6 in / 4 out | 44100 | Same config block as 0x1009 |
+| 0x100A  | ?           | 2 in / 10 out | 44100 | |
+| 0x103E  | ?           | 4 in / 4 out | 44100 | 16-bit (`0x10`), not 24 |
+| 0x1007–0x1027 | ? | | | Range with bitmask in `setFreqOnOutPipe` |
+| 0x1030  | ?           | | | Uses SET_INTERFACE (bRequest 0x0B) in `configurationDone` |
+
+### 0x1009 — Reloop Digital Jockey 2 ME (confirmed on hardware)
+
+Supported in Ozzy via `linux/devices/reloop_dj2.c`.
+
+- **6 in / 4 out, 24-bit, 44100 Hz only.** Every 200c:1009 branch in
+  `findInterfacesInConfig` hardcodes `0xAC44`; only the sibling 0x1005 gets
+  96 kHz. Running this DAC at 96 kHz audibly distorts playback, so the rate
+  list is restricted to a single entry.
+- **Bulk transport**, standard Ploytec framing: EP 0x05 out, 0x86 in,
+  0x83 MIDI in. 48-byte bit-interleaved wire frames, MIDI embedded one
+  byte per sub-packet at offset 480 with 0xFF sync at 481.
+- **USB pacing is NOT required** (earlier belief retracted). 25+ userspace
+  iterations with no delay anywhere — between the two alt-setting changes,
+  before the first control request, or between handshake requests — all
+  completed cleanly, in either SET_CUR order. The one kernel probe that hung
+  the machine ran with an invalid `clear_halt` on the isochronous endpoint
+  0x02 and a 96 kHz default rate, both since fixed; those are the likely
+  cause. The driver keeps a short precautionary delay inside its own init
+  path only, costing ~1 s at probe and touching no shared code.
+- **Capture channel map** (matches the manual's "Input Routing"), verified
+  by loopback: in 0/1 = Line In 1, in 2/3 = Line In 2, in 4/5 = Mic,
+  in 6/7 = unused/silent.
+- **MIDI output requires explicit status bytes.** The firmware silently
+  ignores messages sent with MIDI running status. Mixxx emits one 0x90 and
+  then dozens of bare note/velocity pairs; confirmed by logging the
+  outbound stream (149 bytes, exactly one status byte). Symptom is MIDI
+  input working perfectly while no LED ever lights. The driver reassembles
+  running-status messages before embedding them.
+- Analogue channel strips only reach the digital side when the front-panel
+  MIDI/Phono-Line switch is in the MIDI position; in Phono/Line the fader,
+  gain and EQ stay in the analogue path and emit no MIDI.
 
 ## Creative Technology (VID 0x041E)
 

@@ -9,7 +9,8 @@ Ozzy fixes that.
 This is an open-source, reverse-engineered driver supporting non-class compliant USB audio interfaces—high-end DJ mixers and audio processors that were left behind when official driver support ended.
 
 **Currently Supported Devices:**
-* **Allen & Heath Xone:DB4, DB2, DX, 4D** (Ploytec-based protocol)
+* **Allen & Heath Xone:DB4, DB2, DX, 4D, Wizard 4** (Ploytec-based protocol)
+* **Reloop Digital Jockey 2 Master Edition** (same Ploytec protocol, DJ controller with integrated 6-in/4-out audio interface)
 
 More devices can be added—the architecture separates the audio engine from device protocols.
 
@@ -38,6 +39,8 @@ Ozzy reverses the protocol and provides modern drivers—so your equipment keeps
 | **Allen & Heath Xone:DB2** | 8×8 | 44.1/48/88.2/96 kHz | ✅ Perfect |
 | **Allen & Heath Xone:DX** | 8×8 | 44.1/48/88.2/96 kHz | ✅ Perfect |
 | **Allen & Heath Xone:4D** | 8×8 | 44.1/48/88.2/96 kHz | ✅ Perfect |
+| **Allen & Heath Wizard 4** | 8×8 | 44.1/48/88.2/96 kHz | ✅ Perfect |
+| **Reloop Digital Jockey 2 ME** | 6×4 | 44.1 kHz | ✅ Perfect (audio, MIDI in/out, LEDs) |
 
 ---
 

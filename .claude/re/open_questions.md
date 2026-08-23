@@ -2,6 +2,22 @@
 
 ## Open Questions
 
+### Interrupt output path has the same half-packet bug as bulk (UNFIXED)
+`ploytec_int_subpackets[]` covers 40 frames / 1928 bytes, but
+`PLOYTEC_INT_OUT_PKT_SIZE` is 3856 (= 2 x 1928) and
+`ploytec_process_out_int()` reports `PLOYTEC_FRAMES_PER_PKT` (80) frames
+consumed per packet. So half of every interrupt packet's audio is pulled
+from the ALSA ring and dropped, exactly as the bulk path did before it was
+fixed. Affects Xone:DB4 on firmware 1.4.1+ (which exposes interrupt
+endpoints instead of bulk).
+
+The layout repeats every 1928 bytes / 40 frames, so the fix is mechanical:
+duplicate the five groups and four MIDI slots at +1928 bytes / +40 frames
+and bump `PLOYTEC_INT_NUM_SUBPACKETS` to 10 and
+`PLOYTEC_INT_NUM_MIDI_SLOTS` to 8. Left undone because no interrupt-mode
+hardware was available to verify it.
+
+
 ### Sample rate change: 5-call dance vs official driver
 Our driver sends SET_CUR 5 times alternating 0x86/0x05 (from Windows USB capture). The official
 macOS driver only calls `setFrequency` once per pipe (2 total: input + output). The 5-call
@@ -27,6 +43,23 @@ license/anti-clone check. Not relevant to our driver but interesting.
 related to level metering or some control protocol. Has its own pipe assignment via `AJ::assignPipes`.
 
 ## Resolved (moved from questions)
+
+- ~~Junction encoder vs our bit-interleaved codec~~ — The bit-interleaved
+  codec in `ploytec_codec.c` is correct for bulk devices. Confirmed by
+  playing tones through a Reloop DJ2 ME (200c:1009) from userspace: plain
+  3-byte packing produces noise, the bit-interleaved 48-byte frame produces
+  a clean tone. The `pcmTo24Junction*` encoders belong to the **isoc** path
+  (`chooseISOOutEncoder`), which bulk devices never execute — an easy trap
+  when reading the Windows driver.
+- ~~Bulk output packet coverage~~ — `ploytec_bulk_subpackets[]` and
+  `ploytec_bulk_midi_slots[]` only described 4 sub-packets (40 frames /
+  2048 bytes) while `PLOYTEC_FRAMES_PER_PKT` is 80 and
+  `PLOYTEC_BULK_OUT_PKT_SIZE` is 4096. `ploytec_process_out_bulk()` reported
+  80 frames consumed per packet, so half of every packet's audio was pulled
+  from the ALSA ring and silently dropped, and bytes 2048-4095 were never
+  filled. Heard as broadband distortion at all frequencies. Both tables now
+  cover all 8 sub-packets. **This affected the Xone devices too, not just
+  the Reloop.**
 
 - ~~Vendor request 'A'~~ — Now understood: ESU clock config (wIndex=0x101) and Wolfson codec (wIndex=0x102/0x106)
 - ~~Index 2 digital output selector~~ — Write-only, `AjExtData[4] & 0xFFFF`, only for devices with `this[0x7AC]`
