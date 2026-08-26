@@ -79,8 +79,8 @@ jobs:
             printf 'runner=%s\n' "${{ matrix.runner }}"
             printf 'header_package=%s\n' "${{ matrix.headers }}"
             printf 'kernel_dir=%s\n' "${{ steps.kernel.outputs.kernel-dir }}"
-            gcc --version | head -n 1
-            make --version | head -n 1
+            gcc --version | sed -n '1p'
+            make --version | sed -n '1p'
             dpkg-query -W -f='${Package}=${Version}\n' "${{ matrix.headers }}"
             make -C linux ci KERNELDIR="${{ steps.kernel.outputs.kernel-dir }}"
           } 2>&1 | tee artifacts/build.log
