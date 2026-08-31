@@ -181,58 +181,76 @@ struct ploytec_midi_slot {
 };
 
 /*
- * Bulk output packet layout (2048 bytes total):
- *   4 groups of 10 frames (480 bytes) + 32-byte gap (1 MIDI + 1 sync + 30 pad)
+ * Bulk output packet layout (4096 bytes total):
+ *   8 groups of 10 frames (480 bytes each), each followed by a 32-byte gap
+ *   (1 MIDI + 1 sync + 30 pad). One group + gap = 512 bytes; 8 * 512 = 4096.
+ *
  *   Group 0: frames  0-9  at offset 0
  *   Group 1: frames 10-19 at offset 512
  *   Group 2: frames 20-29 at offset 1024
  *   Group 3: frames 30-39 at offset 1536
+ *   Group 4: frames 40-49 at offset 2048
+ *   Group 5: frames 50-59 at offset 2560
+ *   Group 6: frames 60-69 at offset 3072
+ *   Group 7: frames 70-79 at offset 3584
  */
 static const struct ploytec_subpacket ploytec_bulk_subpackets[] = {
 	{ .start_frame =  0, .frame_count = 10, .byte_offset = 0 },
 	{ .start_frame = 10, .frame_count = 10, .byte_offset = 512 },
 	{ .start_frame = 20, .frame_count = 10, .byte_offset = 1024 },
 	{ .start_frame = 30, .frame_count = 10, .byte_offset = 1536 },
+	{ .start_frame = 40, .frame_count = 10, .byte_offset = 2048 },
+	{ .start_frame = 50, .frame_count = 10, .byte_offset = 2560 },
+	{ .start_frame = 60, .frame_count = 10, .byte_offset = 3072 },
+	{ .start_frame = 70, .frame_count = 10, .byte_offset = 3584 },
 };
 
 /*
- * Interrupt output packet layout (1928 bytes total):
- *   5 groups with 2-byte MIDI gaps between them
- *   Group 0: frames  0-8  (9 frames, 432 bytes) at offset 0
- *   Group 1: frames  9-18 (10 frames) at offset 434
- *   Group 2: frames 19-28 (10 frames) at offset 916
- *   Group 3: frames 29-38 (10 frames) at offset 1398
- *   Group 4: frame  39    (1 frame)   at offset 1880
+ * Interrupt output packet layout (4096 bytes total):
+ *   Identical wire format to bulk -- confirmed by Windows USB capture on Xone:DB2.
+ *   8 groups of 10 contiguous frames (480 bytes), each followed by [2 MIDI][30 pad].
+ *   Difference vs bulk: MIDI slot is 2 bytes (no separate sync byte at offset 481).
  */
 static const struct ploytec_subpacket ploytec_int_subpackets[] = {
-	{ .start_frame =  0, .frame_count =  9, .byte_offset = 0 },
-	{ .start_frame =  9, .frame_count = 10, .byte_offset = 434 },
-	{ .start_frame = 19, .frame_count = 10, .byte_offset = 916 },
-	{ .start_frame = 29, .frame_count = 10, .byte_offset = 1398 },
-	{ .start_frame = 39, .frame_count =  1, .byte_offset = 1880 },
+	{ .start_frame =  0, .frame_count = 10, .byte_offset = 0 },
+	{ .start_frame = 10, .frame_count = 10, .byte_offset = 512 },
+	{ .start_frame = 20, .frame_count = 10, .byte_offset = 1024 },
+	{ .start_frame = 30, .frame_count = 10, .byte_offset = 1536 },
+	{ .start_frame = 40, .frame_count = 10, .byte_offset = 2048 },
+	{ .start_frame = 50, .frame_count = 10, .byte_offset = 2560 },
+	{ .start_frame = 60, .frame_count = 10, .byte_offset = 3072 },
+	{ .start_frame = 70, .frame_count = 10, .byte_offset = 3584 },
 };
 
-#define PLOYTEC_BULK_NUM_SUBPACKETS  4
-#define PLOYTEC_INT_NUM_SUBPACKETS   5
+#define PLOYTEC_BULK_NUM_SUBPACKETS  8
+#define PLOYTEC_INT_NUM_SUBPACKETS   8
 
-/* Bulk MIDI slots: 1 byte each, after each 10-frame group */
+/* Bulk MIDI slots: 1 byte each, at offset 480 within every 512-byte sub-packet */
 static const struct ploytec_midi_slot ploytec_bulk_midi_slots[] = {
 	{ .offset = 480,  .num_bytes = 1 },
 	{ .offset = 992,  .num_bytes = 1 },
 	{ .offset = 1504, .num_bytes = 1 },
 	{ .offset = 2016, .num_bytes = 1 },
+	{ .offset = 2528, .num_bytes = 1 },
+	{ .offset = 3040, .num_bytes = 1 },
+	{ .offset = 3552, .num_bytes = 1 },
+	{ .offset = 4064, .num_bytes = 1 },
 };
 
-/* Interrupt MIDI slots: 2 bytes each, between frame groups */
+/* Interrupt MIDI slots: 2 bytes each, at offset 480 within every 512-byte sub-packet */
 static const struct ploytec_midi_slot ploytec_int_midi_slots[] = {
-	{ .offset = 432,  .num_bytes = 2 },
-	{ .offset = 914,  .num_bytes = 2 },
-	{ .offset = 1396, .num_bytes = 2 },
-	{ .offset = 1878, .num_bytes = 2 },
+	{ .offset = 480,  .num_bytes = 2 },
+	{ .offset = 992,  .num_bytes = 2 },
+	{ .offset = 1504, .num_bytes = 2 },
+	{ .offset = 2016, .num_bytes = 2 },
+	{ .offset = 2528, .num_bytes = 2 },
+	{ .offset = 3040, .num_bytes = 2 },
+	{ .offset = 3552, .num_bytes = 2 },
+	{ .offset = 4064, .num_bytes = 2 },
 };
 
-#define PLOYTEC_BULK_NUM_MIDI_SLOTS  4
-#define PLOYTEC_INT_NUM_MIDI_SLOTS   4
+#define PLOYTEC_BULK_NUM_MIDI_SLOTS  8
+#define PLOYTEC_INT_NUM_MIDI_SLOTS   8
 
 
 /* ========================================================================

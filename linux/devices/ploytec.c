@@ -45,8 +45,32 @@ struct ploytec_private {
 	unsigned char xfer_buf[16];     /* reusable DMA-safe buffer for vendor requests */
 };
 
-/* Supported sample rates */
+/* Supported sample rates (generic) */
 static const unsigned int ploytec_rates[] = { 44100, 48000, 88200, 96000 };
+
+/*
+ * Xone:DB2 supports only 48 kHz.
+ *
+ * The DB2's DAC physically runs at 48 kHz regardless of what rate is
+ * negotiated over USB -- sending 96 kHz causes the device to acknowledge
+ * the rate at the USB level but play back at half-speed. Confirmed by
+ * USB capture of the Windows driver, which always sets 48 kHz on the DB2.
+ */
+static const unsigned int ploytec_db2_rates[] = { 48000 };
+
+/*
+ * SET_CUR endpoint sequence captured from the Windows driver:
+ *   IN, OUT, IN, OUT, IN, OUT, IN  (4x EP 0x86, 3x EP 0x05).
+ * The full 7-call sequence is required for the device PLL to lock on
+ * the Xone:DB2. The previous 2-call version worked by coincidence on
+ * other Ploytec models but produced silence on the DB2.
+ */
+static const u16 ploytec_set_rate_ep_seq[7] = {
+	PLOYTEC_EP_RATE_IN,  PLOYTEC_EP_RATE_OUT,
+	PLOYTEC_EP_RATE_IN,  PLOYTEC_EP_RATE_OUT,
+	PLOYTEC_EP_RATE_IN,  PLOYTEC_EP_RATE_OUT,
+	PLOYTEC_EP_RATE_IN,
+};
 
 /* Forward declarations */
 static int ploytec_set_rate(struct ozzy_chip *chip, unsigned int rate_index);
@@ -139,8 +163,17 @@ static int ploytec_get_rate(struct ozzy_chip *chip)
 		}
 	}
 
-	ploytec_err(&chip->dev->dev, "unsupported sample rate: %u Hz\n", rate);
-	return -EINVAL;
+	/*
+	 * Rate not in supported table -- this is informational, not an error.
+	 * The DB2 boots at 44100 Hz but only supports 48000 Hz in our table;
+	 * the next handshake step (SET_CUR) will switch the device to a
+	 * supported rate. Mirrors the macOS driver, which never fails the
+	 * handshake on the initial GET_CUR readout.
+	 */
+	ploytec_log(&chip->dev->dev,
+		    "current rate %u Hz not in supported list (will be changed by SET_CUR)\n",
+		    rate);
+	return 0;
 }
 
 /*
@@ -255,14 +288,17 @@ static void ploytec_free(struct ozzy_chip *chip)
 
 /*
  * ploytec_set_rate - Set the hardware sample rate via vendor requests.
- * Converts the rate to 3 little-endian bytes and sends SET_CUR to both
- * the input (0x86) and output (0x05) endpoints.
+ *
+ * Sends 7 SET_CUR calls alternating between the IN (0x86) and OUT (0x05)
+ * endpoints. Required for the device PLL to lock; see the comment on
+ * ploytec_set_rate_ep_seq above.
  */
 static int ploytec_set_rate(struct ozzy_chip *chip, unsigned int rate_index)
 {
 	struct ploytec_private *priv = chip->private_data;
 	unsigned int rate;
 	int ret;
+	int i;
 
 	if (rate_index >= chip->info->num_rates)
 		return -EINVAL;
@@ -270,20 +306,26 @@ static int ploytec_set_rate(struct ozzy_chip *chip, unsigned int rate_index)
 	rate = chip->info->rates[rate_index];
 	ploytec_encode_rate(rate, priv->xfer_buf);
 
-	ret = usb_control_msg(chip->dev, usb_sndctrlpipe(chip->dev, 0),
-			      PLOYTEC_CMD_SET_RATE_REQ, PLOYTEC_CMD_SET_RATE_TYPE,
-			      0x0100, PLOYTEC_EP_RATE_IN, priv->xfer_buf, 3, 2000);
-	if (ret < 0) return ret;
-
-	ret = usb_control_msg(chip->dev, usb_sndctrlpipe(chip->dev, 0),
-			      PLOYTEC_CMD_SET_RATE_REQ, PLOYTEC_CMD_SET_RATE_TYPE,
-			      0x0100, PLOYTEC_EP_RATE_OUT, priv->xfer_buf, 3, 2000);
-	if (ret < 0) return ret;
+	for (i = 0; i < 7; i++) {
+		ret = usb_control_msg(chip->dev,
+				      usb_sndctrlpipe(chip->dev, 0),
+				      PLOYTEC_CMD_SET_RATE_REQ,
+				      PLOYTEC_CMD_SET_RATE_TYPE,
+				      0x0100,
+				      ploytec_set_rate_ep_seq[i],
+				      priv->xfer_buf, 3, 2000);
+		if (ret < 0) {
+			ploytec_err(&chip->dev->dev,
+				    "SET_CUR failed at step %d/7 (wIndex=0x%04X, ret=%d)\n",
+				    i + 1, ploytec_set_rate_ep_seq[i], ret);
+			return ret;
+		}
+	}
 
 	chip->current_rate = rate_index;
 
 	ploytec_log(&chip->dev->dev,
-		    "sample rate set: %u Hz (raw: %02X %02X %02X)\n",
+		    "sample rate set: %u Hz (raw: %02X %02X %02X, 7x SET_CUR sequence)\n",
 		    rate, priv->xfer_buf[0], priv->xfer_buf[1], priv->xfer_buf[2]);
 
 	return 0;
@@ -531,6 +573,33 @@ const struct ozzy_device_info ploytec_info = {
 	.rates_mask            = SNDRV_PCM_RATE_44100 | SNDRV_PCM_RATE_48000 | SNDRV_PCM_RATE_88200 | SNDRV_PCM_RATE_96000,
 	.rate_min              = 44100,
 	.rate_max              = 96000,
+};
+
+/*
+ * Xone:DB2 device info -- identical to ploytec_info except the rates table
+ * is restricted to 48 kHz only. See ploytec_db2_rates above for the reason.
+ */
+const struct ozzy_device_info ploytec_db2_info = {
+	.name                  = "Ploytec Xone:DB2",
+	.playback_channels     = PLOYTEC_CHANNELS,
+	.capture_channels      = PLOYTEC_CHANNELS,
+	.out_packet_size       = PLOYTEC_BULK_OUT_PKT_SIZE,
+	.in_packet_size        = PLOYTEC_IN_PKT_SIZE,
+	.frames_per_out_packet = PLOYTEC_FRAMES_PER_PKT,
+	.frames_per_in_packet  = PLOYTEC_FRAMES_PER_PKT,
+	.out_ep                = PLOYTEC_EP_PCM_OUT,
+	.in_ep                 = PLOYTEC_EP_PCM_IN,
+	.alsa_format           = SNDRV_PCM_FMTBIT_S24_3LE,
+	.bytes_per_sample      = 3,
+	.midi_in_ep            = PLOYTEC_EP_MIDI_IN,
+	.midi_out_embedded     = true,
+	.num_interfaces        = PLOYTEC_NUM_INTERFACES,
+	.alt_setting           = PLOYTEC_ALT_SETTING,
+	.rates                 = ploytec_db2_rates,
+	.num_rates             = ARRAY_SIZE(ploytec_db2_rates),
+	.rates_mask            = SNDRV_PCM_RATE_48000,
+	.rate_min              = 48000,
+	.rate_max              = 48000,
 };
 
 const struct ozzy_device_ops ploytec_ops = {

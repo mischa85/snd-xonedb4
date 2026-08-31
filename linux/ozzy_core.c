@@ -48,12 +48,21 @@ static const struct ozzy_device_desc ploytec_desc = {
 	.ops  = &ploytec_ops,
 };
 
+/*
+ * Xone:DB2 uses the same Ploytec ops but a restricted device info
+ * (48 kHz only) -- see ploytec_db2_info in devices/ploytec.c for why.
+ */
+static const struct ozzy_device_desc ploytec_db2_desc = {
+	.info = &ploytec_db2_info,
+	.ops  = &ploytec_ops,
+};
+
 static const struct usb_device_id ozzy_id_table[] = {
-	{ USB_DEVICE(0x0a4a, 0xffdb), .driver_info = (kernel_ulong_t)&ploytec_desc }, /* Xone:DB4 */
-	{ USB_DEVICE(0x0a4a, 0xffd2), .driver_info = (kernel_ulong_t)&ploytec_desc }, /* Xone:DB2 */
-	{ USB_DEVICE(0x0a4a, 0xffdd), .driver_info = (kernel_ulong_t)&ploytec_desc }, /* Xone:DX */
-	{ USB_DEVICE(0x0a4a, 0xff4d), .driver_info = (kernel_ulong_t)&ploytec_desc }, /* Xone:4D */
-	{ USB_DEVICE(0x0a4a, 0xffad), .driver_info = (kernel_ulong_t)&ploytec_desc }, /* Wizard 4 */
+	{ USB_DEVICE(0x0a4a, 0xffdb), .driver_info = (kernel_ulong_t)&ploytec_desc },     /* Xone:DB4 */
+	{ USB_DEVICE(0x0a4a, 0xffd2), .driver_info = (kernel_ulong_t)&ploytec_db2_desc }, /* Xone:DB2 */
+	{ USB_DEVICE(0x0a4a, 0xffdd), .driver_info = (kernel_ulong_t)&ploytec_desc },     /* Xone:DX */
+	{ USB_DEVICE(0x0a4a, 0xff4d), .driver_info = (kernel_ulong_t)&ploytec_desc },     /* Xone:4D */
+	{ USB_DEVICE(0x0a4a, 0xffad), .driver_info = (kernel_ulong_t)&ploytec_desc },     /* Wizard 4 */
 	{}
 };
 MODULE_DEVICE_TABLE(usb, ozzy_id_table);
